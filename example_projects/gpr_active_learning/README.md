@@ -1,7 +1,38 @@
 # GP Models Utilizing Derivative Information and Active Learning
 
-The notebooks contained here provide a set of tutorials for using the Gaussian Process Regression (GPR) modeling capabilities found in the {mod}`thermoextrap.gpr_active` module.
-For all of the code an analysis necessary to reproduce the paper associated with the development of this module, please see the "example_projects" directory.
+All of the scripts and notebooks contained here make use of the
+{mod}`thermoextrap.gpr_active` module of {mod}`thermoextrap`. The code contained
+here and in {mod}`thermoextrap.gpr_active` was developed as part of the a
+publication that will soon be submitted. Commit
+91d905b934e290a4b775e098a9230371decc5ae3 (release NUMBER) is the stable version
+of the code used in that paper. The code from that commit should be seen as a
+preliminary version, with updates currently in progress. That being said, this
+page describes the basic organization and functionality of the
+{mod}`thermoextrap.gpr_active` module. We will do our best to keep this and
+related tutorial notebooks updated as we develop the code further, but stay
+tuned as major changes are possible.
+
+## Requirements and Dependencies
+
+For the core tools in {mod}`thermoextrap.gpr_active`, the key dependencies are
+[sympy] and [GPflow], which are installed with with {mod}`thermoextrap`. Due to
+signicant changes in how [GPflow] handles likelihoods and custom models, we
+currently require the [GPflow] version to be less then 2.6.0. Plans to ensure
+compatibility with newer versions of [GPflow] are underway.
+
+For everything in the upcoming publication, though, the molecular simulation
+packages [OpenMM], [FEASST], and [CASSANDRA], are also required. That means
+these packages also need to be installed to run the scripts and notebooks found
+here. An environment file that can be used to install a similar environment to
+that used in the paper is available as
+[environment_active.yml][environment-link]. To install this with conda, use:
+
+```bash
+`conda env create --file environment_active.yml
+```
+
+After activating the environment, following the directions for installing
+{mod}`thermoextrap` and [FEASST].
 
 ## Gaussian Process Models
 
@@ -50,3 +81,7 @@ situations.
 
 [Gpflow]: https://gpflow.github.io/GPflow/2.7.1/index.html
 [sympy]: https://www.sympy.org/en/index.html
+[OpenMM]: https://openmm.org/
+[FEASST]: https://pages.nist.gov/feasst/
+[CASSANDRA]: https://cassandra.nd.edu/
+[environment-link]: https://github.com/usnistgov/thermo-extrap/blob/master/docs/notebooks/gpr/environment_active.yml
