@@ -1,0 +1,80 @@
+N_MIN                 N_MAX                 N_B
+   0                   154
+ 
+n_types               n_dim 
+ 2                      3
+ 
+k_B T/eps_lj
+ 0.12500E+01
+ 
+RUN_PREFIX: 
+t125.h090_l10.ew_50.r2.001.
+ 
+RHOPROF_PREFIX
+t125.h090_l10.ew_50.r2.
+ 
+seed                  output_freq
+  2                    1000000
+ 
+prob_dsp              p_rot
+ 0.3000000E+00         0.0000000E+00
+ 
+prob_avb              prob_avb_ins
+ 0.4000000E+00         0.4000000E+00
+ 
+prob_gca
+ 0.0000000E+00
+ 
+max_dsp/sigma_lj      dsp_adj_freq
+ 0.20000E+01           10000
+ 
+weight_adj_freq       k_trials
+1000000                 0
+ 
+eps_lj(11)/k_B
+ 0.10000E+03
+ 
+sigma_lj (A)
+ 0.30000E+01
+ 
+rcut/sigma_lj         max_rot(rad)/pi
+ 0.1500000E+01         0.1000000E+01
+ 
+eps_w/eps_lj          rcutw/sigma_lj
+ 0.5000000E+01         0.1500000E+01
+ 
+n_cycles              trials/cycle
+500                   2000000000
+ 
+ln_zeta               n_stgs
+-0.2680000E+01           1
+ 
+CONTINUE_FLAG         FLEX_FLAG
+   F                     T
+ 
+LN_F_INIT             FLATNESS
+ 0.1000000E+01         0.8000000E+00
+ 
+WL_REDUCT_FACT        TMCOLL_LN_F
+ 0.5000000E+00         0.1000000E-05
+ 
+READCM_FLAG           WL_FLAG
+   F                     T
+ 
+TM_FLAG               TMCOLL_FLAG
+   F                     T
+ 
+H_MIN/SIGMA_LJ        H_MAX/SIGMA_LJ
+ 0.9000000E+01         0.9000000E+01
+ 
+N_V_BINS              ETA_wall
+ 50                   -0.300000E+00
+ 
+PROB_wall             M_wall
+  0.000000E+00         0.000000E+00
+ 
+OMEGA_wall             A_wall
+  0.100000E+01         0.150000E+01
+ 
+DEL_LNPI
+  5
