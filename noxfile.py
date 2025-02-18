@@ -138,6 +138,7 @@ class SessionParams(DataclassParser):
 
     # common parameters
     lock: bool = False
+    no_lock: bool = False
     update: bool = add_option("--update", "-U", help="update dependencies/package")
     version: str | None = add_option(
         "--version", "-V", help="pretend version", default=None
@@ -255,7 +256,12 @@ def parse_posargs(*posargs: str) -> SessionParams:
     without escaping.
     """
     opts = SessionParams.from_posargs(posargs=posargs, prefix_char="+")
-    opts.lock = opts.lock or UV_LOCK
+
+    if opts.no_lock:
+        opts.lock = False
+    else:
+        opts.lock = opts.lock or UV_LOCK
+
     return opts
 
 
@@ -437,8 +443,10 @@ def dev(
         "ipykernel",
         "install",
         "--user",
-        "--name=thermoextrap-dev",
-        "--display-name='Python [venv: thermoextrap-dev]'",
+        "--name",
+        "thermoextrap-dev",
+        "--display-name",
+        "Python [venv: thermoextrap-dev]",
     )
 
 
