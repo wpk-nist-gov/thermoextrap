@@ -398,7 +398,7 @@ def factory_extrapmodel_lnPi(
     {alpha_name}
     derivatives : :class:`thermoextrap.models.Derivatives`, optional
         Derivatives object.  If not passed, construct derivatives using :func:`thermoextrap.lnpi.factory_derivatives`.
-    derivates_kws : mapping, optional
+    derivatives_kws : mapping, optional
         Optional parameters to :func:`thermoextrap.lnpi.factory_derivatives`.
 
     Returns

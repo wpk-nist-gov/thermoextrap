@@ -25,10 +25,9 @@ dependencies:
   - mypy>=1.15.0
   - nbclient>=0.10.0
   - nbval
-  - nox>=2024.4.15
+  - nox>=2024.10.9
   - numba>=0.60.0
   - numpy>=1.26.0
-  - packaging
   - pandas
   - pandas-stubs
   - pylint
