@@ -55,8 +55,8 @@ This repository contains code used and described in references [^fn1] [^fn2].
 If you find this code useful in producing published works, please provide an
 appropriate citation. Note that the second citation is focused on adding
 features that make use of GPR models based on derivative information produced by
-the core code base. For now, the GPR code, along with more information, may be
-found under [here][gpr-link]. In a future release, we expect this to be fully
+the core code base. For now, the [GPR code, along with more information, may be
+found here][gpr-link]. In a future release, we expect this to be fully
 integrated into the code base rather than a standalone module.
 
 Code included here can be used to perform thermodynamic extrapolation and

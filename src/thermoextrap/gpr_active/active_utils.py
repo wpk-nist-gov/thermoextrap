@@ -771,14 +771,12 @@ def create_base_GP_model(
             and not shared_kernel
         ):
             warnings.warn(
-                f"""\
-                WARNING: A kernel object (not class) of {kernel} has been
-                provided. Since this is not a subclass of
-                gpflow.kernels.MultioutputKernel, it will be wrapped in a
-                SharedIndependent kernel by HeteroscedasticGPR. However, you
-                have set shared_kernel=False, so this may not be the behavior
-                you wanted.
-                """,
+                f"A kernel object (not class) of {kernel} has been "
+                "provided. Since this is not a subclass of "
+                "gpflow.kernels.MultioutputKernel, it will be wrapped in a "
+                "SharedIndependent kernel by HeteroscedasticGPR. However, you "
+                "have set shared_kernel=False, so this may not be the behavior "
+                "you wanted.",
                 stacklevel=1,
             )
     elif shared_kernel:

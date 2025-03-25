@@ -22,7 +22,6 @@ requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Science/Research",
-    "License :: Public Domain",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
@@ -79,14 +78,23 @@ urls.Homepage = "https://github.com/usnistgov/thermoextrap"
 [dependency-groups]
 dev = [
     "thermoextrap[all]",
-    { include-group = "dev-extras" },
     { include-group = "mypy" },
-    { include-group = "nbval" },
+    { include-group = "notebook" },
+    { include-group = "nox" },
+    { include-group = "pytest-accept" },
     { include-group = "test" },
-    { include-group = "typing" },
+    { include-group = "test-notebook" },
+    { include-group = "typecheck" },
 ]
+
 test = [
-    { include-group = "test-extras" },
+    "pytest-cov",
+    "pytest-env",
+    "pytest-sugar",
+    "pytest-xdist>3.6.0",
+    "thermoextrap[mbar,gpr]",
+    { include-group = "pandas" },
+    { include-group = "pytest" },
 ]
 docs = [
     "autodocsumm",
@@ -98,39 +106,38 @@ docs = [
     "sphinxcontrib-spelling",
     "thermoextrap[gpr,mbar,viz]",
 ]
-cog = [ "cogapp" ]
-dev-extras = [
-    "ipykernel",
-    "ipython",
-    "nbclient>=0.10.0",
-    "nox>=2024.10.9",
-    "pytest-accept",
-]
+# other packages/tools
+ipython = [ "ipython" ]
+mypy = [ "mypy>=1.15.0", "orjson" ]
+notebook = [ "ipykernel", "nbclient" ]
+nox = [ "nox>=2025.5.1" ]
+pandas = [ "pandas" ]
+pylint = [ "pylint" ]
+pytest = [ "pytest" ]
+pytest-accept = [ "pytest-accept" ]
+# other environments
 docs-live = [
     "sphinx-autobuild",
     { include-group = "docs" },
 ]
-mypy = [ "mypy>=1.15.0" ]
-nbval = [ "nbclient>=0.10.0", "nbval" ]
+docs-spelling = [
+    "pyenchant",
+    "sphinxcontrib-spelling",
+    { include-group = "docs" },
+]
 test-extras = [
-    "pandas",
-    "pytest",
-    "pytest-cov",
-    "pytest-env",
-    "pytest-sugar",
-    "pytest-xdist>3.6.0",
-    "thermoextrap[mbar,gpr]",
+    { include-group = "test" },
 ]
 test-notebook = [
+    "nbval",
     "thermoextrap[viz]",
-    { include-group = "nbval" },
-    { include-group = "test-extras" },
+    { include-group = "test" },
 ]
-typing = [
+typecheck = [
     "pandas-stubs",
-    "pylint",
-    "pytest",
     "thermoextrap[mbar,gpr]",
+    { include-group = "pylint" },
+    { include-group = "pytest" },
 ]
 
 [tool.hatch.version]
@@ -158,6 +165,17 @@ fragments = [
 [tool.nbqa.exclude]
 ruff = "^examples/gpr_active_learning|^examples/usage/gpr"
 
+[tool.repo-review]
+ignore = [
+    "GH",    # enable for actions
+    "PC140", # do this externally
+    "PC170", # pygrep
+    "PC901", # ci message
+    "RTD",
+    # For now
+    "MY101",
+]
+
 [tool.codespell]
 skip = "examples/*"
 
@@ -177,6 +195,9 @@ max_supported_python = "3.12"
 
 [tool.pytest.ini_options]
 addopts = [
+    "-ra",
+    "--strict-config",
+    "--strict-markers",
     "--doctest-modules",
     "--doctest-glob=*.md",
     "--pyargs",
@@ -189,6 +210,24 @@ testpaths = [
     "README.md",
     "tests",
     "thermoextrap",
+]
+minversion = "8"
+log_cli_level = "INFO"
+xfail_strict = true
+filterwarnings = [
+    "error",
+    "ignore: Type google:DeprecationWarning",
+    "ignore: distutils Version classes are deprecated:DeprecationWarning",
+    "ignore: pkg_resources is deprecated as an API:DeprecationWarning",
+    "ignore: FNV hashing is not implemented in Numba:UserWarning",
+    "ignore: A kernel object:UserWarning",
+    "ignore: Unknown solver options",
+    "ignore::docstring_inheritance.DocstringInheritanceWarning",
+    "ignore: Module thermoextrap was never imported:coverage.exceptions.CoverageWarning",
+    "ignore: No data was collected:coverage.exceptions.CoverageWarning",
+    "ignore: pkg_resources is deprecated:UserWarning",
+    "ignore: invalid escape sequence:SyntaxWarning",
+
 ]
 
 [tool.pytest_env]
@@ -218,17 +257,17 @@ source = [
     ".nox/**/site-packages/",
 ]
 
-# * Typing ---------------------------------------------------------------------
+# * typecheck ---------------------------------------------------------------------
 
 [tool.mypy]
 files = [
     "src",
     "tests",
 ]
-show_error_codes = true
 warn_unused_ignores = true
 warn_return_any = true
 warn_unused_configs = true
+warn_unreachable = true
 exclude = [
     ".eggs",
     ".tox",
@@ -239,6 +278,11 @@ exclude = [
 ]
 check_untyped_defs = true
 # strict = true
+enable_error_code = [
+    "ignore-without-code",
+    "redundant-expr",
+    "truthy-bool",
+]
 
 # [[tool.mypy.overrides]]
 # ignore_missing_imports = true
@@ -300,9 +344,10 @@ inputs = [
 # * Dependency creation --------------------------------------------------------
 
 [tool.pyproject2conda]
-user_config = "config/userconfig.toml"
-template_python = "requirements/py{py}-{env}"
+user-config = "config/userconfig.toml"
+template-python = "requirements/py{py}-{env}"
 template = "requirements/{env}"
+name = "py{py}-{env}"
 python = "default"
 channels = "conda-forge"
 style = "yaml"
@@ -333,21 +378,27 @@ python = "all"
 reqs = [
     # these used solely for specking tools to be used with uvx ...
     "conda-lock>=2.5.5",
+    "cruft",
     "grayskull>=2.5.3",
     "nbqa>=1.8.4",
-    "pre-commit",
+    "pre-commit>=4.0.0",
     "pre-commit-uv",
+    "pyrefly",
     "pyright>=1.1.396",
     "scriv",
     "twine>=5.0.0",
+    "ty",
 ]
-groups = [ "mypy" ]
-skip_package = true
+groups = [
+    "mypy",
+    "nox",
+]
+skip-package = true
 style = "requirements"
 
 [tool.pyproject2conda.envs.test-extras]
 groups = [ "test-extras" ]
-skip_package = true
+skip-package = true
 python = "all"
 
 # * uv -------------------------------------------------------------------------
@@ -356,10 +407,22 @@ python = "all"
 managed = true
 default-groups = [ "dev" ]
 fork-strategy = "requires-python"
-required-version = ">=0.6.5"
+required-version = ">=0.7.15"
 
 [tool.uv.pip]
 annotation-style = "line"
+generate-hashes = true
+
+[tool.uv.dependency-groups]
+dev.requires-python = ">=3.12"
+docs.requires-python = ">=3.12"
+docs-live.requires-python = ">=3.12"
+docs-spelling.requires-python = ">=3.12"
+# other tools
+ipython.requires-python = ">=3.12"
+mypy.requires-python = ">=3.12"
+notebook.requires-python = ">=3.12"
+nox.requires-python = ">=3.12"
 
 # * Other tools ----------------------------------------------------------------
 

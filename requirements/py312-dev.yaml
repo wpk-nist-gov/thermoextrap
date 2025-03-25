@@ -7,6 +7,7 @@
 # You should not manually edit this file.
 # Instead edit the corresponding pyproject.toml file.
 #
+name: py312-dev
 channels:
   - conda-forge
 dependencies:
@@ -18,16 +19,16 @@ dependencies:
   - dm-tree<0.1.9
   - docstring-inheritance
   - ipykernel
-  - ipython
   - lazy_loader
   - matplotlib-base
   - module-utilities>=0.2
   - mypy>=1.15.0
-  - nbclient>=0.10.0
+  - nbclient
   - nbval
-  - nox>=2024.10.9
+  - nox>=2025.5.1
   - numba>=0.60.0
   - numpy>=1.26.0
+  - orjson
   - pandas
   - pandas-stubs
   - pylint

@@ -12,7 +12,7 @@ def pytest_collectstart(collector) -> None:
         )
 
 
-def pytest_ignore_collect(collection_path, path, config) -> None:  # noqa: ARG001
+def pytest_ignore_collect(collection_path) -> None:  # noqa: ARG001
     return False
 
 
