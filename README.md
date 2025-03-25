@@ -82,7 +82,9 @@ solution.
 This package is actively used by the author. Please feel free to create a pull
 request for wanted features and suggestions!
 
-## Quick start
+<!-- end-docs -->
+
+## Installation
 
 <!-- start-installation -->
 
@@ -164,8 +166,6 @@ It is not recommended to install the development dependencies with `conda`.
 ```python
 import thermoextrap
 ```
-
-<!-- end-docs -->
 
 ## Documentation
 

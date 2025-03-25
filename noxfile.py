@@ -59,9 +59,6 @@ PACKAGE_NAME = "thermoextrap"
 IMPORT_NAME = "thermoextrap"
 KERNEL_BASE = "thermoextrap"
 
-# Set numba_cache directory for sharing
-os.environ["NUMBA_CACHE_DIR"] = str(Path(__file__).parent / ".numba_cache")
-
 # * nox options ------------------------------------------------------------------------
 
 ROOT = Path(__file__).parent

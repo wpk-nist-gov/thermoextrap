@@ -3429,6 +3429,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-env"
+version = "1.1.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1f/31/27f28431a16b83cab7a636dce59cf397517807d247caa38ee67d65e71ef8/pytest_env-1.1.5.tar.gz", hash = "sha256:91209840aa0e43385073ac464a554ad2947cc2fd663a9debf88d03b01e0cc1cf", size = 8911 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/de/b8/87cfb16045c9d4092cfcf526135d73b88101aac83bc1adcf82dfb5fd3833/pytest_env-1.1.5-py3-none-any.whl", hash = "sha256:ce90cf8772878515c24b31cd97c7fa1f4481cd68d588419fd45f10ecaee6bc30", size = 6141 },
+]
+
+[[package]]
 name = "pytest-sugar"
 version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4537,6 +4550,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-accept" },
     { name = "pytest-cov" },
+    { name = "pytest-env" },
     { name = "pytest-sugar" },
     { name = "pytest-xdist" },
     { name = "thermoextrap", extra = ["all", "gpr", "mbar"] },
@@ -4588,6 +4602,7 @@ test = [
     { name = "pandas" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-env" },
     { name = "pytest-sugar" },
     { name = "pytest-xdist" },
     { name = "thermoextrap", extra = ["gpr", "mbar"] },
@@ -4596,6 +4611,7 @@ test-extras = [
     { name = "pandas" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-env" },
     { name = "pytest-sugar" },
     { name = "pytest-xdist" },
     { name = "thermoextrap", extra = ["gpr", "mbar"] },
@@ -4606,6 +4622,7 @@ test-notebook = [
     { name = "pandas" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-env" },
     { name = "pytest-sugar" },
     { name = "pytest-xdist" },
     { name = "thermoextrap", extra = ["gpr", "mbar", "viz"] },
@@ -4665,6 +4682,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-accept" },
     { name = "pytest-cov" },
+    { name = "pytest-env" },
     { name = "pytest-sugar" },
     { name = "pytest-xdist", specifier = ">3.6.0" },
     { name = "thermoextrap", extras = ["all"] },
@@ -4707,6 +4725,7 @@ test = [
     { name = "pandas" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-env" },
     { name = "pytest-sugar" },
     { name = "pytest-xdist", specifier = ">3.6.0" },
     { name = "thermoextrap", extras = ["mbar", "gpr"] },
@@ -4715,6 +4734,7 @@ test-extras = [
     { name = "pandas" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-env" },
     { name = "pytest-sugar" },
     { name = "pytest-xdist", specifier = ">3.6.0" },
     { name = "thermoextrap", extras = ["mbar", "gpr"] },
@@ -4725,6 +4745,7 @@ test-notebook = [
     { name = "pandas" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-env" },
     { name = "pytest-sugar" },
     { name = "pytest-xdist", specifier = ">3.6.0" },
     { name = "thermoextrap", extras = ["mbar", "gpr"] },

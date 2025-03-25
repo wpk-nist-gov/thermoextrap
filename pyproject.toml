@@ -116,6 +116,7 @@ test-extras = [
     "pandas",
     "pytest",
     "pytest-cov",
+    "pytest-env",
     "pytest-sugar",
     "pytest-xdist>3.6.0",
     "thermoextrap[mbar,gpr]",
@@ -189,6 +190,9 @@ testpaths = [
     "tests",
     "thermoextrap",
 ]
+
+[tool.pytest_env]
+NUMBA_CACHE_DIR = { value = "{PWD}/.numba_cache", transform = true, skip_if_set = true }
 
 [tool.coverage.run]
 branch = true
