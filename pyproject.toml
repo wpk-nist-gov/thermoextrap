@@ -38,7 +38,7 @@ dynamic = [
 dependencies = [
     "attrs>=24.1.0",
     "cmomy>=0.24.0",
-    "dm-tree<0.1.9",
+    "dm-tree",
     "lazy-loader",
     "module-utilities[inherit]>=0.2",
     "numba>=0.60.0",
@@ -56,12 +56,10 @@ optional-dependencies.all = [
 optional-dependencies.gpr = [
     "gpflow>=2.6.0",
     "tensorflow>=2.13",
-    "tensorflow-probability[tf]>0.23.0,<0.25.0",
+    "tensorflow-probability[tf]~=0.24.0",
 ]
 optional-dependencies.mbar = [
-    # NOTE: Getting all sorts of errors with pymbar with jax.  This seems to fix them for now...
-    "jax[cpu]<0.4.25",
-    "pymbar>=4.0",
+    "pymbar[jax]>=4.0",
 ]
 optional-dependencies.openmm = [
     "openmm",
@@ -363,7 +361,6 @@ tensorflow = { pip = true }
 tensorflow-probability = { pip = true }
 pymbar = { pip = true }
 jax = { pip = true }
-jaxlib = { pip = true }
 module-utilities = { packages = "docstring-inheritance" }
 
 [tool.pyproject2conda.envs.dev]

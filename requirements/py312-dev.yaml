@@ -16,7 +16,7 @@ dependencies:
   - bottleneck
   - cmomy>=0.24.0
   - dask
-  - dm-tree<0.1.9
+  - dm-tree
   - docstring-inheritance
   - ipykernel
   - lazy_loader
@@ -43,8 +43,7 @@ dependencies:
   - pip
   - pip:
       - gpflow>=2.6.0
-      - jax[cpu]<0.4.25
-      - pymbar>=4.0
+      - pymbar[jax]>=4.0
       - pytest-accept
-      - tensorflow-probability[tf]<0.25.0,>0.23.0
+      - tensorflow-probability[tf]~=0.24.0
       - tensorflow>=2.13

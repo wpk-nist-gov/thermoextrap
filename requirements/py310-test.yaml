@@ -14,7 +14,7 @@ dependencies:
   - python=3.10
   - attrs>=24.1.0
   - cmomy>=0.24.0
-  - dm-tree<0.1.9
+  - dm-tree
   - docstring-inheritance
   - lazy_loader
   - module-utilities>=0.2
@@ -32,7 +32,6 @@ dependencies:
   - pip
   - pip:
       - gpflow>=2.6.0
-      - jax[cpu]<0.4.25
-      - pymbar>=4.0
-      - tensorflow-probability[tf]<0.25.0,>0.23.0
+      - pymbar[jax]>=4.0
+      - tensorflow-probability[tf]~=0.24.0
       - tensorflow>=2.13
