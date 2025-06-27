@@ -253,7 +253,9 @@ class lnPiDataCallback(DataCallbackABC):
     @cached.prop
     def mudotN(self):
         """Dot product of `self.mu` and `self.ncoords`, reduces along `self.dims_comp`."""
-        return xr.dot(self.mu, self.ncoords, dims=self.dims_comp)
+        from .core.compat import xr_dot
+
+        return xr_dot(self.mu, self.ncoords, dim=self.dims_comp)
 
     def resample(self, data, meta_kws=None, **kws):
         """Resample lnPi0 data."""
@@ -398,7 +400,7 @@ def factory_extrapmodel_lnPi(
     {alpha_name}
     derivatives : :class:`thermoextrap.models.Derivatives`, optional
         Derivatives object.  If not passed, construct derivatives using :func:`thermoextrap.lnpi.factory_derivatives`.
-    derivates_kws : mapping, optional
+    derivatives_kws : mapping, optional
         Optional parameters to :func:`thermoextrap.lnpi.factory_derivatives`.
 
     Returns

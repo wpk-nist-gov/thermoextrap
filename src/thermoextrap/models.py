@@ -26,6 +26,7 @@ from .core._attrs_utils import (
 )
 from .core._imports import has_pymbar
 from .core._imports import sympy as sp
+from .core.compat import xr_dot
 from .core.sputils import get_default_indexed, get_default_symbol
 from .core.xrutils import xrwrap_alpha
 from .data import AbstractData
@@ -1033,7 +1034,7 @@ class PerturbModel(MyAttrsMixin):
         dalpha_uv_diff = dalpha_uv - dalpha_uv.max(rec_dim)
         expvals = np.exp(dalpha_uv_diff)
 
-        num = xr.dot(expvals, xv, dims=rec_dim) / len(xv[rec_dim])
+        num = xr_dot(expvals, xv, dim=rec_dim) / len(xv[rec_dim])
         den = expvals.mean(rec_dim)
 
         return num / den
@@ -1101,9 +1102,9 @@ class MBARModel(StateCollection):
         )
 
         # reshape
-        shape = (out.shape[0],) + x.shape[2:]
+        shape = (out.shape[0], *x.shape[2:])
         return xr.DataArray(
-            out.reshape(shape), dims=(alpha.name,) + dims[2:]
+            out.reshape(shape), dims=(alpha.name, *dims[2:])
         ).assign_coords(alpha=alpha)
 
     def resample(self, *args, **kwargs) -> None:

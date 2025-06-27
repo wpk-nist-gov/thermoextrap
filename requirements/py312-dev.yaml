@@ -7,6 +7,7 @@
 # You should not manually edit this file.
 # Instead edit the corresponding pyproject.toml file.
 #
+name: py312-dev
 channels:
   - conda-forge
 dependencies:
@@ -15,25 +16,25 @@ dependencies:
   - bottleneck
   - cmomy>=0.24.0
   - dask
-  - dm-tree<0.1.9
+  - dm-tree
   - docstring-inheritance
   - ipykernel
-  - ipython
   - lazy_loader
   - matplotlib-base
   - module-utilities>=0.2
   - mypy>=1.15.0
-  - nbclient>=0.10.0
+  - nbclient
   - nbval
-  - nox>=2024.4.15
+  - nox>=2025.5.1
   - numba>=0.60.0
   - numpy>=1.26.0
-  - packaging
+  - orjson
   - pandas
   - pandas-stubs
   - pylint
   - pytest
   - pytest-cov
+  - pytest-env
   - pytest-sugar
   - pytest-xdist>3.6.0
   - scipy
@@ -42,8 +43,7 @@ dependencies:
   - pip
   - pip:
       - gpflow>=2.6.0
-      - jax[cpu]<0.4.25
-      - pymbar>=4.0
+      - pymbar[jax]>=4.0
       - pytest-accept
-      - tensorflow-probability[tf]<0.25.0,>0.23.0
+      - tensorflow-probability[tf]~=0.24.0
       - tensorflow>=2.13

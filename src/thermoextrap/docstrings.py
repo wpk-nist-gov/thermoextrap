@@ -111,7 +111,20 @@ DOCFILLER_VOLUME = DocFiller.from_docstring(
 
 
 DOCFILLER_SHARED = DocFiller.concat(
-    cmomy=docfiller_cmomy,
+    cmomy=docfiller_cmomy.assign_param(
+        name="sampler",
+        ptype="int or array-like or mapping",
+        desc="""
+        Passed through :func:`cmomy.resample.factory_sampler` to create an
+        :class:`~cmomy.resample.IndexSampler`. Value can either be ``nrep`` (the
+        number of replicates), ``freq`` (frequency array), a
+        :class:`~cmomy.resample.IndexSampler` object, or a mapping of parameters.
+        The mapping can have form of
+        :class:`~cmomy.core.typing.FactoryIndexSamplerKwargs`. Allowable keys are
+        ``freq``, ``indices``, ``ndat``, ``nrep``, ``nsamp``, ``paired``,
+        ``rng``, ``replace``, ``shuffle``.
+        """,
+    ),
     xtrap=DOCFILLER_XTRAP,
     beta=DOCFILLER_BETA,
     volume=DOCFILLER_VOLUME,

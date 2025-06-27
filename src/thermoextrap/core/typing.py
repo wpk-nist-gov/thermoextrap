@@ -1,4 +1,7 @@
-"""Typing utils."""
+"""
+Typing aliases (:mod:`thermoextrap.core.typing`)
+================================================
+"""
 
 from __future__ import annotations
 
