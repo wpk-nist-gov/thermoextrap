@@ -171,7 +171,7 @@ def factory_extrapmodel(
     {val_dims}
     {rep_dim}
     **kws :
-        Extra arguments to :meth:`thermoextrap.data.DataValues.from_vals`
+        Extra arguments to :meth:`thermoextrap.data.DataValues`
 
     Returns
     -------
@@ -188,7 +188,7 @@ def factory_extrapmodel(
 
     meta = VolumeDataCallback(volume=volume, dxdqv=dxdqv, ndim=ndim)
 
-    data = DataValues.from_vals(
+    data = DataValues(
         uv=uv,
         xv=xv,
         order=order,

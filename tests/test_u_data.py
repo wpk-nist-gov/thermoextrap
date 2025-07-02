@@ -148,9 +148,8 @@ def data_x_is_u(request, data, order, central):
     elif style == "cmom_vals":
         factory = xtrap.DataCentralMomentsVals.from_vals
 
-    return factory(
-        xv=None, uv=xrwrap_uv(data.u), order=order, central=central, x_is_u=True
-    )
+    uv = xrwrap_uv(data.u)
+    return factory(xv=uv, uv=uv, order=order, central=central, x_is_u=True)
 
 
 @pytest.fixture
@@ -177,7 +176,7 @@ def test_em_x_is_u(em_x_out, em_x_is_u_out) -> None:
 @pytest.fixture
 def data_u(data, order, central):
     return xtrap.factory_data_values(
-        xv=None, uv=data.u, order=order, central=central, x_is_u=True
+        xv=data.u, uv=data.u, order=order, central=central, x_is_u=True
     )
 
 
@@ -245,10 +244,10 @@ def test_x2_u2(em_x2_out, em_u2_out, central) -> None:
 
 def test_du2_3(beta, order, data, betas_extrap) -> None:
     data_u = xtrap.factory_data_values(
-        uv=data.u, xv=None, x_is_u=True, order=order, central=True
+        uv=data.u, xv=data.u, x_is_u=True, order=order, central=True
     )
     data_u_r = xtrap.factory_data_values(
-        uv=data.u, xv=None, x_is_u=True, order=order, central=False
+        uv=data.u, xv=data.u, x_is_u=True, order=order, central=False
     )
 
     em_du2 = xtrap.beta.factory_extrapmodel(

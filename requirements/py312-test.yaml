@@ -25,7 +25,6 @@ dependencies:
   - pytest-cov
   - pytest-env
   - pytest-sugar
-  - pytest-xdist>3.6.0
   - scipy
   - sympy
   - xarray>=2024.7.0

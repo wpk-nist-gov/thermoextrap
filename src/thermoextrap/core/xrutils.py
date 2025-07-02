@@ -71,7 +71,7 @@ def xrwrap_uv(
 
 
 def xrwrap_xv(
-    xv: ArrayLike | DataT,
+    xv: ArrayLike | DataT | None,
     dims: DimsMapping | None = None,
     rec_dim: SingleDim = "rec",
     rep_dim: SingleDim = "rep",
@@ -86,6 +86,10 @@ def xrwrap_xv(
     if deriv_dim is None, assumes xv[rec_dim], xv[rec_dim, vals], xv[rep_dim, rec_dim, val_dims]
     if deriv_dim is not None, assumes xv[rec_dim, deriv_dim], xv[rec_dim,deriv_dim, val_dims], xv[rep_dim,rec_dim,deriv_dim,val_dims]
     """
+    if xv is None:
+        msg = "Must pass explicit xv."
+        raise ValueError(msg)
+
     if isinstance(val_dims, str):
         val_dims = [val_dims]
     elif not isinstance(val_dims, list):

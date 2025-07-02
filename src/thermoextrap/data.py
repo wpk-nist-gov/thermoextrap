@@ -14,7 +14,8 @@ The general scheme is to use the following:
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, cast
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Generic, cast
 
 import attrs
 import cmomy
@@ -23,6 +24,7 @@ import xarray as xr
 from attrs import field
 from attrs import validators as attv
 from cmomy.core.missing import MISSING
+from cmomy.core.typing import DataT
 from cmomy.core.validate import is_dataarray, is_xarray
 from module_utilities import cached
 
@@ -35,16 +37,19 @@ from .core.xrutils import xrwrap_uv, xrwrap_xv
 from .docstrings import DOCFILLER_SHARED
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Hashable, Mapping
+    from collections.abc import Callable, Hashable, Mapping, Sequence
     from typing import Any, ClassVar
 
     from cmomy.core.typing import (
+        AttrsType,
         AxisReduce,
-        DataT,
+        CoordsType,
         DimsReduce,
         MissingType,
+        NameType,
         Sampler,
     )
+    from numpy.typing import ArrayLike, DTypeLike
 
     from thermoextrap.core.typing import MetaKws, MultDims, SingleDim, XArrayObj
     from thermoextrap.core.typing_compat import Self, TypeVar
@@ -81,14 +86,14 @@ def _raise_if_not_xarray(x: object, name: str | None = None) -> None:
         raise TypeError(msg)
 
 
-def _validate_dims(self: Any, attribute: attrs.Attribute, dims: Any) -> None:  # noqa: ARG001
+def _validate_dims(self: Any, attribute: attrs.Attribute[Any], dims: Any) -> None:  # noqa: ARG001
     for d in dims:
         if d not in self.data.dims:
             msg = f"{d} not in data.dimensions {self.data.dims}"
             raise ValueError(msg)
 
 
-@attrs.define(frozen=True)
+@attrs.define
 class DataSelector(MyAttrsMixin):
     """
     Wrap xarray object so can index like ds[i, j].
@@ -256,7 +261,7 @@ def _meta_converter(meta: DataCallbackABC | None) -> DataCallbackABC:
     return meta
 
 
-def _meta_validator(self: Any, attribute: attrs.Attribute, meta: Any) -> None:  # noqa: ARG001
+def _meta_validator(self: Any, attribute: attrs.Attribute[Any], meta: Any) -> None:  # noqa: ARG001
     if not isinstance(meta, DataCallbackABC):
         msg = "meta must be None or subclass of DataCallbackABC"
         raise TypeError(msg)
@@ -274,6 +279,7 @@ class AbstractData(
         kw_only=True,
         converter=_meta_converter,
         validator=_meta_validator,
+        default=None,
     )
     #: Energy moments dimension
     umom_dim: SingleDim = field(kw_only=True, default="umom")
@@ -282,7 +288,7 @@ class AbstractData(
     #: Whether the observable `x` is the same as energy `u`
     x_is_u: bool = field(kw_only=True, default=False)
     # cache field
-    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
+    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)  # pyright: ignore[reportUnknownVariableType]
 
     @property
     @abstractmethod
@@ -311,13 +317,13 @@ class AbstractData(
         """
         return self.deriv_dim is not None
 
-    def pipe(self, func: Callable[..., _T], *args, **kwargs) -> _T:
+    def pipe(self, func: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
         return func(self, *args, **kwargs)
 
 
 # def _convert_xv(
-#     xv: xr.DataArray | xr.Dataset | None, self_: DataValuesBase
-# ) -> xr.DataArray | xr.Dataset:
+#     xv: XArrayObj | None, self_: DataValuesBase
+# ) -> XArrayObj:
 #     if xv is None:
 #         return self_.uv
 #     return xv
@@ -325,7 +331,7 @@ class AbstractData(
 
 @attrs.define
 @docfiller_shared.decorate
-class DataValuesBase(AbstractData):
+class DataValuesBase(AbstractData, Generic[DataT]):
     """
     Base class to work with data based on values (non-cmomy).
 
@@ -342,56 +348,18 @@ class DataValuesBase(AbstractData):
     """
 
     #: Energy values
-    uv: xr.DataArray = field(validator=attv.instance_of(xr.DataArray))  # type: ignore[misc]
+    uv: xr.DataArray = field(validator=attv.instance_of(xr.DataArray))
     #: Obervable values
-    xv: XArrayObj = field(  # type: ignore[misc]
+    xv: DataT = field(  # type: ignore[assignment]
         # converter=attrs.Converter(_convert_xv, takes_self=True),  # pyright: ignore[reportCallIssue, reportArgumentType]
         validator=attv.instance_of((xr.DataArray, xr.Dataset)),
     )
     #: Expansion order
-    order: int = field()  # type: ignore[misc]
+    order: int = field()
     #: Records dimension
     rec_dim: SingleDim = field(kw_only=True, default="rec")
 
     _CENTRAL: ClassVar[bool] = False
-
-    @classmethod
-    @docfiller_shared.decorate
-    def from_vals(
-        cls,
-        uv: xr.DataArray,
-        xv: XArrayObj | None,
-        *,
-        order: int,
-        rec_dim: SingleDim = "rec",
-        umom_dim: SingleDim = "umom",
-        deriv_dim: SingleDim | None = None,
-        meta: DataCallbackABC | None = None,
-        x_is_u: bool = False,
-    ) -> Self:
-        """
-        Constructor from arrays.
-
-        Parameters
-        ----------
-        {uv_xv_array}
-        {order}
-        {rec_dim}
-        {umom_dim}
-        {deriv_dim}
-        {meta}
-        {x_is_u}
-        """
-        return cls(
-            uv=uv,
-            xv=uv if xv is None else xv,
-            order=order,
-            rec_dim=rec_dim,
-            umom_dim=umom_dim,
-            deriv_dim=deriv_dim,
-            meta=meta,
-            x_is_u=x_is_u,
-        )
 
     @property
     def central(self) -> bool:
@@ -439,7 +407,7 @@ class DataValuesBase(AbstractData):
 
         return type(self)(
             uv=uv,
-            xv=xv,  # pyright: ignore[reportArgumentType]
+            xv=xv,  # type: ignore[arg-type]
             order=self.order,
             rec_dim=self.rec_dim,
             umom_dim=self.umom_dim,
@@ -453,14 +421,14 @@ class DataValuesBase(AbstractData):
 # Data
 ###############################################################################
 @docfiller_shared.decorate
-def build_aves_xu(
+def _build_aves_xu(
     uv: xr.DataArray,
-    xv: XArrayObj,
+    xv: DataT,
     *,
     order: int,
     dim: DimsReduce | MissingType = MISSING,
     umom_dim: SingleDim = "umom",
-) -> tuple[xr.DataArray, XArrayObj]:
+) -> tuple[xr.DataArray, DataT]:
     """
     Build averages from values uv, xv up to order `order`.
 
@@ -496,12 +464,12 @@ def build_aves_xu(
 @docfiller_shared.decorate
 def build_aves_dxdu(
     uv: xr.DataArray,
-    xv: XArrayObj,
+    xv: DataT,
     *,
     order: int,
     dim: DimsReduce | MissingType = MISSING,
     umom_dim: SingleDim = "umom",
-) -> tuple[XArrayObj, xr.DataArray, XArrayObj]:
+) -> tuple[DataT, xr.DataArray, DataT]:
     """
     Build central moments from values uv, xv up to order `order`.
 
@@ -536,26 +504,26 @@ def build_aves_dxdu(
     return xave, duave, dxduave
 
 
-def _xu_to_u(xu: XArrayObj, dim: str = "umom") -> XArrayObj:
+def _xu_to_u(xu: DataT, dim: str = "umom") -> DataT:
     """For case where x = u, shift umom and add umom=0."""
     n = xu.sizes[dim]
-    out = xu.assign_coords({dim: lambda x: x[dim] + 1}).reindex({dim: range(n + 1)})
+    out = xu.assign_coords({dim: lambda x: x[dim] + 1}).reindex({dim: range(n + 1)})  # pyright: ignore[reportUnknownMemberType,reportUnknownLambdaType]
 
     # add 0th element
-    out.loc[{dim: 0}] = 1.0
+    out.loc[{dim: 0}] = 1.0  # pyright: ignore[reportUnknownMemberType]
     return out.drop_vars(dim)
 
 
 @attrs.define
 @docfiller_shared.inherit(DataValuesBase)
-class DataValues(DataValuesBase):
+class DataValues(DataValuesBase[DataT]):
     """Class to hold uv/xv data."""
 
     _CENTRAL: ClassVar[bool] = False
 
     @cached.meth
-    def _mean(self) -> XArrayObj:
-        return build_aves_xu(
+    def _mean(self) -> tuple[xr.DataArray, DataT]:
+        return _build_aves_xu(
             uv=self.uv,
             xv=self.xv,  # pyright: ignore[reportArgumentType]
             order=self.order,
@@ -564,15 +532,15 @@ class DataValues(DataValuesBase):
         )
 
     @cached.prop
-    def xu(self) -> XArrayObj:
+    def xu(self) -> DataT:
         """Average of `x * u ** n`."""
         return self._mean()[1]
 
     @cached.prop
-    def u(self) -> XArrayObj:  # Could make this DataArray
+    def u(self) -> xr.DataArray:
         """Average of `u ** n`."""
         if self.x_is_u:
-            return _xu_to_u(self.xu, self.umom_dim)
+            return _xu_to_u(self.xu, self.umom_dim)  # type: ignore[return-value]
         return self._mean()[0]
 
     @cached.prop
@@ -595,13 +563,13 @@ class DataValues(DataValuesBase):
 
 @attrs.define
 @docfiller_shared.inherit(DataValuesBase)
-class DataValuesCentral(DataValuesBase):
+class DataValuesCentral(DataValuesBase[DataT]):
     """Data class using values and central moments."""
 
     _CENTRAL: ClassVar[bool] = True
 
     @cached.meth
-    def _mean(self) -> XArrayObj:
+    def _mean(self) -> tuple[DataT, xr.DataArray, DataT]:
         return build_aves_dxdu(
             uv=self.uv,
             xv=self.xv,  # pyright: ignore[reportArgumentType]
@@ -611,20 +579,20 @@ class DataValuesCentral(DataValuesBase):
         )
 
     @cached.prop
-    def xave(self) -> XArrayObj:
+    def xave(self) -> DataT:
         """Averages of `x`."""
         return self._mean()[0]
 
     @cached.prop
-    def dxdu(self) -> XArrayObj:
+    def dxdu(self) -> DataT:
         """Averages of `dx * du ** n`."""
         return self._mean()[2]
 
     @cached.prop
-    def du(self) -> XArrayObj:
+    def du(self) -> xr.DataArray:
         """Averages of `du ** n`."""
         if self.x_is_u:
-            return _xu_to_u(self.dxdu, dim=self.umom_dim)
+            return _xu_to_u(self.dxdu, dim=self.umom_dim)  # type: ignore[return-value]
         return self._mean()[1]
 
     @cached.prop
@@ -640,7 +608,7 @@ class DataValuesCentral(DataValuesBase):
         )
 
     @cached.prop
-    def xave_selector(self) -> XArrayObj | DataSelector:
+    def xave_selector(self) -> DataT | DataSelector:
         if self.deriv_dim is None:
             return self.xave
         return DataSelector.from_defaults(self.xave, dims=[self.deriv_dim])
@@ -656,21 +624,22 @@ class DataValuesCentral(DataValuesBase):
         return self.meta.derivs_args(data=self, derivs_args=out)
 
 
+# TODO(wpk): overload on central = True/False
 @docfiller_shared.decorate
 def factory_data_values(
-    order,
-    uv,
-    xv,
-    central=False,
-    xalpha=False,
-    rec_dim="rec",
-    umom_dim="umom",
-    val_dims="val",
-    rep_dim="rep",
-    deriv_dim=None,
-    x_is_u=False,
-    **kws,
-):
+    order: int,
+    uv: ArrayLike | xr.DataArray,
+    xv: ArrayLike | DataT,
+    central: bool = False,
+    xalpha: bool = False,
+    rec_dim: str = "rec",
+    umom_dim: str = "umom",
+    val_dims: str = "val",
+    rep_dim: str = "rep",
+    deriv_dim: str | None = None,
+    x_is_u: bool = False,
+    **kws: Any,
+) -> DataValues[DataT] | DataValuesCentral[DataT]:
     """
     Factory function to produce a DataValues object.
 
@@ -709,18 +678,17 @@ def factory_data_values(
 
     uv = xrwrap_uv(uv, rec_dim=rec_dim, rep_dim=rep_dim)
 
-    if xv is not None:
-        xv = xrwrap_xv(
-            xv,
-            rec_dim=rec_dim,
-            rep_dim=rep_dim,
-            deriv_dim=deriv_dim,
-            val_dims=val_dims,
-        )
+    xv = xrwrap_xv(
+        xv,
+        rec_dim=rec_dim,
+        rep_dim=rep_dim,
+        deriv_dim=deriv_dim,
+        val_dims=val_dims,
+    )
 
-    return cls.from_vals(
+    return cls(
         uv=uv,
-        xv=xv,
+        xv=xv,  # type: ignore[arg-type]
         order=order,
         rec_dim=rec_dim,
         umom_dim=umom_dim,
@@ -790,7 +758,7 @@ def factory_data_values(
 ################################################################################
 @attrs.define
 @docfiller_shared.decorate
-class DataCentralMomentsBase(AbstractData):
+class DataCentralMomentsBase(AbstractData, Generic[DataT]):
     """
     Data object based on central co-moments array.
 
@@ -810,7 +778,7 @@ class DataCentralMomentsBase(AbstractData):
     """
 
     #: :class:`cmomy.CentralMomentsData` object
-    dxduave: cmomy.CentralMomentsData = field(
+    dxduave: cmomy.CentralMomentsData[DataT] = field(
         validator=attv.instance_of(cmomy.CentralMomentsData)
     )
     #: Overvable moment dimension
@@ -818,7 +786,7 @@ class DataCentralMomentsBase(AbstractData):
     #: Records dimension
     rec_dim: SingleDim = field(kw_only=True, default="rec")
     #: Whether central or raw moments are used
-    central: bool = field(kw_only=True, default=False)
+    central: bool = field(kw_only=True, default=False)  # pyright: ignore[reportIncompatibleMethodOverride]
     #: Whether observable `x` is same as energy `u`
     x_is_u: bool = field(kw_only=True, default=None)
 
@@ -842,17 +810,17 @@ class DataCentralMomentsBase(AbstractData):
         return self.dxduave.obj
 
     @cached.meth(check_use_cache=True)
-    def rmom(self) -> XArrayObj:
+    def rmom(self) -> DataT:
         """Raw co-moments."""
         return self.dxduave.rmom()
 
     @cached.meth(check_use_cache=True)
-    def cmom(self) -> XArrayObj:
+    def cmom(self) -> DataT:
         """Central co-moments."""
         return self.dxduave.cmom()
 
     @cached.prop(check_use_cache=True)
-    def xu(self) -> XArrayObj:
+    def xu(self) -> DataT:
         """Averages of form ``x * u ** n``."""
         return cmomy.select_moment(
             self.rmom(),
@@ -862,7 +830,7 @@ class DataCentralMomentsBase(AbstractData):
         )
 
     @cached.prop(check_use_cache=True)
-    def u(self) -> XArrayObj:
+    def u(self) -> DataT:
         """Averages of form ``u ** n``."""
         if self.x_is_u:
             return cmomy.convert.comoments_to_moments(
@@ -878,23 +846,23 @@ class DataCentralMomentsBase(AbstractData):
             mom_dims=self.dxduave.mom_dims,
         )
         if self.xalpha:
-            out = out.sel({self.deriv_dim: 0}, drop=True)
+            out = out.sel({self.deriv_dim: 0}, drop=True)  # pyright: ignore[reportUnknownMemberType]
         return out
 
     @cached.prop(check_use_cache=True)
-    def xave(self) -> XArrayObj:
+    def xave(self) -> DataT:
         """Averages of form observable ``x``."""
         return self.dxduave.select_moment("xave")
 
     @cached.prop(check_use_cache=True)
-    def dxdu(self) -> XArrayObj:
+    def dxdu(self) -> DataT:
         """Averages of form ``dx * dx ** n``."""
         return cmomy.select_moment(
             self.cmom(), "xmom_1", mom_ndim=2, mom_dims=self.dxduave.mom_dims
         )
 
     @cached.prop(check_use_cache=True)
-    def du(self) -> XArrayObj:
+    def du(self) -> DataT:
         """Averages of ``du ** n``."""
         if self.x_is_u:
             return cmomy.convert.comoments_to_moments(
@@ -905,7 +873,7 @@ class DataCentralMomentsBase(AbstractData):
             self.cmom(), "xmom_0", mom_ndim=2, mom_dims=self.dxduave.mom_dims
         )
         if self.xalpha:
-            out = out.sel({self.deriv_dim: 0}, drop=True)
+            out = out.sel({self.deriv_dim: 0}, drop=True)  # pyright: ignore[reportUnknownMemberType]
         return out
 
     @cached.prop(check_use_cache=True)
@@ -948,6 +916,7 @@ class DataCentralMomentsBase(AbstractData):
 
         For example, ``derivs(*self.derivs_args)``.
         """
+        out: tuple[Any, ...]
         if not self.x_is_u:
             if self.central:
                 out = (self.xave_selector, self.du_selector, self.dxdu_selector)
@@ -964,7 +933,7 @@ class DataCentralMomentsBase(AbstractData):
 
 @attrs.define(slots=True)
 @docfiller_shared.inherit(DataCentralMomentsBase)
-class DataCentralMoments(DataCentralMomentsBase):
+class DataCentralMoments(DataCentralMomentsBase[DataT]):
     """Data class using :class:`cmomy.CentralMomentsData` to handle central moments."""
 
     def __len__(self) -> int:
@@ -1046,24 +1015,21 @@ class DataCentralMoments(DataCentralMomentsBase):
         )
 
         dxdu_new = (
-            self.dxduave.resample_and_reduce(**kws)
+            self.dxduave.resample_and_reduce(**kws)  # pyright: ignore[reportArgumentType]
             # TODO(wpk): remove this if possible...
             .transpose(rep_dim, ...)
         )
 
-        meta = self.meta.resample(data=self, meta_kws=meta_kws, **kws)
+        meta = self.meta.resample(data=self, meta_kws=meta_kws, **kws)  # pyright: ignore[reportArgumentType]
         return self.new_like(dxduave=dxdu_new, rec_dim=rep_dim, meta=meta)
 
-    # TODO(wpk): update from_raw from_data to
-    # include a mom_dims arguments
-    # that defaults to (xmom_dim, umom_dim)
-    # so if things are in wrong order, stuff still works out
+    # TODO(wpk): update from
 
     @classmethod
     @docfiller_shared.decorate
     def from_raw(
         cls,
-        raw: XArrayObj,
+        raw: DataT,
         rec_dim: SingleDim = "rec",
         xmom_dim: SingleDim = "xmom",
         umom_dim: SingleDim = "umom",
@@ -1130,7 +1096,7 @@ class DataCentralMoments(DataCentralMomentsBase):
     def from_vals(
         cls,
         uv: xr.DataArray,
-        xv: XArrayObj | None,
+        xv: DataT,
         order: int,
         xmom_dim: SingleDim = "xmom",
         umom_dim: SingleDim = "umom",
@@ -1143,7 +1109,7 @@ class DataCentralMoments(DataCentralMomentsBase):
         meta: DataCallbackABC | None = None,
         x_is_u: bool = False,
         **kwargs: Any,
-    ):
+    ) -> Self:
         """
         Create DataCentralMoments object from individual (unaveraged) samples.
 
@@ -1179,7 +1145,7 @@ class DataCentralMoments(DataCentralMomentsBase):
         if axis is MISSING and dim is MISSING:
             axis = 0
 
-        if xv is None or x_is_u:
+        if x_is_u:
             dxduave = cmomy.wrap_reduce_vals(
                 uv,
                 weight=weight,
@@ -1203,7 +1169,7 @@ class DataCentralMoments(DataCentralMomentsBase):
             )
 
         return cls(
-            dxduave=dxduave,
+            dxduave=dxduave,  # pyright: ignore[reportArgumentType]
             xmom_dim=xmom_dim,
             umom_dim=umom_dim,
             rec_dim=rec_dim,
@@ -1217,7 +1183,7 @@ class DataCentralMoments(DataCentralMomentsBase):
     @docfiller_shared.decorate
     def from_data(
         cls,
-        data: XArrayObj,
+        data: DataT,
         rec_dim: SingleDim = "rec",
         xmom_dim: SingleDim = "xmom",
         umom_dim: SingleDim = "umom",
@@ -1226,7 +1192,7 @@ class DataCentralMoments(DataCentralMomentsBase):
         meta: DataCallbackABC | None = None,
         x_is_u: bool = False,
         **kwargs: Any,
-    ):
+    ) -> Self:
         """
         Create DataCentralMoments object from data.
 
@@ -1272,7 +1238,7 @@ class DataCentralMoments(DataCentralMomentsBase):
             )
 
         return cls(
-            dxduave=dxduave,
+            dxduave=dxduave,  # pyright: ignore[reportArgumentType]
             xmom_dim=xmom_dim,
             umom_dim=umom_dim,
             rec_dim=rec_dim,
@@ -1286,7 +1252,7 @@ class DataCentralMoments(DataCentralMomentsBase):
     @docfiller_shared.decorate
     def from_resample_vals(  # noqa: PLR0913,PLR0917
         cls,
-        xv: XArrayObj | None,
+        xv: DataT,
         uv: xr.DataArray,
         order: int,
         sampler: Sampler,
@@ -1302,8 +1268,8 @@ class DataCentralMoments(DataCentralMomentsBase):
         meta_kws: MetaKws = None,
         x_is_u: bool = False,
         parallel: bool | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> Self:
         """
         Create DataCentralMoments object from unaveraged samples with resampling.
 
@@ -1333,8 +1299,8 @@ class DataCentralMoments(DataCentralMomentsBase):
         cmomy.resample.factory_sampler
         cmomy.resample.IndexSampler
         """
-        if xv is None or x_is_u:
-            xv = uv
+        if x_is_u:
+            xv = uv  # type: ignore[assignment]
 
         _raise_if_not_dataarray(xv)
         _raise_if_not_dataarray(uv)
@@ -1366,7 +1332,7 @@ class DataCentralMoments(DataCentralMomentsBase):
         )
 
         out = cls(
-            dxduave=dxduave,
+            dxduave=dxduave,  # pyright: ignore[reportArgumentType]
             xmom_dim=xmom_dim,
             umom_dim=umom_dim,
             rec_dim=rep_dim,
@@ -1453,13 +1419,16 @@ class DataCentralMoments(DataCentralMomentsBase):
 
         else:
             _raise_if_not_dataarray(xu)
-            raw = cast("DataT", xr.concat((u, xu), dim=xmom_dim))  # pyright: ignore[reportCallIssue, reportArgumentType]
+            raw = xr.concat((u, xu), dim=xmom_dim)  # pyright: ignore[reportCallIssue, reportArgumentType, reportUnknownMemberType, reportUnknownVariableType]
             if weight is not None:
-                raw = cmomy.assign_moment(
-                    raw, weight=weight, mom_dims=(xmom_dim, umom_dim), copy=False
+                raw = cmomy.assign_moment(  # pyright: ignore[reportAssignmentType, reportUnknownVariableType]
+                    raw,
+                    weight=weight,
+                    mom_dims=(xmom_dim, umom_dim),
+                    copy=False,  # pyright: ignore[reportUnknownArgumentType]
                 )
             # make sure in correct order
-            raw = raw.transpose(..., xmom_dim, umom_dim)
+            raw = raw.transpose(..., xmom_dim, umom_dim)  # pyright: ignore[reportAssignmentType, reportUnknownVariableType, reportUnknownMemberType]
 
         return cls.from_raw(
             raw=raw,
@@ -1476,27 +1445,27 @@ class DataCentralMoments(DataCentralMomentsBase):
     @docfiller_shared.decorate
     def from_ave_central(  # noqa: C901,PLR0912,PLR0913,PLR0917
         cls,
-        du,
-        dxdu,
-        weight=None,
-        xave=None,
-        uave=None,
-        axis=-1,
-        umom_axis=None,
-        xumom_axis=None,
-        rec_dim="rec",
-        xmom_dim="xmom",
-        umom_dim="umom",
-        deriv_dim=None,
-        central=False,
-        dtype=None,
-        dims=None,
-        attrs=None,
-        coords=None,
-        name=None,
-        meta=None,
-        x_is_u=False,
-    ):
+        du: ArrayLike | xr.DataArray,
+        dxdu: ArrayLike | DataT | None,
+        weight: int | None = None,
+        xave: ArrayLike | DataT | None = None,
+        uave: ArrayLike | DataT | None = None,
+        axis: int | None = -1,
+        umom_axis: int | None = None,
+        xumom_axis: int | None = None,
+        rec_dim: str = "rec",
+        xmom_dim: str = "xmom",
+        umom_dim: str = "umom",
+        deriv_dim: str | None = None,
+        central: bool = False,
+        dtype: DTypeLike = None,
+        dims: Sequence[str] | None = None,
+        attrs: AttrsType = None,
+        coords: CoordsType = None,
+        name: NameType = None,
+        meta: DataCallbackABC | None = None,
+        x_is_u: bool = False,
+    ) -> Self:
         """
         Constructor from central moments, with reduction along axis.
 
@@ -1543,10 +1512,14 @@ class DataCentralMoments(DataCentralMomentsBase):
 
         """
         if dxdu is None or x_is_u:
+            if not is_xarray(du):
+                msg = "only xarray objects supported for x_is_u/dxdu = None"
+                raise ValueError(msg)
+
             dxdu, du = (
                 (
-                    du.sel(**{umom_dim: s}).assign_coords(
-                        **{umom_dim: lambda x: range(x.sizes[umom_dim])}
+                    du.sel(**{umom_dim: s}).assign_coords(  # type: ignore[arg-type]
+                        **{umom_dim: lambda x: range(x.sizes[umom_dim])}  # type: ignore[arg-type]
                     )
                 )
                 for s in [slice(1, None), slice(None, -1)]
@@ -1555,17 +1528,17 @@ class DataCentralMoments(DataCentralMomentsBase):
         if (xave is None or x_is_u) and uave is not None:
             xave = uave
 
-        if isinstance(dxdu, xr.DataArray):
-            data = xr.concat((du, dxdu), dim=xmom_dim)
+        dxduave: cmomy.CentralMomentsData[DataT]
+        if is_xarray(dxdu):
+            data = xr.concat((du, dxdu), dim=xmom_dim)  # type: ignore[type-var]
             if weight is not None:
-                data.loc[{umom_dim: 0, xmom_dim: 0}] = weight
+                data.loc[{umom_dim: 0, xmom_dim: 0}] = weight  # type: ignore[union-attr]
             if xave is not None:
-                data.loc[{umom_dim: 0, xmom_dim: 1}] = xave
+                data.loc[{umom_dim: 0, xmom_dim: 1}] = xave  # type: ignore[union-attr]
             if uave is not None:
-                data.loc[{umom_dim: 1, xmom_dim: 0}] = uave
-            data = data.transpose(..., xmom_dim, umom_dim)
+                data.loc[{umom_dim: 1, xmom_dim: 0}] = uave  # type: ignore[union-attr]
             dxduave = cmomy.CentralMomentsData(
-                data,
+                cast("DataT", data.transpose(..., xmom_dim, umom_dim)),  # type: ignore[union-attr]
                 mom_ndim=2,
                 mom_dims=(xmom_dim, umom_dim),
             )
@@ -1577,6 +1550,9 @@ class DataCentralMoments(DataCentralMomentsBase):
                 umom_axis = axis
             if xumom_axis is None:
                 xumom_axis = axis
+
+            du = np.asarray(du)
+            dxdu = np.asarray(dxdu)
 
             du = np.swapaxes(du, umom_axis, -1)
             dxdu = np.swapaxes(dxdu, xumom_axis, -1)
@@ -1598,7 +1574,7 @@ class DataCentralMoments(DataCentralMomentsBase):
             if uave is not None:
                 data[..., 0, 1] = uave
 
-            dxduave = cmomy.CentralMomentsArray(data, mom_ndim=2).to_x(
+            dxduave = cmomy.CentralMomentsArray(data, mom_ndim=2).to_x(  # type: ignore[assignment]
                 mom_dims=(xmom_dim, umom_dim),
                 dims=dims,
                 attrs=attrs,
@@ -1619,7 +1595,7 @@ class DataCentralMoments(DataCentralMomentsBase):
 
 
 def _convert_dxduave(
-    dxduave: cmomy.CentralMomentsData[Any] | None, self_: DataCentralMomentsVals
+    dxduave: cmomy.CentralMomentsData[Any] | None, self_: DataCentralMomentsVals[Any]
 ) -> cmomy.CentralMomentsData[Any]:
     if dxduave is not None:
         return dxduave
@@ -1629,7 +1605,7 @@ def _convert_dxduave(
         raise ValueError(msg)
 
     # if self_.order > 0:
-    return cmomy.wrap_reduce_vals(
+    return cmomy.wrap_reduce_vals(  # type: ignore[no-any-return]
         self_.xv,
         self_.uv,
         weight=self_.weight,
@@ -1642,7 +1618,7 @@ def _convert_dxduave(
 
 @attrs.define
 @docfiller_shared.inherit(DataCentralMomentsBase)
-class DataCentralMomentsVals(DataCentralMomentsBase):
+class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
     """
     Parameters
     ----------
@@ -1658,9 +1634,9 @@ class DataCentralMomentsVals(DataCentralMomentsBase):
     #: Stored energy values
     uv: xr.DataArray = field(validator=attv.instance_of(xr.DataArray))
     #: Stored observable values
-    xv: XArrayObj = field(validator=attv.instance_of((xr.DataArray, xr.Dataset)))
+    xv: DataT = field(validator=attv.instance_of((xr.DataArray, xr.Dataset)))  # type: ignore[assignment]
     #: Expansion order
-    order: int | None = field(
+    order: int | None = field(  # type: ignore[assignment]
         kw_only=True,
         default=None,
         validator=attv.optional(attv.instance_of(int)),
@@ -1676,9 +1652,9 @@ class DataCentralMomentsVals(DataCentralMomentsBase):
         kw_only=True, converter=convert_mapping_or_none_to_dict, default=None
     )
     #: :class:`cmomy.CentralMomentsData` object
-    dxduave: cmomy.CentralMomentsData = field(
+    dxduave: cmomy.CentralMomentsData[DataT] = field(
         kw_only=True,
-        converter=attrs.Converter(_convert_dxduave, takes_self=True),  # pyright: ignore[reportCallIssue, reportArgumentType]
+        converter=attrs.Converter(_convert_dxduave, takes_self=True),  # type: ignore[misc, call-overload]
         validator=attv.instance_of(cmomy.CentralMomentsData),
         default=None,
     )
@@ -1687,7 +1663,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase):
     @docfiller_shared.decorate
     def from_vals(
         cls,
-        xv: XArrayObj | None,
+        xv: DataT,
         uv: xr.DataArray,
         order: int,
         weight: XArrayObj | None = None,
@@ -1697,9 +1673,9 @@ class DataCentralMomentsVals(DataCentralMomentsBase):
         deriv_dim: SingleDim | None = None,
         central: bool = False,
         from_vals_kws: Mapping[str, Any] | None = None,
-        meta=None,
-        x_is_u=False,
-    ):
+        meta: DataCallbackABC | None = None,
+        x_is_u: bool = False,
+    ) -> Self:
         """
         Constructor from arrays.
 
@@ -1731,7 +1707,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase):
         """
         return cls(
             uv=uv,
-            xv=uv if xv is None else xv,
+            xv=xv,
             order=order,
             weight=weight,
             rec_dim=rec_dim,
@@ -1747,7 +1723,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase):
     def __len__(self) -> int:
         return len(self.uv[self.rec_dim])
 
-    @docfiller_shared.inherit(DataCentralMoments.resample)
+    @docfiller_shared.inherit(DataCentralMoments.resample)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
     def resample(
         self,
         sampler: Sampler,
@@ -1756,7 +1732,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase):
         rep_dim: SingleDim = "rep",
         parallel: bool | None = None,
         meta_kws: MetaKws = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Self:
         """
         Resample data.
@@ -1798,16 +1774,20 @@ class DataCentralMomentsVals(DataCentralMomentsBase):
         }
         # back to indices for meta analysis...
         # Not sure if I like this.  In general, don't have metadata resampling...
-        meta = self.meta.resample(data=self, meta_kws=meta_kws, **kws)
+        meta = self.meta.resample(data=self, meta_kws=meta_kws, **kws)  # pyright: ignore[reportArgumentType]
 
-        dxduave = cmomy.wrap_resample_vals(
+        if self.order is None:
+            msg = "must have self.order to resample"
+            raise ValueError(msg)
+
+        dxduave: cmomy.CentralMomentsData[DataT] = cmomy.wrap_resample_vals(  # pyright: ignore[reportCallIssue, reportUnknownVariableType]
             self.xv,
             self.uv,
             weight=self.weight,
             mom=(1, self.order),
             mom_dims=(self.xmom_dim, self.umom_dim),
-            **kws,
+            **kws,  # pyright: ignore[reportArgumentType]
         )
 
-        dxduave = dxduave.transpose(rep_dim, ...)
+        dxduave = dxduave.transpose(rep_dim, ...)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
         return self.new_like(dxduave=dxduave, rec_dim=rep_dim, meta=meta)

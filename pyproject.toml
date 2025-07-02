@@ -75,6 +75,8 @@ urls.Homepage = "https://github.com/usnistgov/thermoextrap"
 
 [dependency-groups]
 dev = [
+    "pytest-monkeytype",
+    "righttyper",
     "thermoextrap[all]",
     { include-group = "mypy" },
     { include-group = "notebook" },
@@ -89,7 +91,7 @@ test = [
     "pytest-cov",
     "pytest-env",
     "pytest-sugar",
-    "pytest-xdist>3.6.0",
+    # "pytest-xdist>3.6.0",
     "thermoextrap[mbar,gpr]",
     { include-group = "pandas" },
     { include-group = "pytest" },
@@ -193,16 +195,16 @@ max_supported_python = "3.12"
 
 [tool.pytest.ini_options]
 addopts = [
-    "-ra",
-    "--strict-config",
-    "--strict-markers",
+    # "-ra",
+    # "--strict-config",
+    # "--strict-markers",
     "--doctest-modules",
     "--doctest-glob=*.md",
     "--pyargs",
     "--cov-config=pyproject.toml",
     "--ignore-glob='**/legacy/**",
-    "-n",
-    "4",
+    # "-n",
+    # "4",
 ]
 testpaths = [
     "README.md",
@@ -210,23 +212,23 @@ testpaths = [
     "thermoextrap",
 ]
 minversion = "8"
-log_cli_level = "INFO"
-xfail_strict = true
-filterwarnings = [
-    "error",
-    "ignore: Type google:DeprecationWarning",
-    "ignore: distutils Version classes are deprecated:DeprecationWarning",
-    "ignore: pkg_resources is deprecated as an API:DeprecationWarning",
-    "ignore: FNV hashing is not implemented in Numba:UserWarning",
-    "ignore: A kernel object:UserWarning",
-    "ignore: Unknown solver options",
-    "ignore::docstring_inheritance.DocstringInheritanceWarning",
-    "ignore: Module thermoextrap was never imported:coverage.exceptions.CoverageWarning",
-    "ignore: No data was collected:coverage.exceptions.CoverageWarning",
-    "ignore: pkg_resources is deprecated:UserWarning",
-    "ignore: invalid escape sequence:SyntaxWarning",
-
-]
+# log_cli_level = "INFO"
+# xfail_strict = true
+# filterwarnings = [
+#     "error",
+#     "ignore: Type google:DeprecationWarning",
+#     "ignore: distutils Version classes are deprecated:DeprecationWarning",
+#     "ignore: pkg_resources is deprecated as an API:DeprecationWarning",
+#     "ignore: FNV hashing is not implemented in Numba:UserWarning",
+#     "ignore: A kernel object:UserWarning",
+#     "ignore: Unknown solver options",
+#     "ignore::docstring_inheritance.DocstringInheritanceWarning",
+#     "ignore: Module thermoextrap was never imported:coverage.exceptions.CoverageWarning",
+#     "ignore: No data was collected:coverage.exceptions.CoverageWarning",
+#     "ignore: pkg_resources is deprecated:UserWarning",
+#     "ignore: invalid escape sequence:SyntaxWarning",
+#     "ignore: The default datetime:DeprecationWarning",
+# ]
 
 [tool.pytest_env]
 NUMBA_CACHE_DIR = { value = "{PWD}/.numba_cache", transform = true, skip_if_set = true }
@@ -275,7 +277,7 @@ exclude = [
     "docs",
 ]
 check_untyped_defs = true
-# strict = true
+strict = true
 enable_error_code = [
     "ignore-without-code",
     "redundant-expr",
@@ -310,6 +312,8 @@ exclude = [
 strict = [
     "noxfile.py",
     "tools/*.py",
+    "src/thermoextrap/data.py",
+    "tests/test_typing.py",
 ]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
