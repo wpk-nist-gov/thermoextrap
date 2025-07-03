@@ -3,26 +3,43 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 # fix an issue with typing
 from ._imports import sympy as sp
 
 if TYPE_CHECKING:
-    import sympy.core.symbol
-    import sympy.tensor.indexed
+    from sympy.core.symbol import Symbol  # pyright: ignore[reportMissingTypeStubs]
+    from sympy.tensor.indexed import (  # pyright: ignore[reportMissingTypeStubs]
+        IndexedBase,
+    )
+
+
+@overload
+def get_default_symbol(args: str) -> Symbol: ...
+@overload
+def get_default_symbol(*args: str) -> tuple[Symbol, ...]: ...
 
 
 @lru_cache(100)
-def get_default_symbol(*args) -> tuple[sympy.core.symbol.Symbol, ...]:
+def get_default_symbol(*args: str) -> Symbol | tuple[Symbol, ...]:
     """Helper to get sympy symbols."""
-    return sp.symbols(",".join(args))
+    out = sp.symbols(args)
+    if len(out) == 1:
+        return out[0]
+    return out
+
+
+@overload
+def get_default_indexed(args: str) -> IndexedBase: ...
+@overload
+def get_default_indexed(*args: str) -> tuple[IndexedBase, ...]: ...
 
 
 @lru_cache(100)
-def get_default_indexed(*args) -> list[sympy.tensor.indexed.IndexedBase]:
+def get_default_indexed(*args: str) -> IndexedBase | tuple[IndexedBase, ...]:
     """Helper to get sympy IndexBase objects."""
-    out = [sp.IndexedBase(key) for key in args]
+    out = tuple(sp.IndexedBase(key) for key in args)
     if len(out) == 1:
-        out = out[0]
+        return out[0]
     return out

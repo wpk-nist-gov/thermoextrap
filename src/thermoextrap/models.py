@@ -6,9 +6,9 @@ General extrapolation/interpolation models (:mod:`~thermoextrap.models`)
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence, Sized
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Generic, SupportsIndex, overload
 
 import attrs
 import cmomy
@@ -28,17 +28,30 @@ from .core._imports import has_pymbar
 from .core._imports import sympy as sp
 from .core.compat import xr_dot
 from .core.sputils import get_default_indexed, get_default_symbol
+from .core.typing import (
+    DataT,
+    SupportsDataProtocol,
+    SupportsGetItem,
+    SupportsModelProtocol,
+)
 from .core.xrutils import xrwrap_alpha
-from .data import AbstractData
 from .docstrings import DOCFILLER_SHARED
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable
     from typing import Any
 
     from cmomy.core.typing import Sampler
+    from numpy.typing import ArrayLike, NDArray
+    from pymbar.mbar import MBAR
+    from sympy.core.expr import Expr
+    from sympy.core.function import Function
+    from sympy.core.symbol import Symbol
+    from sympy.tensor.indexed import IndexedBase
 
-    from thermoextrap.core.typing_compat import Self
+    from .core.typing_compat import Self, TypeVar
+
+    _T = TypeVar("_T")
 
 docfiller_shared = DOCFILLER_SHARED.levels_to_top("cmomy", "xtrap")
 
@@ -54,11 +67,21 @@ __all__ = [
     "StateCollection",
 ]
 
+# * Utils ---------------------------------------------------------------------
 
-################################################################################
-# Structure(s) to deal with analytic derivatives, etc
-################################################################################
-class SymFuncBase(sp.Function):
+
+def _validate_supports_getitem(
+    instance: Any,  # noqa: ARG001
+    attribute: attrs.Attribute[Any],  # noqa: ARG001
+    value: Any,
+) -> None:
+    if not isinstance(value, SupportsGetItem):
+        msg = "{attribute.name} must support __getitem__"
+        raise TypeError(msg)
+
+
+# * Structure(s) to deal with analytic derivatives, etc -----------------------
+class SymFuncBase(sp.Function):  # type: ignore[misc,name-defined]
     """
     Base class to define a sympy function for user defined derivatives.
 
@@ -83,13 +106,13 @@ class SymFuncBase(sp.Function):
         msg = "must specify in subclass"
         raise NotImplementedError(msg)
 
-    def fdiff(self, argindex=1) -> None:
+    def fdiff(self, argindex: int = 1) -> None:
         """Derivative of function.  This will be used by :class:`thermoextrap.models.SymDerivBase`."""
         msg = "must specify in subclass"
         raise NotImplementedError(msg)
 
     @classmethod
-    def eval(cls, beta) -> None:
+    def eval(cls, beta: Any) -> None:
         """
         Evaluate function.
 
@@ -116,7 +139,15 @@ class SymDerivBase:
     {post_func}
     """
 
-    def __init__(self, func, args=None, expand=True, post_func=None) -> None:
+    beta: Symbol
+
+    def __init__(
+        self,
+        func: SymFuncBase,
+        args: list[Symbol | IndexedBase] | None = None,
+        expand: bool = True,
+        post_func: str | Callable[[SymFuncBase], SymFuncBase] | None = None,
+    ) -> None:
         if args is None:
             args = func.deriv_args()
 
@@ -141,11 +172,11 @@ class SymDerivBase:
         self._cache: dict[str, Any] = {}
 
     @cached.meth
-    def __getitem__(self, order):
+    def __getitem__(self, order: SupportsIndex, /) -> Expr:
         if order == 0:
             out = self.func
         else:
-            out = self[order - 1].diff(self.beta, 1)
+            out = self[int(order) - 1].diff(self.beta, 1)
             if self.expand:
                 out = out.expand()
         return out
@@ -174,18 +205,19 @@ class SymSubs:
         If True, try to expand result.
     """
 
-    funcs: Sequence[sp.Function] = field()
-    subs: Sequence | None = field(default=None)
-    subs_final: Sequence | None = field(default=None)
-    subs_all: Mapping | None = field(default=None)
+    # TODO(wpk): specify types of Seqence/mapping
+    funcs: SupportsGetItem[Expr] = field(validator=_validate_supports_getitem)
+    subs: SupportsGetItem[Expr] | None = field(default=None)
+    subs_final: SupportsGetItem[Expr] | None = field(default=None)
+    subs_all: Mapping[str, Expr] | None = field(default=None)
     recursive: bool = field(default=True)
     simplify: bool = field(default=False)
     expand: bool = field(default=True)
 
-    _cache: dict = field(init=False, repr=False, factory=dict)
+    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
 
     @cached.meth
-    def __getitem__(self, order):
+    def __getitem__(self, order: SupportsIndex, /) -> Expr:
         func = self.funcs[order]
 
         if self.subs is not None:
@@ -229,29 +261,30 @@ class Lambdify:
     sympy.utilities.lambdify.lambdify
     """
 
-    exprs: Sequence[sp.Function] = field()
-    args: Sequence | None = field(default=None)
-    lambdify_kws: Mapping | None = field(
+    exprs: SupportsGetItem[Expr] = field()
+    args: Sequence[Symbol | IndexedBase] = field()
+    lambdify_kws: dict[str, Any] = field(
         kw_only=True,
-        default=None,
-        converter=attc.default_if_none(factory=dict),
+        factory=dict,
     )
 
-    _cache: dict = field(init=False, repr=False, factory=dict)
+    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
 
     @cached.meth
-    def __getitem__(self, order):
-        return sp.lambdify(self.args, self.exprs[order], **self.lambdify_kws)
+    def __getitem__(self, order: SupportsIndex, /) -> Callable[..., Any]:
+        return sp.lambdify(self.args, self.exprs[order], **self.lambdify_kws)  # type: ignore[no-any-return]
 
     @classmethod
-    def from_u_xu(cls, exprs, **lambdify_kws):
+    def from_u_xu(cls, exprs: SupportsGetItem[Expr], **lambdify_kws: Any) -> Self:
         """Factory for u/xu args."""
         u, xu = get_default_indexed("u", "xu")
         # args = (u, xu)
         return cls(exprs=exprs, args=(u, xu), lambdify_kws=lambdify_kws)
 
     @classmethod
-    def from_du_dxdu(cls, exprs, xalpha=False, **lambdify_kws):
+    def from_du_dxdu(
+        cls, exprs: SupportsGetItem[Expr], xalpha: bool = False, **lambdify_kws: Any
+    ) -> Self:
         """Factory for du/dxdu args."""
         x1 = get_default_indexed("x1") if xalpha else get_default_symbol("x1")
         du, dxdu = get_default_indexed("du", "dxdu")
@@ -268,14 +301,15 @@ class SymMinusLog:
         self._cache: dict[str, Any] = {}
 
     @cached.meth
-    def __getitem__(self, order):
+    def __getitem__(self, order: SupportsIndex, /) -> Expr:
+        order = int(order)
         if order == 0:
             return -sp.log(self.X[0])
 
-        expr = 0
+        expr: Expr = sp.Number(0)
         for k in range(1, order + 1):
             expr += (
-                sp.factorial(k - 1) * (-1 / self.X[0]) ** k * sp.bell(order, k, self.dX)
+                sp.factorial(k - 1) * (-1 / self.X[0]) ** k * sp.bell(order, k, self.dX)  # pyright: ignore[reportOperatorIssue]
             )
         # subber
         subs = {self.dX[j]: self.X[j + 1] for j in range(order + 1)}
@@ -283,7 +317,7 @@ class SymMinusLog:
 
 
 @lru_cache(5)
-def factory_minus_log():
+def factory_minus_log() -> Lambdify:
     s = SymMinusLog()
     return Lambdify(s, (s.X,))
 
@@ -304,27 +338,56 @@ class Derivatives(MyAttrsMixin):
     """
 
     #: Sequence of callable functions
-    funcs: Sequence[Callable] = field()
+    funcs: SupportsGetItem[Callable[..., Any]] = field(
+        validator=_validate_supports_getitem
+    )
     #: Sequence of sympy expressions, optional
-    exprs: Sequence[sp.Function] | None = field(kw_only=True, default=None)
+    exprs: SupportsGetItem[Function] | None = field(
+        kw_only=True,
+        default=None,
+        validator=attv.optional(_validate_supports_getitem),
+    )
     #: Arguments
-    args: Sequence | None = field(kw_only=True, default=None)
+    args: Sequence[Symbol | IndexedBase] | None = field(kw_only=True, default=None)
 
     @staticmethod
-    def _apply_minus_log(X, order):
+    def _apply_minus_log(X: list[DataT], order: int) -> list[DataT]:
         func = factory_minus_log()
         return [func[i](X) for i in range(order + 1)]
 
+    @overload
     def derivs(
         self,
-        data=None,
-        order=None,
-        args=None,
-        minus_log=False,
-        order_dim="order",
-        concat_kws=None,
-        norm=False,
-    ):
+        data: SupportsDataProtocol[DataT],
+        *,
+        order: int | None = ...,
+        minus_log: bool = ...,
+        order_dim: None,
+        concat_kws: Mapping[str, Any] | None = ...,
+        norm: bool = ...,
+    ) -> list[DataT]: ...
+    @overload
+    def derivs(
+        self,
+        data: SupportsDataProtocol[DataT],
+        *,
+        order: int | None = ...,
+        minus_log: bool = ...,
+        order_dim: str = ...,
+        concat_kws: Mapping[str, Any] | None = ...,
+        norm: bool = ...,
+    ) -> DataT: ...
+
+    def derivs(
+        self,
+        data: SupportsDataProtocol[DataT],
+        *,
+        order: int | None = None,
+        minus_log: bool = False,
+        order_dim: str | None = "order",
+        concat_kws: Mapping[str, Any] | None = None,
+        norm: bool = False,
+    ) -> DataT | list[DataT]:
         """
         Calculate derivatives for orders range(0, order+1).
 
@@ -356,20 +419,15 @@ class Derivatives(MyAttrsMixin):
         output : list of xarray.DataArray
             See above for nature of output
         """
-        if data is not None:
-            args = data.derivs_args
-            if order is None:
-                order = data.order
+        args = data.derivs_args
+        if order is None:
+            order = data.order
 
         if args is None:
             msg = "must specify args or data"
             raise ValueError(msg)
 
-        if order is None:
-            msg = "must specify order or data"
-            raise ValueError(msg)
-
-        out = [self.funcs[i](*args) for i in range(order + 1)]
+        out: list[DataT] = [self.funcs[i](*args) for i in range(order + 1)]
 
         if minus_log:
             out = self._apply_minus_log(X=out, order=order)
@@ -377,15 +435,41 @@ class Derivatives(MyAttrsMixin):
         if norm:
             out = [x / math.factorial(i) for i, x in enumerate(out)]
 
-        if order_dim is not None:
-            if concat_kws is None:
-                concat_kws = {}
-            out = xr.concat(out, dim=order_dim, **concat_kws)
-        return out
+        if order_dim is None:
+            return out
+
+        return xr.concat(out, dim=order_dim, **(concat_kws or {}))  # pyright: ignore[reportCallIssue, reportArgumentType]
+
+    @overload
+    def coefs(
+        self,
+        data: SupportsDataProtocol[DataT],
+        *,
+        order: int | None = ...,
+        minus_log: bool = ...,
+        order_dim: None,
+        **kwargs: Any,
+    ) -> list[DataT]: ...
+    @overload
+    def coefs(
+        self,
+        data: SupportsDataProtocol[DataT],
+        *,
+        order: int | None = ...,
+        minus_log: bool = ...,
+        order_dim: str = ...,
+        **kwargs: Any,
+    ) -> DataT: ...
 
     def coefs(
-        self, data=None, args=None, order=None, minus_log=False, order_dim="order"
-    ):
+        self,
+        data: SupportsDataProtocol[DataT],
+        *,
+        order: int | None = None,
+        minus_log: bool = False,
+        order_dim: str | None = "order",
+        **kwargs: Any,
+    ) -> DataT | list[DataT]:
         """
         Alias to `self.derivs(..., norm=True)`.
 
@@ -395,15 +479,17 @@ class Derivatives(MyAttrsMixin):
         """
         return self.derivs(
             data=data,
-            args=args,
             order=order,
             minus_log=minus_log,
             order_dim=order_dim,
             norm=True,
+            **kwargs,
         )
 
     @classmethod
-    def from_sympy(cls, exprs, args):
+    def from_sympy(
+        cls, exprs: SupportsGetItem[Expr], args: Sequence[Symbol | IndexedBase]
+    ) -> Derivatives:
         """
         Create object from list of sympy functions.
 
@@ -423,42 +509,96 @@ class Derivatives(MyAttrsMixin):
 
 
 @lru_cache(10)
-def taylor_series_norm(order, order_dim="order"):
+def taylor_series_norm(order: int, order_dim: str = "order") -> xr.DataArray:
     """``taylor_series_coefficients = derivs * taylor_series_norm``."""
     out = np.array([1 / math.factorial(i) for i in range(order + 1)])
-    if order_dim is not None:
-        out = xr.DataArray(out, dims=order_dim)
-    return out
+    return xr.DataArray(out, dims=order_dim)
+
+
+# @attrs.define
+# class ModelABC(MyAttrsMixin, Generic[DataT]):
+#     """Generic model class"""
+
+#     #: Alpha value data is evaluated at
+#     _alpha0: float = field(converter=float, alias="alpha0")
+
+#     #: Data object
+#     data: SupportsDataProtocol[DataT] = field(validator=attv.instance_of(SupportsDataProtocol))  # type: ignore[type-abstract]
+
+#     #: Derivatives object
+#     derivatives: Derivatives = field(validator=attv.instance_of(Derivatives))
+
+#     #: Maximum order of expansion (defaults to self.data.order)
+#     _order: int | None = field(default=None, alias="order")
+
+#     @property
+#     def alpha0(self) -> float:
+#         return self._alpha0
+
+#     @property
+#     def order(self) -> int:
+#         if self._order is None:
+#             return self.data.order
+#         return self._order
+
+#     @abstractmethod
+#     def derivs(self, *args: Any, **kwargs: Any) -> DataT:
+#         pass
+
+#     @abstractmethod
+#     def coefs(self, *args: Any, **kwargs: Any) -> DataT:
+#         pass
+
+#     @abstractmethod
+#     def predict(self, alpha: ArrayLike) -> DataT:
+#         pass
+
+#     @abstractmethod
+#     def resample(self, sampler: Sampler) -> Self:
+#         pass
 
 
 @attrs.define
-class ExtrapModel(MyAttrsMixin):
+class ExtrapModel(MyAttrsMixin, Generic[DataT]):
     """Apply taylor series extrapolation."""
 
     #: Alpha value data is evaluated at
-    alpha0: float = field(converter=float)
+    _alpha0: float = field(converter=float, alias="alpha0")
 
     #: Data object
-    data: AbstractData = field(validator=attv.instance_of(AbstractData))
+    data: SupportsDataProtocol[DataT] = field(
+        validator=attv.instance_of(SupportsDataProtocol)  # type: ignore[type-abstract]
+    )
 
     #: Derivatives object
     derivatives: Derivatives = field(validator=attv.instance_of(Derivatives))
 
-    #: Maximum order of expansion
-    order: int | None = field(default=attrs.Factory(lambda self: self.data.order))
+    #: Maximum order of expansion (defaults to self.data.order)
+    _order: int | None = field(default=None, alias="order")
+
     #: Whether to apply `X <- -log(X)`.
-    minus_log: bool | None = field(
+    minus_log: bool = field(
         kw_only=True,
         default=False,
-        converter=attc.default_if_none(False),
+        validator=attv.instance_of(bool),
     )
     #: Name of `alpha`
     alpha_name: str = field(kw_only=True, default="alpha", converter=str)
 
-    _cache: dict = field(init=False, repr=False, factory=dict)
+    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
+
+    @property
+    def alpha0(self) -> float:
+        return self._alpha0
+
+    @property
+    def order(self) -> int:
+        if self._order is None:
+            return self.data.order
+        return self._order
 
     @cached.meth
-    def _derivs(self, order, order_dim, minus_log):
+    def _derivs(self, order: int, order_dim: str, minus_log: bool) -> DataT:
         return self.derivatives.derivs(
             data=self.data,
             order=order,
@@ -467,7 +607,13 @@ class ExtrapModel(MyAttrsMixin):
             order_dim=order_dim,
         )
 
-    def derivs(self, order=None, order_dim="order", minus_log=None, norm=False):
+    def derivs(
+        self,
+        order: int | None = None,
+        order_dim: str = "order",
+        minus_log: bool | None = None,
+        norm: bool = False,
+    ) -> DataT:
         if minus_log is None:
             minus_log = self.minus_log
         if order is None:
@@ -477,26 +623,31 @@ class ExtrapModel(MyAttrsMixin):
             return out * taylor_series_norm(order, order_dim)
         return out
 
-    def coefs(self, order=None, order_dim="order", minus_log=None):
+    def coefs(
+        self,
+        order: int | None = None,
+        order_dim: str = "order",
+        minus_log: bool | None = None,
+    ) -> DataT:
         return self.derivs(
             order=order, order_dim=order_dim, minus_log=minus_log, norm=True
         )
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> DataT:
         return self.predict(*args, **kwargs)
 
     def predict(
         self,
-        alpha,
-        order=None,
-        order_dim="order",
-        cumsum=False,
-        no_sum=False,
-        minus_log=None,
-        alpha_name=None,
-        dalpha_coords="dalpha",
-        alpha0_coords=True,
-    ):
+        alpha: ArrayLike,
+        order: int | None = None,
+        order_dim: str = "order",
+        cumsum: bool = False,
+        no_sum: bool = False,
+        minus_log: bool | None = None,
+        alpha_name: str | None = None,
+        dalpha_coords: str = "dalpha",
+        alpha0_coords: str | bool = True,
+    ) -> DataT:
         """
         Calculate taylor series at values "alpha".
 
@@ -520,8 +671,9 @@ class ExtrapModel(MyAttrsMixin):
             Name to apply to created alpha dimension.
         dalpha_coords : str, default="dalpha"
             Name of coordinate ``dalpha = alpha - alpha0``.
-        alpha0_coords : bool, default=True
-            If True, add ``alpha0`` to the coordinates of the results.
+        alpha0_coords : str or bool, default=True
+            If True, add ``alpha_name`` + "0" to the coordinates of the results.
+            If ``str``, use this as the alpha0 coordinate names.
 
         Returns
         -------
@@ -548,13 +700,11 @@ class ExtrapModel(MyAttrsMixin):
         if alpha0_coords:
             if not isinstance(alpha0_coords, str):
                 alpha0_coords = alpha_name + "0"
-            coords[alpha0_coords] = self.alpha0
+            coords[alpha0_coords] = self.alpha0  # type: ignore[assignment]
 
         # coords = {"dalpha": dalpha, alpha_name + "0": self.alpha0}
 
-        out = (prefac * coefs.sel(**{order_dim: prefac[order_dim]})).assign_coords(
-            **coords
-        )
+        out = (prefac * coefs.sel({order_dim: prefac[order_dim]})).assign_coords(coords)
 
         if no_sum:
             pass
@@ -565,7 +715,7 @@ class ExtrapModel(MyAttrsMixin):
 
         return out
 
-    def resample(self, sampler: Sampler, **kws):
+    def resample(self, sampler: Sampler, **kws: Any) -> Self:
         """Create new object with resampled data."""
         return self.new_like(
             order=self.order,
@@ -578,8 +728,11 @@ class ExtrapModel(MyAttrsMixin):
 
 
 # TODO(wpk): rename StateCollection to ModelSequence?
+# TODO(wpk): maybe make Generic(ModelProtocolT, DataT)
 @attrs.define
-class StateCollection(MyAttrsMixin):
+class StateCollection(
+    MyAttrsMixin, Sequence[SupportsModelProtocol[DataT]], Generic[DataT]
+):
     """
     Sequence of models.
 
@@ -592,25 +745,47 @@ class StateCollection(MyAttrsMixin):
         additional key word arguments to keep internally in self.kws
     """
 
-    states: Sequence = field()
+    states: Sequence[SupportsModelProtocol[DataT]] = field()
     kws: dict[str, Any] = field(
         kw_only=True, converter=convert_mapping_or_none_to_dict, default=None
     )
 
-    _cache: dict = field(init=False, repr=False, factory=dict)
-
-    def __call__(self, *args, **kwargs):
-        return self.predict(*args, **kwargs)
+    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
 
     def __len__(self) -> int:
         return len(self.states)
 
-    def __getitem__(self, idx):
-        return self.states[idx]
+    @overload
+    def __getitem__(self, idx: SupportsIndex, /) -> SupportsModelProtocol[DataT]: ...
+    @overload
+    def __getitem__(self, idx: slice[Any, Any, Any]) -> Self: ...
+
+    def __getitem__(
+        self, idx: SupportsIndex | slice[Any, Any, Any], /
+    ) -> SupportsModelProtocol[DataT] | Self:
+        if isinstance(idx, slice):
+            return type(self)(self.states[idx], kws=self.kws)
+        return self.states[int(idx)]
 
     @property
-    def alpha_name(self):
+    def alpha_name(self) -> str:
         return getattr(self[0], "alpha_name", "alpha")
+
+    @property
+    def order(self) -> int:
+        return min(m.order for m in self)
+
+    @property
+    def alpha0(self) -> list[float]:
+        return [m.alpha0 for m in self]
+
+    def _check_alpha(self, alpha: ArrayLike, bounded: bool = False) -> None:
+        if bounded:
+            a = np.asarray(alpha)
+            lb, ub = self[0].alpha0, self[-1].alpha0
+            if np.any((a < lb) | (ub < a)):
+                msg = f"{a} outside of bounds [{lb}, {ub}]"
+                raise ValueError(msg)
 
     def resample(self, sampler: Sampler | Sequence[Sampler], **kws: Any) -> Self:
         """
@@ -629,8 +804,8 @@ class StateCollection(MyAttrsMixin):
             (np.ndarray, xr.DataArray, xr.Dataset, cmomy.IndexSampler, Mapping),
         ):
             sampler = [sampler] * len(self)
-        elif len(sampler) != len(self):
-            msg = f"{len(sampler)=} must equal {len(self)=}"
+        elif not isinstance(sampler, Sized) or len(sampler) != len(self):
+            msg = f"Sampler must be a sized object with length {len(self)=}"
             raise ValueError(msg)
 
         return type(self)(
@@ -641,37 +816,41 @@ class StateCollection(MyAttrsMixin):
             **self.kws,
         )
 
-    def map(self, func, *args, **kwargs):
+    def map(self, func: Callable[..., _T], *args: Any, **kwargs: Any) -> list[_T]:
         """
         Apply a function to elements self.
         ``out = [func(s, *args, **kwargs) for s in self]``.
-
-        if func is a str, then
-        ``out = [getattr(s, func)(*args, **kwargs) for s in self]``
         """
-        if isinstance(func, str):
-            out = [getattr(s, func)(*args, **kwargs) for s in self]
-        else:
-            out = [func(s, *args, **kwargs) for s in self]
+        return [func(s, *args, **kwargs) for s in self]
 
-        return out
-
-    def map_concat(self, func, concat_dim=None, concat_kws=None, *args, **kwargs):
+    def map_concat(
+        self,
+        func: Callable[..., DataT],
+        concat_dim: Any = None,
+        concat_kws: Mapping[str, Any] | None = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> DataT:
         """
         Apply function and concat output.
 
         defaults to concat with dim=pd.Index(self.alpha0, name=self.alpha_name)
         """
         out = self.map(func, *args, **kwargs)
-        if isinstance(out[0], (xr.DataArray, xr.Dataset)):
-            if concat_dim is None:
-                concat_dim = pd.Index(self.alpha0, name=self.alpha_name)
-            if concat_kws is None:
-                concat_kws = {}
-            out = xr.concat(out, dim=concat_dim, **concat_kws)
-        return out
 
-    def append(self, states, sort=True, key=None, **kws):
+        if concat_dim is None:
+            concat_dim = pd.Index(self.alpha0, name=self.alpha_name)
+        if concat_kws is None:
+            concat_kws = {}
+        return xr.concat(out, dim=concat_dim, **concat_kws)
+
+    def append(
+        self,
+        states: Sequence[Any],
+        sort: bool = True,
+        key: Callable[..., Any] | None = None,
+        **kws: Any,
+    ) -> Self:
         """
         Create new object with states appended to self.states.
 
@@ -701,52 +880,32 @@ class StateCollection(MyAttrsMixin):
             new_states = sorted(new_states, key=key, **kws)
         return type(self)(new_states, **self.kws)
 
-    @property
-    def order(self):
-        return min(m.order for m in self)
 
-    @property
-    def alpha0(self):
-        return [m.alpha0 for m in self]
-
-    def _check_alpha(self, alpha, bounded=False) -> None:
-        if bounded:
-            try:
-                seq = iter(alpha)
-            except TypeError:
-                seq = [alpha]
-
-            lb, ub = self[0].alpha0, self[-1].alpha0
-
-            for a in seq:
-                if a < lb or a > ub:
-                    msg = f"{a} outside of bounds [{lb}, {ub}]"
-                    raise ValueError(msg)
-
-
-def xr_weights_minkowski(deltas, m=20, dim="state"):
+def xr_weights_minkowski(
+    deltas: xr.DataArray, m: int = 20, dim: str = "state"
+) -> xr.DataArray:
     deltas_m = deltas**m
     return 1.0 - deltas_m / deltas_m.sum(dim)
 
 
 @attrs.define
-class PiecewiseMixin:
+class _PiecewiseStateCollection(StateCollection[DataT]):
     """Provide methods for Piecewise state collection."""
 
-    def _indices_between_alpha(self, alpha):
-        idx = np.digitize(alpha, self.alpha0, right=False) - 1
+    def _indices_between_alpha(self, alpha: float) -> NDArray[np.int64]:
+        idx = int(np.digitize(alpha, self.alpha0, right=False) - 1)
         if idx < 0:
             idx = 0
         elif idx == len(self) - 1:
             idx = len(self) - 2
-        return [idx, idx + 1]
+        return np.array([idx, idx + 1], dtype=np.int64)
 
-    def _indices_nearest_alpha(self, alpha):
+    def _indices_nearest_alpha(self, alpha: float) -> NDArray[np.int64]:
         dalpha = np.abs(np.array(self.alpha0) - alpha)
         # two lowest
         return np.argsort(dalpha)[:2]
 
-    def _indices_alpha(self, alpha, method):
+    def _indices_alpha(self, alpha: float, method: str | None) -> NDArray[np.int64]:
         if method is None or method == "between":
             return self._indices_between_alpha(alpha)
         if method == "nearest":
@@ -754,13 +913,15 @@ class PiecewiseMixin:
         msg = f"unknown method {method}"
         raise ValueError(msg)
 
-    def _states_alpha(self, alpha, method):
+    def _states_alpha(
+        self, alpha: float, method: str | None
+    ) -> list[ExtrapModel[DataT]]:
         return [self[i] for i in self._indices_alpha(alpha, method)]
 
 
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
-class ExtrapWeightedModel(StateCollection, PiecewiseMixin):
+class ExtrapWeightedModel(_PiecewiseStateCollection[DataT]):
     """
     Weighted extrapolation model.
 
@@ -770,19 +931,19 @@ class ExtrapWeightedModel(StateCollection, PiecewiseMixin):
         Extrap models to consider.
     """
 
-    states: Sequence[ExtrapModel] = field()
+    states: Sequence[ExtrapModel[DataT]] = field()
 
     def predict(
         self,
-        alpha,
-        order=None,
-        order_dim="order",
-        cumsum=False,
-        minus_log=None,
-        alpha_name=None,
-        method=None,
-        bounded=False,
-    ):
+        alpha: ArrayLike,
+        order: int | None = None,
+        order_dim: str = "order",
+        cumsum: bool = False,
+        minus_log: bool | None = None,
+        alpha_name: str | None = None,
+        method: str | None = None,
+        bounded: bool = False,
+    ) -> DataT:
         """
         Parameters
         ----------
@@ -811,7 +972,8 @@ class ExtrapWeightedModel(StateCollection, PiecewiseMixin):
 
         else:
             # multiple states
-            if np.array(alpha).ndim > 0:
+            alpha_ = np.asarray(alpha)
+            if alpha_.ndim > 0:
                 # have multiple alphas
                 # recursively call
                 return xr.concat(
@@ -825,12 +987,14 @@ class ExtrapWeightedModel(StateCollection, PiecewiseMixin):
                             alpha_name=alpha_name,
                             method=method,
                         )
-                        for a in alpha
+                        for a in alpha_
                     ),
                     dim=alpha_name,
                 )
-
-            states = self._states_alpha(alpha, method)
+            states = self._states_alpha(
+                float(alpha_),
+                method,
+            )
 
         out = xr.concat(
             [
@@ -853,11 +1017,16 @@ class ExtrapWeightedModel(StateCollection, PiecewiseMixin):
 
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
-class InterpModel(StateCollection):
+class InterpModel(StateCollection[DataT]):
     """Interpolation model."""
 
     @cached.meth
-    def coefs(self, order=None, order_dim="porder", minus_log=None):
+    def coefs(
+        self,
+        order: int | None = None,
+        order_dim: str = "porder",
+        minus_log: bool | None = None,
+    ) -> xr.DataArray:
         from scipy.special import factorial as sp_factorial
 
         if order is None:
@@ -915,8 +1084,13 @@ class InterpModel(StateCollection):
         return coefs
 
     def predict(
-        self, alpha, order=None, order_dim="porder", minus_log=None, alpha_name=None
-    ):
+        self,
+        alpha: ArrayLike,
+        order: int | None = None,
+        order_dim: str = "porder",
+        minus_log: bool = False,
+        alpha_name: str | None = None,
+    ) -> xr.DataArray:
         if order is None:
             order = self.order
         if alpha_name is None:
@@ -934,27 +1108,27 @@ class InterpModel(StateCollection):
 
 
 @docfiller_shared.inherit(StateCollection)
-class InterpModelPiecewise(StateCollection, PiecewiseMixin):
+class InterpModelPiecewise(_PiecewiseStateCollection[DataT]):
     """Apposed to the multiple model InterpModel, perform a piecewise interpolation."""
 
     # @cached.meth
     # def single_interpmodel(self, state0, state1):
     #     return InterpModel([state0, state1])
     @cached.meth
-    def single_interpmodel(self, *state_indices):
+    def single_interpmodel(self, *state_indices) -> InterpModel[DataT]:
         state0, state1 = (self[i] for i in state_indices)
         return InterpModel([state0, state1])
 
     def predict(
         self,
-        alpha,
-        order=None,
-        order_dim="porder",
-        minus_log=None,
-        alpha_name=None,
-        method=None,
-        bounded=False,
-    ):
+        alpha: ArrayLike,
+        order: int | None = None,
+        order_dim: str = "porder",
+        minus_log: bool | None = None,
+        alpha_name: None = None,
+        method: str | None = None,
+        bounded: bool = False,
+    ) -> DataT:
         """
         Parameters
         ----------
@@ -1008,16 +1182,18 @@ class InterpModelPiecewise(StateCollection, PiecewiseMixin):
 
 
 @attrs.define
-class PerturbModel(MyAttrsMixin):
+class PerturbModel(MyAttrsMixin, Generic[DataT]):
     """Perturbation model."""
 
     alpha0: float = field(converter=float)
-    data: AbstractData = field(validator=attv.instance_of(AbstractData))
+    data: SupportsDataProtocol[DataT] = field(
+        validator=attv.instance_of(SupportsDataProtocol)
+    )
     alpha_name: str | None = field(
         default="alpha", converter=attc.default_if_none("alpha")
     )
 
-    def predict(self, alpha, alpha_name=None):
+    def predict(self, alpha: ArrayLike, alpha_name: str | None = None) -> DataT:
         if alpha_name is None:
             alpha_name = self.alpha_name
 
@@ -1039,7 +1215,7 @@ class PerturbModel(MyAttrsMixin):
 
         return num / den
 
-    def resample(self, sampler: Sampler, **kws):
+    def resample(self, sampler: Sampler, **kws: Any) -> Self:
         return self.__class__(
             alpha0=self.alpha0,
             data=self.data.resample(sampler=sampler, **kws),
@@ -1049,7 +1225,7 @@ class PerturbModel(MyAttrsMixin):
 
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
-class MBARModel(StateCollection):
+class MBARModel(StateCollection[DataT]):
     """Sadly, this doesn't work as beautifully."""
 
     def __attrs_pre_init__(self):
@@ -1058,7 +1234,9 @@ class MBARModel(StateCollection):
             raise ImportError(msg)
 
     @cached.meth
-    def _default_params(self, state_dim="state", alpha_name="alpha"):
+    def _default_params(
+        self, state_dim: str = "state", alpha_name: str = "alpha"
+    ) -> tuple[DataT, DataT, DataT, MBAR]:
         import pymbar
 
         # all xvalues:
@@ -1078,7 +1256,7 @@ class MBARModel(StateCollection):
 
         return uv, xv, alpha0, mbar_obj
 
-    def predict(self, alpha, alpha_name=None):
+    def predict(self, alpha: ArrayLike, alpha_name: None = None) -> DataT:
         if alpha_name is None:
             alpha_name = self.alpha_name
 
@@ -1107,6 +1285,6 @@ class MBARModel(StateCollection):
             out.reshape(shape), dims=(alpha.name, *dims[2:])
         ).assign_coords(alpha=alpha)
 
-    def resample(self, *args, **kwargs) -> None:
+    def resample(self, *args: Any, **kwargs: Any) -> Self:
         msg = "resample not implemented for this class"
         raise NotImplementedError(msg)

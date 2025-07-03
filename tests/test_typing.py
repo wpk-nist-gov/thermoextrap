@@ -10,6 +10,7 @@ import numpy as np
 import xarray as xr
 
 import thermoextrap as xtrap
+from thermoextrap.core.typing import SupportsModelProtocol
 
 if sys.version_info >= (3, 11):
     from typing import assert_type
@@ -35,6 +36,10 @@ dxduave_dataarray = cmomy.wrap(data_dataarray, mom_ndim=2)
 dxduave_dataset = cmomy.wrap(data_dataset, mom_ndim=2, mom_dims=("xmom", "umom"))
 
 
+datacentralmoments_dataarray = xtrap.data.DataCentralMoments(dxduave_dataarray)
+datacentralmoments_dataset = xtrap.data.DataCentralMoments(dxduave_dataset)
+
+
 # * DataSelector --------------------------------------------------------------
 def check_dataselector(
     actual: T,
@@ -44,7 +49,7 @@ def check_dataselector(
     assert isinstance(actual, klass)
 
     assert isinstance(actual.data, data_type)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-    return actual  # type: ignore[no-any-return]
+    return actual
 
 
 def test_thermoextrap_data_dataselector() -> None:
@@ -75,7 +80,9 @@ def test_thermoextrap_data_dataselector() -> None:
     )
     check_dataselector(
         assert_type(
-            xtrap.data.DataSelector.from_defaults(data_dataset, mom_dim=dims),
+            xtrap.data.DataSelector[xr.Dataset].from_defaults(
+                data_dataset, mom_dim=dims
+            ),
             xtrap.data.DataSelector[xr.Dataset],
         ),
         xtrap.data.DataSelector,
@@ -94,7 +101,7 @@ def check_datavalues(
 
     assert isinstance(actual.uv, uv_type)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
     assert isinstance(actual.xv, xv_type)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-    return actual  # type: ignore[no-any-return]
+    return actual
 
 
 def test_thermoextrap_data_datavalues() -> None:
@@ -149,7 +156,7 @@ def check_datacentralmoments(
 
     assert isinstance(actual.dxduave, cmomy.CentralMomentsData)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
     assert isinstance(actual.dxduave.obj, obj_type)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-    return actual  # type: ignore[no-any-return]
+    return actual
 
 
 def test_thermoextrap_data_datacentralmoments_dataarray() -> None:
@@ -234,7 +241,7 @@ def test_thermoextrap_data_datacentralmoments_dataset() -> None:
     )
     check_datacentralmoments(
         assert_type(
-            xtrap.data.DataCentralMoments.from_raw(data_dataset),
+            xtrap.data.DataCentralMoments[xr.Dataset].from_raw(data_dataset),
             xtrap.data.DataCentralMoments[xr.Dataset],
         ),
         xtrap.data.DataCentralMoments,
@@ -242,7 +249,7 @@ def test_thermoextrap_data_datacentralmoments_dataset() -> None:
     )
     check_datacentralmoments(
         assert_type(
-            xtrap.data.DataCentralMoments.from_vals(
+            xtrap.data.DataCentralMoments[xr.Dataset].from_vals(
                 val_dataarray, xv=val_dataset, order=2, dim=dim
             ),
             xtrap.data.DataCentralMoments[xr.Dataset],
@@ -252,7 +259,7 @@ def test_thermoextrap_data_datacentralmoments_dataset() -> None:
     )
     check_datacentralmoments(
         assert_type(
-            xtrap.data.DataCentralMoments.from_data(data_dataset),
+            xtrap.data.DataCentralMoments[xr.Dataset].from_data(data_dataset),
             xtrap.data.DataCentralMoments[xr.Dataset],
         ),
         xtrap.data.DataCentralMoments,
@@ -260,7 +267,7 @@ def test_thermoextrap_data_datacentralmoments_dataset() -> None:
     )
     check_datacentralmoments(
         assert_type(
-            xtrap.data.DataCentralMoments.from_resample_vals(
+            xtrap.data.DataCentralMoments[xr.Dataset].from_resample_vals(
                 uv=val_dataarray, xv=val_dataset, order=2, sampler=2, dim=dim
             ),
             xtrap.data.DataCentralMoments[xr.Dataset],
@@ -270,7 +277,7 @@ def test_thermoextrap_data_datacentralmoments_dataset() -> None:
     )
     check_datacentralmoments(
         assert_type(
-            xtrap.data.DataCentralMoments.from_ave_raw(
+            xtrap.data.DataCentralMoments[xr.Dataset].from_ave_raw(
                 u=val_dataset, xu=val_dataset, umom_dim="val"
             ),
             xtrap.data.DataCentralMoments[xr.Dataset],
@@ -280,7 +287,7 @@ def test_thermoextrap_data_datacentralmoments_dataset() -> None:
     )
     check_datacentralmoments(
         assert_type(
-            xtrap.data.DataCentralMoments.from_ave_central(
+            xtrap.data.DataCentralMoments[xr.Dataset].from_ave_central(
                 du=val_dataset, dxdu=val_dataset, umom_dim="val"
             ),
             xtrap.data.DataCentralMoments[xr.Dataset],
@@ -290,62 +297,33 @@ def test_thermoextrap_data_datacentralmoments_dataset() -> None:
     )
 
 
-# def test_thermoextrap_data_datacentralmoments_dataset() -> None:
-#     dim = "val"
-#     # Dataset
-#     check_datacentralmoments(
-#         assert_type(
-#             xtrap.data.DataCentralMoments(dxduave_dataset),
-#             xtrap.data.DataCentralMoments[xr.Dataset],
-#         ),
-#         xtrap.data.DataCentralMoments,
-#         xr.Dataset,
-#     )
-#     check_datacentralmoments(
-#         assert_type(
-#             xtrap.data.DataCentralMoments.from_raw(val_dataset),
-#             xtrap.data.DataCentralMoments[xr.Dataset],
-#         ),
-#         xtrap.data.DataCentralMoments,
-#         xr.Dataset,
-#     )
-#     check_datacentralmoments(
-#         assert_type(
-#             xtrap.data.DataCentralMoments.from_vals(val_dataarray, xv=val_dataset, order=2, dim=dim),
-#             xtrap.data.DataCentralMoments[xr.Dataset],
-#         ),
-#         xtrap.data.DataCentralMoments,
-#         xr.Dataset,
-#     )
-#     check_datacentralmoments(
-#         assert_type(
-#             xtrap.data.DataCentralMoments.from_data(val_dataset),
-#             xtrap.data.DataCentralMoments[xr.Dataset],
-#         ),
-#         xtrap.data.DataCentralMoments,
-#         xr.Dataset,
-#     )
-#     check_datacentralmoments(
-#         assert_type(
-#             xtrap.data.DataCentralMoments.from_resample_vals(uv=val_dataarray, xv=val_dataset, order=2, sampler=2, dim=dim),
-#             xtrap.data.DataCentralMoments[xr.Dataset],
-#         ),
-#         xtrap.data.DataCentralMoments,
-#         xr.Dataset,
-#     )
-#     check_datacentralmoments(
-#         assert_type(
-#             xtrap.data.DataCentralMoments.from_ave_raw(u=val_dataset, xu=val_dataset),
-#             xtrap.data.DataCentralMoments[xr.Dataset],
-#         ),
-#         xtrap.data.DataCentralMoments,
-#         xr.Dataset,
-#     )
-#     check_datacentralmoments(
-#         assert_type(
-#             xtrap.data.DataCentralMoments.from_ave_central(du=val_dataset, dxdu=val_dataset),
-#             xtrap.data.DataCentralMoments[xr.Dataset],
-#         ),
-#         xtrap.data.DataCentralMoments,
-#         xr.Dataset,
-#     )
+if TYPE_CHECKING:
+    from typing import reveal_type
+
+    from thermoextrap.core.typing import (
+        DataT,
+        SupportsDataProtocol,
+        SupportsModelProtocol,
+    )
+
+    def func_data(x: SupportsDataProtocol[DataT]) -> int:
+        return x.order
+
+    def tester(
+        a: xtrap.data.DataValues,
+        b: xtrap.data.DataValuesCentral,
+        c: xtrap.data.DataCentralMoments,
+        d: xtrap.data.DataCentralMomentsVals,
+        e: xtrap.data.DataCentralMomentsBase,
+    ) -> None:
+        reveal_type(func_data(a))
+        reveal_type(func_data(b))
+        reveal_type(func_data(c))
+        reveal_type(func_data(d))
+        reveal_type(func_data(e))
+
+    def func_models(x: SupportsModelProtocol[DataT]) -> float:
+        return x.alpha0
+
+    def tester_protocol(a: xtrap.models.ExtrapModel) -> None:
+        reveal_type(func_models(a))
