@@ -70,19 +70,6 @@ def test_xdata_from_ave_raw(fixture) -> None:
 def test_xdata_from_ave_central(fixture) -> None:
     a = fixture.cdata
 
-    # base on raw values
-    b = xtrap.DataCentralMoments.from_ave_central(
-        du=a.du.values,
-        dxdu=a.dxdu.values,
-        xave=a.xave.values,
-        uave=fixture.rdata.u.values[1],
-        weight=len(a.uv),
-        axis=-1,
-        dims=["val"],
-    )
-
-    fixture.xr_test_central(b)
-
     # base on xarray
     b = xtrap.DataCentralMoments.from_ave_central(
         du=a.du, dxdu=a.dxdu, xave=a.xave, uave=fixture.rdata.u[1], weight=len(a.uv)

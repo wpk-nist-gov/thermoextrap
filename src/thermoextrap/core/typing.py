@@ -12,8 +12,8 @@ import xarray as xr
 
 from .typing_compat import TypeAlias, TypeVar
 
-DataT = TypeVar("DataT", xr.DataArray, xr.Dataset)
-DataT_ = TypeVar("DataT_", xr.DataArray, xr.Dataset)
+DataT = TypeVar("DataT", xr.DataArray, xr.Dataset, default=xr.DataArray)
+DataT_ = TypeVar("DataT_", xr.DataArray, xr.Dataset, default=xr.DataArray)
 
 XArrayObj: TypeAlias = "xr.DataArray | xr.Dataset"
 

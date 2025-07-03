@@ -75,6 +75,7 @@ urls.Homepage = "https://github.com/usnistgov/thermoextrap"
 
 [dependency-groups]
 dev = [
+    "nbconvert",
     "pytest-monkeytype",
     "righttyper",
     "thermoextrap[all]",

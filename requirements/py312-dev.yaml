@@ -24,6 +24,7 @@ dependencies:
   - module-utilities>=0.2
   - mypy>=1.15.0
   - nbclient
+  - nbconvert
   - nbval
   - nox>=2025.5.1
   - numba>=0.60.0
