@@ -10,7 +10,7 @@ else:
     import sympy
 
 
-def has_pymbar():
+def has_pymbar() -> bool:
     from importlib.util import find_spec
 
     return find_spec("pymbar") is not None

@@ -8,14 +8,19 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence, Sized
 from functools import lru_cache
-from typing import TYPE_CHECKING, Generic, SupportsIndex, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    SupportsIndex,
+    overload,
+)
 
 import attrs
 import cmomy
 import numpy as np
 import pandas as pd
 import xarray as xr
-from attrs import converters as attc
 from attrs import field
 from attrs import validators as attv
 from module_utilities import cached
@@ -30,22 +35,22 @@ from .core.compat import xr_dot
 from .core.sputils import get_default_indexed, get_default_symbol
 from .core.typing import (
     DataT,
+    SupportsDataPerturbModel,
     SupportsDataProtocol,
     SupportsGetItem,
-    SupportsModelProtocol,
+    SupportsModelProtocolDerivsT,
+    SupportsModelProtocolT,
 )
 from .core.xrutils import xrwrap_alpha
 from .docstrings import DOCFILLER_SHARED
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-    from typing import Any
+    from collections.abc import Callable, Hashable
 
     from cmomy.core.typing import Sampler
     from numpy.typing import ArrayLike, NDArray
     from pymbar.mbar import MBAR
     from sympy.core.expr import Expr
-    from sympy.core.function import Function
     from sympy.core.symbol import Symbol
     from sympy.tensor.indexed import IndexedBase
 
@@ -207,9 +212,9 @@ class SymSubs:
 
     # TODO(wpk): specify types of Seqence/mapping
     funcs: SupportsGetItem[Expr] = field(validator=_validate_supports_getitem)
-    subs: SupportsGetItem[Expr] | None = field(default=None)
-    subs_final: SupportsGetItem[Expr] | None = field(default=None)
-    subs_all: Mapping[str, Expr] | None = field(default=None)
+    subs: SupportsGetItem[Mapping[Any, Expr]] | None = field(default=None)
+    subs_final: SupportsGetItem[Mapping[Any, Expr]] | None = field(default=None)
+    subs_all: Mapping[Any, Expr] | None = field(default=None)
     recursive: bool = field(default=True)
     simplify: bool = field(default=False)
     expand: bool = field(default=True)
@@ -312,7 +317,7 @@ class SymMinusLog:
                 sp.factorial(k - 1) * (-1 / self.X[0]) ** k * sp.bell(order, k, self.dX)  # pyright: ignore[reportOperatorIssue]
             )
         # subber
-        subs = {self.dX[j]: self.X[j + 1] for j in range(order + 1)}
+        subs: dict[Any, Any] = {self.dX[j]: self.X[j + 1] for j in range(order + 1)}
         return expr.subs(subs).expand().simplify()
 
 
@@ -342,7 +347,7 @@ class Derivatives(MyAttrsMixin):
         validator=_validate_supports_getitem
     )
     #: Sequence of sympy expressions, optional
-    exprs: SupportsGetItem[Function] | None = field(
+    exprs: SupportsGetItem[Expr] | None = field(
         kw_only=True,
         default=None,
         validator=attv.optional(_validate_supports_getitem),
@@ -731,7 +736,9 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
 # TODO(wpk): maybe make Generic(ModelProtocolT, DataT)
 @attrs.define
 class StateCollection(
-    MyAttrsMixin, Sequence[SupportsModelProtocol[DataT]], Generic[DataT]
+    MyAttrsMixin,
+    Sequence[SupportsModelProtocolT],
+    Generic[SupportsModelProtocolT, DataT],
 ):
     """
     Sequence of models.
@@ -745,9 +752,11 @@ class StateCollection(
         additional key word arguments to keep internally in self.kws
     """
 
-    states: Sequence[SupportsModelProtocol[DataT]] = field()
+    states: Sequence[SupportsModelProtocolT] = field()
     kws: dict[str, Any] = field(
-        kw_only=True, converter=convert_mapping_or_none_to_dict, default=None
+        kw_only=True,
+        default=None,
+        converter=convert_mapping_or_none_to_dict,
     )
 
     _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
@@ -756,13 +765,13 @@ class StateCollection(
         return len(self.states)
 
     @overload
-    def __getitem__(self, idx: SupportsIndex, /) -> SupportsModelProtocol[DataT]: ...
+    def __getitem__(self, idx: SupportsIndex, /) -> SupportsModelProtocolT: ...
     @overload
-    def __getitem__(self, idx: slice[Any, Any, Any]) -> Self: ...
+    def __getitem__(self, idx: slice[Any, Any, Any], /) -> Self: ...
 
     def __getitem__(
         self, idx: SupportsIndex | slice[Any, Any, Any], /
-    ) -> SupportsModelProtocol[DataT] | Self:
+    ) -> SupportsModelProtocolT | Self:
         if isinstance(idx, slice):
             return type(self)(self.states[idx], kws=self.kws)
         return self.states[int(idx)]
@@ -889,7 +898,7 @@ def xr_weights_minkowski(
 
 
 @attrs.define
-class _PiecewiseStateCollection(StateCollection[DataT]):
+class _PiecewiseStateCollection(StateCollection[SupportsModelProtocolT, DataT]):
     """Provide methods for Piecewise state collection."""
 
     def _indices_between_alpha(self, alpha: float) -> NDArray[np.int64]:
@@ -921,7 +930,9 @@ class _PiecewiseStateCollection(StateCollection[DataT]):
 
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
-class ExtrapWeightedModel(_PiecewiseStateCollection[DataT]):
+class ExtrapWeightedModel(
+    _PiecewiseStateCollection[ExtrapModel[DataT], DataT], Generic[DataT]
+):
     """
     Weighted extrapolation model.
 
@@ -930,8 +941,6 @@ class ExtrapWeightedModel(_PiecewiseStateCollection[DataT]):
     states : sequence of ExtrapModel
         Extrap models to consider.
     """
-
-    states: Sequence[ExtrapModel[DataT]] = field()
 
     def predict(
         self,
@@ -976,8 +985,8 @@ class ExtrapWeightedModel(_PiecewiseStateCollection[DataT]):
             if alpha_.ndim > 0:
                 # have multiple alphas
                 # recursively call
-                return xr.concat(
-                    (
+                return xr.concat(  # pyright: ignore[reportCallIssue]
+                    (  # pyright: ignore[reportArgumentType]
                         self.predict(
                             alpha=a,
                             order=order,
@@ -996,8 +1005,8 @@ class ExtrapWeightedModel(_PiecewiseStateCollection[DataT]):
                 method,
             )
 
-        out = xr.concat(
-            [
+        out = xr.concat(  # pyright: ignore[reportCallIssue]
+            (  # pyright: ignore[reportArgumentType]
                 m.predict(
                     alpha,
                     order=order,
@@ -1007,7 +1016,7 @@ class ExtrapWeightedModel(_PiecewiseStateCollection[DataT]):
                     alpha_name=alpha_name,
                 )
                 for m in states
-            ],
+            ),
             dim="state",
         )
 
@@ -1017,7 +1026,7 @@ class ExtrapWeightedModel(_PiecewiseStateCollection[DataT]):
 
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
-class InterpModel(StateCollection[DataT]):
+class InterpModel(StateCollection[SupportsModelProtocolDerivsT, DataT]):
     """Interpolation model."""
 
     @cached.meth
@@ -1026,7 +1035,7 @@ class InterpModel(StateCollection[DataT]):
         order: int | None = None,
         order_dim: str = "porder",
         minus_log: bool | None = None,
-    ) -> xr.DataArray:
+    ) -> DataT:
         from scipy.special import factorial as sp_factorial
 
         if order is None:
@@ -1040,7 +1049,7 @@ class InterpModel(StateCollection[DataT]):
 
         # construct mat[porder, porder]
         # by stacking
-        mat = []
+        mat_ = []
         power = np.arange(porder + 1)
         num = sp_factorial(np.arange(porder + 1))
 
@@ -1053,31 +1062,30 @@ class InterpModel(StateCollection[DataT]):
                         * num
                         / sp_factorial(np.arange(porder + 1) - j)
                     )
-                mat.append(val)
+                mat_.append(val)
                 states.append(istate)
                 orders.append(j)
 
-        mat = np.array(mat)
+        mat = np.array(mat_)
         mat[np.isinf(mat)] = 0.0
 
-        mat_inv = np.linalg.inv(mat)
         mat_inv = (
-            xr.DataArray(mat_inv, dims=[order_dim, "state_order"])
+            xr.DataArray(np.linalg.inv(mat), dims=[order_dim, "state_order"])
             .assign_coords(state=("state_order", states))
             .assign_coords(order=("state_order", orders))
             .set_index(state_order=["state", "order"])
             .unstack()
         )
 
-        coefs = xr.concat(
-            [
+        coefs: DataT = xr.concat(  # type: ignore[type-var,assignment]
+            (  # pyright: ignore[reportArgumentType]
                 m.derivs(order, norm=False, minus_log=minus_log, order_dim="order")
                 for m in self.states
-            ],
+            ),
             dim="state",
         )
         if isinstance(coefs, xr.Dataset):
-            coefs = xr.Dataset({k: xr.dot(mat_inv, v) for k, v in coefs.items()})
+            coefs = coefs.map(lambda x: xr.dot(mat_inv, x))
         else:
             coefs = xr.dot(mat_inv, coefs)
 
@@ -1090,7 +1098,7 @@ class InterpModel(StateCollection[DataT]):
         order_dim: str = "porder",
         minus_log: bool = False,
         alpha_name: str | None = None,
-    ) -> xr.DataArray:
+    ) -> DataT:
         if order is None:
             order = self.order
         if alpha_name is None:
@@ -1108,14 +1116,18 @@ class InterpModel(StateCollection[DataT]):
 
 
 @docfiller_shared.inherit(StateCollection)
-class InterpModelPiecewise(_PiecewiseStateCollection[DataT]):
+class InterpModelPiecewise(
+    _PiecewiseStateCollection[SupportsModelProtocolDerivsT, DataT]
+):
     """Apposed to the multiple model InterpModel, perform a piecewise interpolation."""
 
     # @cached.meth
     # def single_interpmodel(self, state0, state1):
     #     return InterpModel([state0, state1])
     @cached.meth
-    def single_interpmodel(self, *state_indices) -> InterpModel[DataT]:
+    def single_interpmodel(
+        self, *state_indices: SupportsIndex
+    ) -> InterpModel[SupportsModelProtocolDerivsT, DataT]:
         state0, state1 = (self[i] for i in state_indices)
         return InterpModel([state0, state1])
 
@@ -1124,8 +1136,8 @@ class InterpModelPiecewise(_PiecewiseStateCollection[DataT]):
         alpha: ArrayLike,
         order: int | None = None,
         order_dim: str = "porder",
-        minus_log: bool | None = None,
-        alpha_name: None = None,
+        minus_log: bool = False,
+        alpha_name: str | None = None,
         method: str | None = None,
         bounded: bool = False,
     ) -> DataT:
@@ -1144,7 +1156,7 @@ class InterpModelPiecewise(_PiecewiseStateCollection[DataT]):
             # model = self.single_interpmodel(self[0], self[1])
             model = self.single_interpmodel(0, 1)
 
-            out = model.predict(
+            return model.predict(
                 alpha=alpha,
                 order=order,
                 order_dim=order_dim,
@@ -1152,45 +1164,38 @@ class InterpModelPiecewise(_PiecewiseStateCollection[DataT]):
                 alpha_name=alpha_name,
             )
 
-        else:
-            try:
-                seq = iter(alpha)
-            except TypeError:
-                seq = [alpha]
+        out: list[DataT] = []
+        for a in np.atleast_1d(alpha):
+            # state0, state1 = self._states_alpha(a, method)
+            # model = self.single_interpmodel(state0, state1)
+            model = self.single_interpmodel(
+                *self._indices_alpha(alpha=a, method=method)
+            )
 
-            out = []
-            for a in seq:
-                # state0, state1 = self._states_alpha(a, method)
-                # model = self.single_interpmodel(state0, state1)
-                model = self.single_interpmodel(
-                    *self._indices_alpha(alpha=a, method=method)
+            out.append(
+                model.predict(
+                    alpha=a,
+                    order=order,
+                    order_dim=order_dim,
+                    minus_log=minus_log,
+                    alpha_name=alpha_name,
                 )
+            )
 
-                out.append(
-                    model.predict(
-                        alpha=a,
-                        order=order,
-                        order_dim=order_dim,
-                        minus_log=minus_log,
-                        alpha_name=alpha_name,
-                    )
-                )
-
-            out = out[0] if len(out) == 1 else xr.concat(out, dim=alpha_name)
-
-        return out
+        return out[0] if len(out) == 1 else xr.concat(out, dim=alpha_name)  # pyright: ignore[reportCallIssue, reportArgumentType]
 
 
+# TODO(wpk): rework this to only take uv/xv/rec_dim
 @attrs.define
 class PerturbModel(MyAttrsMixin, Generic[DataT]):
     """Perturbation model."""
 
     alpha0: float = field(converter=float)
-    data: SupportsDataProtocol[DataT] = field(
-        validator=attv.instance_of(SupportsDataProtocol)
+    data: SupportsDataPerturbModel[DataT] = field(
+        validator=attv.instance_of(SupportsDataPerturbModel)  # type: ignore[type-abstract]
     )
-    alpha_name: str | None = field(
-        default="alpha", converter=attc.default_if_none("alpha")
+    alpha_name: str = field(
+        default="alpha",
     )
 
     def predict(self, alpha: ArrayLike, alpha_name: str | None = None) -> DataT:
@@ -1211,9 +1216,9 @@ class PerturbModel(MyAttrsMixin, Generic[DataT]):
         expvals = np.exp(dalpha_uv_diff)
 
         num = xr_dot(expvals, xv, dim=rec_dim) / len(xv[rec_dim])
-        den = expvals.mean(rec_dim)
+        den = expvals.mean(rec_dim)  # type: ignore[arg-type]
 
-        return num / den
+        return num / den  # type: ignore[no-any-return]
 
     def resample(self, sampler: Sampler, **kws: Any) -> Self:
         return self.__class__(
@@ -1225,18 +1230,18 @@ class PerturbModel(MyAttrsMixin, Generic[DataT]):
 
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
-class MBARModel(StateCollection[DataT]):
+class MBARModel(StateCollection[Any, xr.DataArray]):
     """Sadly, this doesn't work as beautifully."""
 
-    def __attrs_pre_init__(self):
+    def __attrs_pre_init__(self) -> None:
         if not has_pymbar():
             msg = "need pymbar to use this"
             raise ImportError(msg)
 
     @cached.meth
     def _default_params(
-        self, state_dim: str = "state", alpha_name: str = "alpha"
-    ) -> tuple[DataT, DataT, DataT, MBAR]:
+        self, state_dim: str = "state", alpha_name: Hashable = "alpha"
+    ) -> tuple[xr.DataArray, xr.DataArray, xr.DataArray, MBAR]:
         import pymbar
 
         # all xvalues:
@@ -1256,7 +1261,7 @@ class MBARModel(StateCollection[DataT]):
 
         return uv, xv, alpha0, mbar_obj
 
-    def predict(self, alpha: ArrayLike, alpha_name: None = None) -> DataT:
+    def predict(self, alpha: ArrayLike, alpha_name: str | None = None) -> xr.DataArray:
         if alpha_name is None:
             alpha_name = self.alpha_name
 
@@ -1267,10 +1272,9 @@ class MBARModel(StateCollection[DataT]):
         uv, xv, _alpha0, mbar_obj = self._default_params("state", alpha.name)
 
         dims = xv.dims
-        x = np.array(xv, order="c")
+        x = xv.to_numpy()
         x_flat = x.reshape(x.shape[0] * x.shape[1], -1)
-
-        u = uv.values.reshape(-1)
+        u = uv.to_numpy().reshape(-1)
 
         out = np.array(
             [

@@ -298,8 +298,6 @@ def test_thermoextrap_data_datacentralmoments_dataset() -> None:
 
 
 if TYPE_CHECKING:
-    from typing import reveal_type
-
     from thermoextrap.core.typing import (
         DataT,
         SupportsDataProtocol,
@@ -316,14 +314,14 @@ if TYPE_CHECKING:
         d: xtrap.data.DataCentralMomentsVals,
         e: xtrap.data.DataCentralMomentsBase,
     ) -> None:
-        reveal_type(func_data(a))
-        reveal_type(func_data(b))
-        reveal_type(func_data(c))
-        reveal_type(func_data(d))
-        reveal_type(func_data(e))
+        assert_type(func_data(a), int)
+        assert_type(func_data(b), int)
+        assert_type(func_data(c), int)
+        assert_type(func_data(d), int)
+        assert_type(func_data(e), int)
 
     def func_models(x: SupportsModelProtocol[DataT]) -> float:
         return x.alpha0
 
     def tester_protocol(a: xtrap.models.ExtrapModel) -> None:
-        reveal_type(func_models(a))
+        assert_type(func_models(a), float)

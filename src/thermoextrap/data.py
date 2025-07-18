@@ -106,7 +106,7 @@ def _validate_xarray_typevar(
         raise TypeError(msg)
 
 
-@attrs.define
+@attrs.frozen
 class DataSelector(MyAttrsMixin, Generic[DataT]):
     """
     Wrap xarray object so can index like ds[i, j].
@@ -180,7 +180,7 @@ class DataSelector(MyAttrsMixin, Generic[DataT]):
         return repr(self.data)
 
 
-@attrs.define
+@attrs.frozen
 class DataCallbackABC(
     MyAttrsMixin,
 ):
@@ -237,7 +237,7 @@ class DataCallbackABC(
         return f"<{self.__class__.__name__}>"
 
 
-@attrs.define
+@attrs.frozen
 class DataCallback(DataCallbackABC):
     """
     Basic version of DataCallbackABC.
@@ -289,7 +289,7 @@ def _meta_validator(self: Any, attribute: attrs.Attribute[Any], meta: Any) -> No
     meta.check(data=self)
 
 
-@attrs.define
+@attrs.frozen
 class AbstractData(
     MyAttrsMixin,
 ):
@@ -347,15 +347,7 @@ class AbstractData(
         return func(self, *args, **kwargs)
 
 
-# def _convert_xv(
-#     xv: XArrayObj | None, self_: DataValuesBase
-# ) -> XArrayObj:
-#     if xv is None:
-#         return self_.uv
-#     return xv
-
-
-@attrs.define
+@attrs.frozen
 @docfiller_shared.decorate
 class DataValuesBase(AbstractData, Generic[DataT]):
     """
@@ -541,8 +533,8 @@ def _xu_to_u(xu: DataT, dim: str = "umom") -> DataT:
     return out.drop_vars(dim)
 
 
-@attrs.define
 @docfiller_shared.inherit(DataValuesBase)
+@attrs.frozen
 class DataValues(DataValuesBase[DataT]):
     """Class to hold uv/xv data."""
 
@@ -590,7 +582,7 @@ class DataValues(DataValuesBase[DataT]):
         return self.meta.derivs_args(data=self, derivs_args=out)  # pyright: ignore[reportAssignmentType]
 
 
-@attrs.define
+@attrs.frozen
 @docfiller_shared.inherit(DataValuesBase)
 class DataValuesCentral(DataValuesBase[DataT]):
     """Data class using values and central moments."""
@@ -785,7 +777,7 @@ def factory_data_values(
 ################################################################################
 # StatsCov objects
 ################################################################################
-@attrs.define
+@attrs.frozen
 @docfiller_shared.decorate
 class DataCentralMomentsBase(AbstractData, Generic[DataT]):
     """
@@ -962,7 +954,7 @@ class DataCentralMomentsBase(AbstractData, Generic[DataT]):
         return self.meta.derivs_args(data=self, derivs_args=out)
 
 
-@attrs.define(slots=True)
+@attrs.frozen
 @docfiller_shared.inherit(DataCentralMomentsBase)
 class DataCentralMoments(DataCentralMomentsBase[DataT]):
     """Data class using :class:`cmomy.CentralMomentsData` to handle central moments."""
@@ -1373,7 +1365,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
             x_is_u=x_is_u,
         )
 
-        return out.set_params(
+        return out.new_like(
             meta=out.meta.resample(
                 data=out,
                 meta_kws=meta_kws,
@@ -1594,7 +1586,7 @@ def _convert_dxduave(
     )
 
 
-@attrs.define
+@attrs.frozen
 @docfiller_shared.inherit(DataCentralMomentsBase)
 class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
     """
@@ -1628,7 +1620,9 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
     )
     #: Optional parameters to :func:`cmomy.wrap_reduce_vals`
     from_vals_kws: dict[str, Any] = field(
-        kw_only=True, converter=convert_mapping_or_none_to_dict, default=None
+        kw_only=True,
+        default=None,
+        converter=convert_mapping_or_none_to_dict,
     )
     #: :class:`cmomy.CentralMomentsData` object
     dxduave: cmomy.CentralMomentsData[DataT] = field(

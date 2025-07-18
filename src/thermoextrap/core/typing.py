@@ -65,6 +65,21 @@ class SupportsDataProtocol(Protocol[T_co]):
     def resample(self, sampler: Sampler) -> Self: ...
 
 
+# TODO(wpk): remove when rework PerturbModel
+@runtime_checkable
+class SupportsDataPerturbModel(Protocol[T_co]):
+    """Data protocol for PerturbModel"""
+
+    @property
+    def uv(self) -> T_co: ...
+    @property
+    def xv(self) -> T_co: ...
+    @property
+    def rec_dim(self) -> str: ...
+
+    def resample(self, sampler: Sampler) -> Self: ...
+
+
 @runtime_checkable
 class SupportsModelProtocol(Protocol[T_co]):
     """Protocol for single model."""
@@ -83,3 +98,19 @@ class SupportsModelProtocol(Protocol[T_co]):
     # def coefs(self, *args: Any, **kwargs: Any) -> T_co: ...
     def predict(self, *args: Any, **kwargs: Any) -> T_co: ...
     def resample(self, sampler: Sampler, **kwargs: Any) -> Self: ...
+
+
+@runtime_checkable
+class SupportsModelProtocolDerivs(SupportsModelProtocol[T_co], Protocol[T_co]):
+    """Protocol for single model with derivs"""
+
+    def derivs(self, *args: Any, **kwargs: Any) -> T_co: ...
+
+
+SupportsModelProtocolT = TypeVar(
+    "SupportsModelProtocolT", bound=SupportsModelProtocol["xr.DataArray | xr.Dataset"]
+)
+SupportsModelProtocolDerivsT = TypeVar(
+    "SupportsModelProtocolDerivsT",
+    bound=SupportsModelProtocolDerivs["xr.DataArray | xr.Dataset"],
+)

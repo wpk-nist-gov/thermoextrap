@@ -123,7 +123,7 @@ def xrwrap_xv(
 def xrwrap_alpha(
     alpha: ArrayLike | xr.DataArray,
     dims: MultDims | None = None,
-    name: str = "alpha",
+    name: Hashable = "alpha",
 ) -> xr.DataArray:
     """Wrap alpha values."""
     if is_dataarray(alpha):
