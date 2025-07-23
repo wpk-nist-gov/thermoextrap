@@ -52,7 +52,7 @@ def _get_smart_filter(
     That is, if a name is in include and exclude and is private/no_init,
     it will be included
     """
-    fields = attrs.fields(type(self_))
+    fields = attrs.fields(type(self_))  # pyright: ignore[reportUnknownArgumentType]
 
     if include is None:
         include = []
@@ -64,7 +64,7 @@ def _get_smart_filter(
     elif isinstance(exclude, str):
         exclude = [exclude]
 
-    includes = []
+    includes: list[Any] = []
     for f in fields:
         if f.name in include:
             includes.append(f)

@@ -30,11 +30,12 @@ if TYPE_CHECKING:
 def _check_xr(
     x: ArrayLike | DataT,
     dims: DimsMapping,
+    *,
     name: str | None = None,
     strict: bool = False,
 ) -> xr.DataArray | DataT:
     if is_dataset(x):
-        return x
+        return x  # type: ignore[return-value]
 
     if is_dataarray(x):
         if strict:
@@ -115,7 +116,7 @@ def xrwrap_xv(
         dims = {
             2: [rec_dim, deriv_dim],
             len(rec_val): [rec_dim, deriv_dim, *val_dims],
-            len(rep_val): [rep_dim, rec_dim, deriv_dim, val_dims],
+            len(rep_val): [rep_dim, rec_dim, deriv_dim, *val_dims],
         }
     return _check_xr(xv, dims=dims, name=name, strict=strict)
 
@@ -123,7 +124,7 @@ def xrwrap_xv(
 def xrwrap_alpha(
     alpha: ArrayLike | xr.DataArray,
     dims: MultDims | None = None,
-    name: Hashable = "alpha",
+    name: str | Hashable = "alpha",
 ) -> xr.DataArray:
     """Wrap alpha values."""
     if is_dataarray(alpha):
@@ -131,7 +132,7 @@ def xrwrap_alpha(
 
     alpha = np.array(alpha)
     if dims is None:
-        dims = name
+        dims = name  # type: ignore[assignment]
 
     if alpha.ndim == 0:
         return xr.DataArray(alpha, coords={dims: alpha}, name=name)
