@@ -125,9 +125,9 @@ class VolumeDataCallback(DataCallbackABC):
 
         return self.new_like(dxdqv=self.dxdqv[sampler.indices])
 
-    def derivs_args(self, data, derivs_args):
+    def deriv_args(self, data, deriv_args):
         return (
-            *tuple(derivs_args),
+            *tuple(deriv_args),
             self.dxdq(data.rec_dim),
             self.volume,
             self.ndim,

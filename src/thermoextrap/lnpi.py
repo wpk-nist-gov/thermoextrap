@@ -287,8 +287,8 @@ class lnPiDataCallback(DataCallbackABC):
         # return new object
         return self.new_like(lnPi0=dc.values.sel(_mom=1))
 
-    def derivs_args(self, data, derivs_args):
-        return (*tuple(derivs_args), self.lnPi0_ave, self.mudotN)
+    def deriv_args(self, data, deriv_args):
+        return (*tuple(deriv_args), self.lnPi0_ave, self.mudotN)
 
 
 # def factory_data_values(

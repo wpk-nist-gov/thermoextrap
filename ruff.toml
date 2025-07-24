@@ -13,7 +13,7 @@ extend-exclude = [
     "src/thermoextrap/legacy/",
 ]
 fix = true
-unsafe-fixes = true
+# unsafe-fixes = true
 
 [format]
 docstring-code-format = true

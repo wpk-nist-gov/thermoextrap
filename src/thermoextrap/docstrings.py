@@ -37,7 +37,7 @@ compute : bool, optional
 meta : dict, optional
     extra meta data/parameters to be carried along with object and child objects.
     if 'checker' in meta, then perform a callback of the form meta['checker](self, meta)
-    this can also be used to override things like derivs_args.
+    this can also be used to override things like deriv_args.
     Values passed through method `resample_meta`
 meta_kws : mapping, optional
     Optional parameters for meta.

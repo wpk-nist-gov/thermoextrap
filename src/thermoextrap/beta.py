@@ -1,11 +1,22 @@
+# pyright: reportMissingTypeStubs=false, reportIncompatibleMethodOverride=false
+
 """
 Inverse temperature (beta) extrapolation (:mod:`~thermoextrap.beta`)
 ====================================================================
 """
 
-from functools import lru_cache
-from typing import Literal
+from __future__ import annotations
 
+from functools import lru_cache
+from typing import TYPE_CHECKING, cast
+
+from sympy.core.numbers import Number
+
+from .core.sputils import (
+    get_default_indexed,
+    get_default_symbol,
+)
+from .core.validate import validate_positive_integer
 from .docstrings import DOCFILLER_SHARED
 from .models import (
     Derivatives,
@@ -14,9 +25,20 @@ from .models import (
     SymDerivBase,
     SymFuncBase,
     SymSubs,
-    get_default_indexed,
-    get_default_symbol,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from typing import Any
+
+    import xarray as xr
+    from sympy.core.add import Add
+    from sympy.core.mul import Expr
+    from sympy.core.symbol import Symbol
+    from sympy.tensor.indexed import IndexedBase
+
+    from .core.typing import DataT, PostFunc, SupportsDataProtocol, SymDerivNames
+    from .core.typing_compat import Self
 
 docfiller_shared = DOCFILLER_SHARED.levels_to_top("cmomy", "xtrap", "beta")
 
@@ -45,25 +67,27 @@ class du_func(SymFuncBase):
     nargs = 2
     du = get_default_indexed("du")
 
-    @classmethod
-    def deriv_args(cls):
-        return [cls.du]
+    # NOTE: only including init so typing makes sense...
+    def __init__(self, beta: Symbol | None, n: int | Number, /) -> None:
+        super().__init__()
 
-    def fdiff(self, argindex=1):
+    @classmethod
+    def deriv_args(cls) -> tuple[IndexedBase]:
+        return (cls.du,)
+
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
         beta, n = self.args
-        return -(+du_func(beta, n + 1) - n * du_func(beta, n - 1) * du_func(beta, 2))
+        return -(+du_func(beta, n + 1) - n * du_func(beta, n - 1) * du_func(beta, 2))  # pyright: ignore[reportUnknownVariableType]
 
     @classmethod
-    def eval(cls, beta, n):
+    def eval(cls, beta: Symbol | None, n: int | Number = 0) -> Expr | None:
         if n == 0:
-            out = 1
-        elif n == 1:
-            out = 0
-        elif beta is None:
-            out = cls.du[n]
-        else:
-            out = None
-        return out
+            return Number(1)
+        if n == 1:
+            return Number(0)
+        if beta is None:
+            return cls.du[n]  # pyright: ignore[reportUnknownVariableType,reportReturnType]
+        return None
 
 
 class u_func_central(SymFuncBase):
@@ -76,16 +100,19 @@ class u_func_central(SymFuncBase):
     nargs = 1
     u = get_default_symbol("u")
 
-    @classmethod
-    def deriv_args(cls):
-        return [cls.u, *du_func.deriv_args()]
+    def __init__(self, beta: Symbol | None, /) -> None:
+        super().__init__()
 
-    def fdiff(self, argindex=1):
+    @classmethod
+    def deriv_args(cls) -> tuple[Symbol, IndexedBase]:
+        return (cls.u, *du_func.deriv_args())
+
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
         (beta,) = self.args
-        return -du_func(beta, 2)
+        return -du_func(beta, 2)  # pyright: ignore[reportUnknownVariableType]
 
     @classmethod
-    def eval(cls, beta):
+    def eval(cls, beta: Symbol | None) -> Expr | None:
         if beta is None:
             return cls.u
         return None
@@ -103,27 +130,28 @@ class dxdu_func_nobeta(SymFuncBase):
     nargs = 2
     dxdu = get_default_indexed("dxdu")
 
-    @classmethod
-    def deriv_args(cls):
-        return [*du_func.deriv_args(), cls.dxdu]
+    def __init__(self, beta: Symbol | None, n: int | Number, /) -> None:
+        super().__init__()
 
-    def fdiff(self, argindex=1):
+    @classmethod
+    def deriv_args(cls) -> tuple[IndexedBase, IndexedBase]:
+        return (*du_func.deriv_args(), cls.dxdu)
+
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
         beta, n = self.args
-        return (
+        return (  # pyright: ignore[reportUnknownVariableType]
             -dxdu_func_nobeta(beta, n + 1)
             + n * dxdu_func_nobeta(beta, n - 1) * du_func(beta, 2)
             + dxdu_func_nobeta(beta, 1) * du_func(beta, n)
         )
 
     @classmethod
-    def eval(cls, beta, n):
+    def eval(cls, beta: Symbol | None, n: int | Number = 0) -> Expr | None:
         if n == 0:
-            out = 0
-        elif beta is None:
-            out = cls.dxdu[n]
-        else:
-            out = None
-        return out
+            return Number(0)
+        if beta is None:
+            return cls.dxdu[n]  # pyright: ignore[reportUnknownVariableType,reportReturnType]
+        return None
 
 
 class dxdu_func_beta(SymFuncBase):
@@ -137,13 +165,18 @@ class dxdu_func_beta(SymFuncBase):
     nargs = 3
     dxdu = get_default_indexed("dxdu")
 
-    @classmethod
-    def deriv_args(cls):
-        return [*du_func.deriv_args(), cls.dxdu]
+    def __init__(
+        self, beta: Symbol | None, n: int | Number, deriv: int | Number, /
+    ) -> None:
+        super().__init__()
 
-    def fdiff(self, argindex=1):
+    @classmethod
+    def deriv_args(cls) -> tuple[IndexedBase, IndexedBase]:
+        return (*du_func.deriv_args(), cls.dxdu)
+
+    def fdiff(self, argindex: int | Number = 1) -> Add:
         beta, n, d = self.args
-        return (
+        return (  # pyright: ignore[reportUnknownVariableType]
             -dxdu_func_beta(beta, n + 1, d)
             + n * dxdu_func_beta(beta, n - 1, d) * du_func(beta, 2)
             + dxdu_func_beta(beta, n, d + 1)
@@ -151,14 +184,14 @@ class dxdu_func_beta(SymFuncBase):
         )
 
     @classmethod
-    def eval(cls, beta, n, deriv):
+    def eval(
+        cls, beta: Symbol | None, n: int | Number = 0, deriv: int | Number = 0
+    ) -> Expr | None:
         if n == 0:
-            out = 0
-        elif beta is None:
-            out = cls.dxdu[n, deriv]
-        else:
-            out = None
-        return out
+            return Number(0)
+        if beta is None:
+            return cls.dxdu[n, deriv]  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+        return None
 
 
 class x_func_central_nobeta(SymFuncBase):
@@ -167,16 +200,19 @@ class x_func_central_nobeta(SymFuncBase):
     nargs = 1
     x1_symbol = get_default_symbol("x1")
 
-    @classmethod
-    def deriv_args(cls):
-        return [cls.x1_symbol, *dxdu_func_nobeta.deriv_args()]
+    def __init__(self, beta: Symbol | None, /) -> None:
+        super().__init__()
 
-    def fdiff(self, argindex=1):
+    @classmethod
+    def deriv_args(cls) -> tuple[Symbol, IndexedBase, IndexedBase]:
+        return (cls.x1_symbol, *dxdu_func_nobeta.deriv_args())
+
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
         (beta,) = self.args
-        return -dxdu_func_nobeta(beta, 1)
+        return -dxdu_func_nobeta(beta, 1)  # pyright: ignore[reportUnknownVariableType]
 
     @classmethod
-    def eval(cls, beta):
+    def eval(cls, beta: Symbol | None) -> Expr | None:
         return cls.x1_symbol if beta is None else None
 
 
@@ -186,18 +222,21 @@ class x_func_central_beta(SymFuncBase):
     nargs = 2
     x1_indexed = get_default_indexed("x1")
 
-    @classmethod
-    def deriv_args(cls):
-        return [cls.x1_indexed, *dxdu_func_beta.deriv_args()]
+    def __init__(self, beta: Symbol | None, deriv: int | Number, /) -> None:
+        super().__init__()
 
-    def fdiff(self, argindex=1):
+    @classmethod
+    def deriv_args(cls) -> tuple[IndexedBase, IndexedBase, IndexedBase]:
+        return (cls.x1_indexed, *dxdu_func_beta.deriv_args())
+
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
         # xalpha
         beta, d = self.args
-        return -dxdu_func_beta(beta, 1, d) + x_func_central_beta(beta, d + 1)
+        return -dxdu_func_beta(beta, 1, d) + x_func_central_beta(beta, d + 1)  # pyright: ignore[reportUnknownVariableType]
 
     @classmethod
-    def eval(cls, beta, deriv):
-        return cls.x1_indexed[deriv] if beta is None else None
+    def eval(cls, beta: Symbol | None, deriv: int | Number = 0) -> Expr | None:
+        return cls.x1_indexed[deriv] if beta is None else None  # pyright: ignore[reportReturnType, reportUnknownVariableType]
 
 
 ####################
@@ -209,23 +248,24 @@ class u_func(SymFuncBase):
     nargs = 2
     u = get_default_indexed("u")
 
-    @classmethod
-    def deriv_args(cls):
-        return [cls.u]
+    def __init__(self, beta: Symbol | None, n: int | Number, /) -> None:
+        super().__init__()
 
-    def fdiff(self, argindex=1):
+    @classmethod
+    def deriv_args(cls) -> tuple[IndexedBase]:
+        return (cls.u,)
+
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
         beta, n = self.args
-        return -(u_func(beta, n + 1) - u_func(beta, n) * u_func(beta, 1))
+        return -(u_func(beta, n + 1) - u_func(beta, n) * u_func(beta, 1))  # pyright: ignore[reportUnknownVariableType]
 
     @classmethod
-    def eval(cls, beta, n):
+    def eval(cls, beta: Symbol | None, n: int | Number = 0) -> Expr | None:
         if n == 0:
-            out = 1
-        elif beta is None:
-            out = cls.u[n]
-        else:
-            out = None
-        return out
+            return Number(1)
+        if beta is None:
+            return cls.u[n]  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+        return None
 
 
 class xu_func(SymFuncBase):
@@ -239,31 +279,37 @@ class xu_func(SymFuncBase):
     nargs = (2, 3)
     xu = get_default_indexed("xu")
 
-    @classmethod
-    def deriv_args(cls):
-        return [*u_func.deriv_args(), cls.xu]
+    def __init__(
+        self, beta: Symbol | None, n: int | Number, deriv: int | Number | None = None, /
+    ) -> None:
+        super().__init__()
 
-    def fdiff(self, argindex=1):
+    @classmethod
+    def deriv_args(cls) -> tuple[IndexedBase, IndexedBase]:
+        return (*u_func.deriv_args(), cls.xu)
+
+    def fdiff(self, argindex: int | Number = 1) -> Add:
         if len(self.args) == 2:
             beta, n = self.args
-            out = -xu_func(beta, n + 1) + xu_func(beta, n) * u_func(beta, 1)
+            return -xu_func(beta, n + 1) + xu_func(beta, n) * u_func(beta, 1)  # pyright: ignore[reportUnknownVariableType]
 
-        else:
-            beta, n, d = self.args
-            out = (
-                -xu_func(beta, n + 1, d)
-                + xu_func(beta, n, d + 1)
-                + xu_func(beta, n, d) * u_func(beta, 1)
-            )
-        return out
+        beta, n, d = self.args
+        return (  # pyright: ignore[reportUnknownVariableType]
+            -xu_func(beta, n + 1, d)
+            + xu_func(beta, n, d + 1)
+            + xu_func(beta, n, d) * u_func(beta, 1)
+        )
 
     @classmethod
-    def eval(cls, beta, n, deriv=None):
+    def eval(
+        cls,
+        beta: Symbol | None,
+        n: int | Number = 0,
+        deriv: int | Number | None = None,
+    ) -> Expr | None:
         if beta is None:
-            out = cls.xu[n] if deriv is None else cls.xu[n, deriv]
-        else:
-            out = None
-        return out
+            return cls.xu[n] if deriv is None else cls.xu[n, deriv]  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+        return None
 
 
 @docfiller_shared.inherit(SymDerivBase)
@@ -274,7 +320,13 @@ class SymDerivBeta(SymDerivBase):
 
     @classmethod
     @docfiller_shared.decorate
-    def x_ave(cls, xalpha=False, central=None, expand=True, post_func=None):
+    def x_ave(
+        cls,
+        xalpha: bool = False,
+        central: bool | None = None,
+        expand: bool = True,
+        post_func: PostFunc = None,
+    ) -> Self:
         r"""
         General method to find derivatives of :math:`\langle x \rangle`.
 
@@ -302,7 +354,12 @@ class SymDerivBeta(SymDerivBase):
 
     @classmethod
     @docfiller_shared.decorate
-    def u_ave(cls, central=None, expand=True, post_func=None):
+    def u_ave(
+        cls,
+        central: bool | None = None,
+        expand: bool = True,
+        post_func: PostFunc = None,
+    ) -> Self:
         r"""
         General constructor for symbolic derivatives of :math:`\langle u \rangle`.
 
@@ -322,7 +379,13 @@ class SymDerivBeta(SymDerivBase):
 
     @classmethod
     @docfiller_shared.decorate
-    def dun_ave(cls, n, expand=True, post_func=None, central=None):
+    def dun_ave(
+        cls,
+        n: int,
+        expand: bool = True,
+        post_func: PostFunc = None,
+        central: bool | None = None,
+    ) -> Self:
         r"""
         Constructor for derivatives of :math:`\langle (\delta u)^n\rangle`.
 
@@ -355,8 +418,14 @@ class SymDerivBeta(SymDerivBase):
     @classmethod
     @docfiller_shared.decorate
     def dxdun_ave(
-        cls, n, xalpha=False, expand=True, post_func=None, d=None, central=None
-    ):
+        cls,
+        n: int,
+        xalpha: bool = False,
+        expand: bool = True,
+        post_func: PostFunc = None,
+        d: int | None = None,
+        central: bool | None = None,
+    ) -> Self:
         r"""
         Constructor for derivatives of :math:`\langle \delta x \delta u^n\rangle`.
 
@@ -383,9 +452,7 @@ class SymDerivBeta(SymDerivBase):
             msg = f"{n=} must be positive integer."
             raise ValueError(msg)
         if xalpha:
-            if not isinstance(d, int):
-                raise TypeError
-            func = dxdu_func_beta(cls.beta, n, d)
+            func = dxdu_func_beta(cls.beta, n, validate_positive_integer(d, "d"))
             args = x_func_central_beta.deriv_args()
 
         else:
@@ -401,7 +468,13 @@ class SymDerivBeta(SymDerivBase):
 
     @classmethod
     @docfiller_shared.decorate
-    def un_ave(cls, n, expand=True, post_func=None, central=None):
+    def un_ave(
+        cls,
+        n: int,
+        expand: bool = True,
+        post_func: PostFunc = None,
+        central: bool | None = None,
+    ) -> Self:
         r"""
         Constructor for derivatives of :math:`\langle u^n\rangle`.
 
@@ -426,8 +499,14 @@ class SymDerivBeta(SymDerivBase):
     @classmethod
     @docfiller_shared.decorate
     def xun_ave(
-        cls, n, d=None, xalpha=False, expand=True, post_func=None, central=None
-    ):
+        cls,
+        n: int,
+        d: int | None = None,
+        xalpha: bool = False,
+        expand: bool = True,
+        post_func: PostFunc = None,
+        central: bool | None = None,
+    ) -> Self:
         r"""
         Constructor for derivatives of :math:`\langle x^{{(d)}} u^n\rangle`.
 
@@ -451,11 +530,7 @@ class SymDerivBeta(SymDerivBase):
             raise ValueError(msg)
 
         if xalpha:
-            if not isinstance(d, int):
-                raise TypeError
-            if d < 0:
-                raise ValueError
-            func = xu_func(cls.beta, n, d)
+            func = xu_func(cls.beta, n, validate_positive_integer(d, "d"))
         else:
             func = xu_func(cls.beta, n)
 
@@ -464,16 +539,14 @@ class SymDerivBeta(SymDerivBase):
     @classmethod
     def from_name(
         cls,
-        name: Literal[
-            "x_ave", "u_ave", "dun_ave", "dxdun_ave", "un_ave", "xun_ave", "lnPi_energy"
-        ],
-        xalpha=False,
-        central=None,
-        expand=True,
-        post_func=None,
-        n=None,
-        d=None,
-    ):
+        name: SymDerivNames,
+        xalpha: bool = False,
+        central: bool | None = None,
+        expand: bool = True,
+        post_func: PostFunc = None,
+        n: int | None = None,
+        d: int | None = None,
+    ) -> Self:
         """
         Create a derivative expressions indexer by name.
 
@@ -482,13 +555,13 @@ class SymDerivBeta(SymDerivBase):
         name : {'xave', 'uave', 'dun_ave', 'un_ave'}
         All properties use post_func and expand parameters.
             * x_ave: general average of <x>(central, xalpha)
-            * u_ave: <u>(central)
+            * un_ave: <u>(central)
             * dun_ave: derivative of <(u - <u>)**n>(central, n)
             * dxdun_ave: derivatives of <dx^(d) * du**n>(xalpha, n, d)
 
             * un_ave: derivative of <u**n>(n)
             * xun_ave: derivative of <x^(d) * u**n>(xalpha, n, [d])
-            * lnPi_correction: derivatives of <lnPi - beta * mu * N>(central)
+            * lnPi_energy: derivatives of <lnPi - beta * mu * N>(central)
 
         xalpha : bool, default=False
             Whether property depends on alpha (beta)
@@ -507,7 +580,11 @@ class SymDerivBeta(SymDerivBase):
             msg = f"{name} not found"
             raise ValueError(msg)
 
-        kws = {"expand": expand, "post_func": post_func, "central": central}
+        kws: dict[str, Any] = {
+            "expand": expand,
+            "post_func": post_func,
+            "central": central,
+        }
         if name == "x_ave":
             kws.update(xalpha=xalpha)
         # elif name in ["u_ave", "lnPi_correction":
@@ -517,11 +594,11 @@ class SymDerivBeta(SymDerivBase):
         elif name in {"dxdun_ave", "xun_ave"}:
             kws.update(n=n, xalpha=xalpha, d=d)
 
-        elif name == "lnPi_correction":
+        elif name == "lnPi_energy":
             # already have central
             pass
 
-        return func(**kws)
+        return cast("Self", func(**kws))
 
 
 ###############################################################################
@@ -532,14 +609,14 @@ class SymDerivBeta(SymDerivBase):
 @lru_cache(5)
 @docfiller_shared.decorate
 def factory_derivatives(
-    name="x_ave",
-    n=None,
-    d=None,
-    xalpha=False,
-    central=None,
-    post_func=None,
-    expand=True,
-):
+    name: SymDerivNames = "x_ave",
+    n: int | None = None,
+    d: int | None = None,
+    xalpha: bool = False,
+    central: bool | None = None,
+    post_func: PostFunc = None,
+    expand: bool = True,
+) -> Derivatives:
     r"""
     Factory function to provide derivative function for expansion.
 
@@ -575,20 +652,20 @@ def factory_derivatives(
 
 @docfiller_shared.decorate
 def factory_extrapmodel(
-    beta,
-    data,
+    beta: float,
+    data: SupportsDataProtocol[DataT],
     *,
-    name="x_ave",
-    n=None,
-    d=None,
-    xalpha=None,
-    central=None,
-    order=None,
-    alpha_name="beta",
-    derivatives=None,
-    post_func=None,
-    derivatives_kws=None,
-):
+    name: str = "x_ave",
+    n: int | None = None,
+    d: int | None = None,
+    xalpha: bool | None = None,
+    central: bool | None = None,
+    order: int | None = None,
+    alpha_name: str = "beta",
+    derivatives: Derivatives | None = None,
+    post_func: PostFunc = None,
+    derivatives_kws: Mapping[str, Any] | None = None,
+) -> ExtrapModel[DataT]:
     """
     Factory function to create Extrapolation model for beta expansion.
 
@@ -667,7 +744,9 @@ def factory_extrapmodel(
 
 
 @docfiller_shared.decorate
-def factory_perturbmodel(beta, uv, xv, alpha_name="beta", **kws):
+def factory_perturbmodel(
+    beta: float, uv: xr.DataArray, xv: DataT, alpha_name: str = "beta", **kws: Any
+) -> PerturbModel[DataT]:
     """
     Factory function to create PerturbModel for beta expansion.
 
@@ -692,5 +771,5 @@ def factory_perturbmodel(beta, uv, xv, alpha_name="beta", **kws):
     # data = factory_data_values(uv=uv, xv=xv, order=0, central=False, **kws)
     from .data import DataValues
 
-    data = DataValues(xv=xv, uv=uv, order=0, **kws)
+    data = DataValues(uv=uv, xv=xv, order=0, **kws)
     return PerturbModel(alpha0=beta, data=data, alpha_name=alpha_name)

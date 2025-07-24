@@ -6,8 +6,16 @@ Typing aliases (:mod:`thermoextrap.core.typing`)
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Mapping, Sequence  # noqa: F401
-from typing import TYPE_CHECKING, Any, Protocol, SupportsIndex, runtime_checkable
+from collections.abc import Callable, Hashable, Mapping, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    Protocol,
+    SupportsIndex,
+    Union,
+    runtime_checkable,
+)
 
 import xarray as xr
 
@@ -15,23 +23,29 @@ from .typing_compat import Self, TypeAlias, TypeVar
 
 if TYPE_CHECKING:
     from cmomy.core.typing import Sampler
+    from sympy.core.expr import Expr  # pyright: ignore[reportMissingTypeStubs]
 
-    # from thermoextrap.data import DataCallbackABC, DataSelector
 
 DataT = TypeVar("DataT", xr.DataArray, xr.Dataset, default=xr.DataArray)
 DataT_ = TypeVar("DataT_", xr.DataArray, xr.Dataset, default=xr.DataArray)
 
-XArrayObj: TypeAlias = "xr.DataArray | xr.Dataset"
-
-
-MetaKws: TypeAlias = "Mapping[str, Any] | None"
-
-SingleDim: TypeAlias = str
-MultDims: TypeAlias = "str | Sequence[Hashable]"
-
 T_co = TypeVar("T_co", covariant=True)
-# DerivsArgs: TypeAlias = "tuple[XArrayObj | DataSelector[xr.DataArray] | DataSelector[xr.Dataset], ...]"   # more specific, but not needed.
-DerivsArgs: TypeAlias = "tuple[Any, ...]"
+
+# Alias
+XArrayObj: TypeAlias = Union[xr.DataArray, xr.Dataset]
+MetaKws: TypeAlias = Union[Mapping[str, Any], None]
+SingleDim: TypeAlias = str
+MultDims: TypeAlias = Union[str, Sequence[Hashable]]
+PostFunc: TypeAlias = Union[str, Callable[["Expr"], "Expr"], None]
+
+# DataDerivArgs: TypeAlias = "tuple[XArrayObj | DataSelector[xr.DataArray] | DataSelector[xr.Dataset], ...]"   # more specific, but not needed.
+DataDerivArgs: TypeAlias = "tuple[Any, ...]"
+
+
+# Literals
+SymDerivNames = Literal[
+    "x_ave", "u_ave", "dun_ave", "dxdun_ave", "un_ave", "xun_ave", "lnPi_energy"
+]
 
 
 @runtime_checkable
@@ -51,16 +65,16 @@ class SupportsDataProtocol(Protocol[T_co]):
     # def umom_dim(self) -> SingleDim: ...
     # @property
     # def deriv_dim(self) -> SingleDim | None: ...
-    # @property
-    # def x_is_u(self) -> bool: ...
+    @property
+    def x_is_u(self) -> bool: ...
     @property
     def order(self) -> int: ...
-    # @property
-    # def central(self) -> bool: ...
+    @property
+    def central(self) -> bool: ...
     @property
     def xalpha(self) -> bool: ...
     @property
-    def derivs_args(self) -> DerivsArgs: ...
+    def deriv_args(self) -> DataDerivArgs: ...
 
     def resample(self, sampler: Sampler) -> Self: ...
 
@@ -71,7 +85,7 @@ class SupportsDataPerturbModel(Protocol[T_co]):
     """Data protocol for PerturbModel"""
 
     @property
-    def uv(self) -> T_co: ...
+    def uv(self) -> xr.DataArray: ...
     @property
     def xv(self) -> T_co: ...
     @property
@@ -108,9 +122,9 @@ class SupportsModelProtocolDerivs(SupportsModelProtocol[T_co], Protocol[T_co]):
 
 
 SupportsModelProtocolT = TypeVar(
-    "SupportsModelProtocolT", bound=SupportsModelProtocol["xr.DataArray | xr.Dataset"]
+    "SupportsModelProtocolT", bound=SupportsModelProtocol[XArrayObj]
 )
 SupportsModelProtocolDerivsT = TypeVar(
     "SupportsModelProtocolDerivsT",
-    bound=SupportsModelProtocolDerivs["xr.DataArray | xr.Dataset"],
+    bound=SupportsModelProtocolDerivs[XArrayObj],
 )

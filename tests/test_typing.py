@@ -300,6 +300,7 @@ def test_thermoextrap_data_datacentralmoments_dataset() -> None:
 if TYPE_CHECKING:
     from thermoextrap.core.typing import (
         DataT,
+        SupportsDataPerturbModel,
         SupportsDataProtocol,
         SupportsModelProtocol,
     )
@@ -307,7 +308,7 @@ if TYPE_CHECKING:
     def func_data(x: SupportsDataProtocol[DataT]) -> int:
         return x.order
 
-    def tester(
+    def tester_data(
         a: xtrap.data.DataValues,
         b: xtrap.data.DataValuesCentral,
         c: xtrap.data.DataCentralMoments,
@@ -325,3 +326,18 @@ if TYPE_CHECKING:
 
     def tester_protocol(a: xtrap.models.ExtrapModel) -> None:
         assert_type(func_models(a), float)
+
+    def func_dataperturbmodel(x: SupportsDataPerturbModel[DataT]) -> DataT:
+        return x.xv
+
+    def tester_dataperturbmodel(
+        a: xtrap.data.DataValues,
+        b: xtrap.data.DataValuesCentral,
+        c: xtrap.data.DataValues[xr.Dataset],
+        d: xtrap.data.DataValuesCentral[xr.Dataset],
+    ) -> None:
+        assert_type(func_dataperturbmodel(a), xr.DataArray)
+        assert_type(func_dataperturbmodel(b), xr.DataArray)
+
+        assert_type(func_dataperturbmodel(c), xr.Dataset)
+        assert_type(func_dataperturbmodel(d), xr.Dataset)

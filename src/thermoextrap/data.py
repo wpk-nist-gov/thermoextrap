@@ -48,7 +48,7 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike
 
     from .core.typing import (
-        DerivsArgs,
+        DataDerivArgs,
         MetaKws,
         MultDims,
         SingleDim,
@@ -200,15 +200,15 @@ class DataCallbackABC(
         """Perform any consistency checks between self and data."""
 
     @abstractmethod
-    def derivs_args(
-        self, data: SupportsDataProtocol[Any], *, derivs_args: DerivsArgs
-    ) -> DerivsArgs:
+    def deriv_args(
+        self, data: SupportsDataProtocol[Any], *, deriv_args: DataDerivArgs
+    ) -> DataDerivArgs:
         """
         Adjust derivs args from data class.
 
         should return a tuple
         """
-        return derivs_args
+        return deriv_args
 
     # define these to raise error instead
     # of forcing usage.
@@ -248,13 +248,13 @@ class DataCallback(DataCallbackABC):
     def check(self, data: SupportsDataProtocol[Any]) -> None:
         pass
 
-    def derivs_args(  # noqa: PLR6301
+    def deriv_args(  # noqa: PLR6301
         self,
         data: SupportsDataProtocol[Any],  # noqa: ARG002
         *,
-        derivs_args: DerivsArgs,
-    ) -> DerivsArgs:
-        return derivs_args
+        deriv_args: DataDerivArgs,
+    ) -> DataDerivArgs:
+        return deriv_args
 
     def resample(
         self,
@@ -323,7 +323,7 @@ class AbstractData(
 
     @property
     @abstractmethod
-    def derivs_args(self) -> DerivsArgs:
+    def deriv_args(self) -> DataDerivArgs:
         """Sequence of arguments to derivative calculation function."""
 
     @abstractmethod
@@ -577,9 +577,9 @@ class DataValues(DataValuesBase[DataT]):
         )
 
     @property
-    def derivs_args(self) -> DerivsArgs:
+    def deriv_args(self) -> DataDerivArgs:
         out = (self.u_selector,) if self.x_is_u else (self.u_selector, self.xu_selector)
-        return self.meta.derivs_args(data=self, derivs_args=out)  # pyright: ignore[reportAssignmentType]
+        return self.meta.deriv_args(data=self, deriv_args=out)  # pyright: ignore[reportAssignmentType]
 
 
 @attrs.frozen
@@ -635,14 +635,14 @@ class DataValuesCentral(DataValuesBase[DataT]):
         return DataSelector[DataT].from_defaults(self.xave, dims=[self.deriv_dim])
 
     @property
-    def derivs_args(self) -> DerivsArgs:
+    def deriv_args(self) -> DataDerivArgs:
         out = (
             (self.xave_selector, self.du_selector)
             if self.x_is_u
             else (self.xave_selector, self.du_selector, self.dxdu_selector)
         )
 
-        return self.meta.derivs_args(data=self, derivs_args=out)
+        return self.meta.deriv_args(data=self, deriv_args=out)
 
 
 # TODO(wpk): overload on central = True/False and overload for arraylike
@@ -933,13 +933,13 @@ class DataCentralMomentsBase(AbstractData, Generic[DataT]):
         )
 
     @property
-    def derivs_args(self) -> DerivsArgs:
+    def deriv_args(self) -> DataDerivArgs:
         """
         Arguments to be passed to derivative function.
 
-        For example, ``derivs(*self.derivs_args)``.
+        For example, ``derivs(*self.deriv_args)``.
         """
-        out: DerivsArgs
+        out: DataDerivArgs
         if not self.x_is_u:
             if self.central:
                 out = (self.xave_selector, self.du_selector, self.dxdu_selector)
@@ -951,7 +951,7 @@ class DataCentralMomentsBase(AbstractData, Generic[DataT]):
         else:
             out = (self.u_selector,)
 
-        return self.meta.derivs_args(data=self, derivs_args=out)
+        return self.meta.deriv_args(data=self, deriv_args=out)
 
 
 @attrs.frozen

@@ -6,12 +6,14 @@ General extrapolation/interpolation models (:mod:`~thermoextrap.models`)
 from __future__ import annotations
 
 import math
+from abc import abstractmethod
 from collections.abc import Mapping, Sequence, Sized
 from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
     Any,
     Generic,
+    Literal,
     SupportsIndex,
     overload,
 )
@@ -51,9 +53,11 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
     from pymbar.mbar import MBAR
     from sympy.core.expr import Expr
+    from sympy.core.numbers import Number
     from sympy.core.symbol import Symbol
     from sympy.tensor.indexed import IndexedBase
 
+    from .core.typing import PostFunc
     from .core.typing_compat import Self, TypeVar
 
     _T = TypeVar("_T")
@@ -97,8 +101,13 @@ class SymFuncBase(sp.Function):  # type: ignore[misc,name-defined]
 
     """
 
+    # allow override of this simply for typing...
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__()
+
     @classmethod
-    def deriv_args(cls) -> None:
+    @abstractmethod
+    def deriv_args(cls) -> tuple[Symbol | IndexedBase, ...]:
         """
         Symbol arguments of function.
 
@@ -108,24 +117,26 @@ class SymFuncBase(sp.Function):  # type: ignore[misc,name-defined]
         --------
         sympy.utilities.lambdify.lambdify
         """
-        msg = "must specify in subclass"
-        raise NotImplementedError(msg)
 
-    def fdiff(self, argindex: int = 1) -> None:
+    @abstractmethod
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
         """Derivative of function.  This will be used by :class:`thermoextrap.models.SymDerivBase`."""
-        msg = "must specify in subclass"
-        raise NotImplementedError(msg)
 
     @classmethod
-    def eval(cls, beta: Any) -> None:
+    @abstractmethod
+    def eval(cls, beta: Symbol | None) -> Expr | None:
         """
         Evaluate function.
 
         We use the convention of passing in `beta='None'` to evaluate the
         function to an indexed variable.
         """
-        msg = "must specify in subclass"
-        raise NotImplementedError(msg)
+
+    # @classmethod
+    # @abstractmethod
+    # def _as_expr(cls, beta: Symbol | None) -> Expr | None:
+    #     """Typed interface to cls(...)"""
+    #     return cls(beta)
 
 
 @docfiller_shared.decorate
@@ -149,9 +160,9 @@ class SymDerivBase:
     def __init__(
         self,
         func: SymFuncBase,
-        args: list[Symbol | IndexedBase] | None = None,
+        args: Sequence[Symbol | IndexedBase] | None = None,
         expand: bool = True,
-        post_func: str | Callable[[SymFuncBase], SymFuncBase] | None = None,
+        post_func: PostFunc = None,
     ) -> None:
         if args is None:
             args = func.deriv_args()
@@ -159,19 +170,17 @@ class SymDerivBase:
         self._func_orig = func
         self._post_func = post_func
 
-        if post_func is not None:
-            if isinstance(post_func, str):
-                if post_func == "minus_log":
-                    post_func = lambda f: -sp.log(f)
-                elif post_func.startswith("pow_"):
-                    i = int(post_func.split("_")[-1])
-                    post_func = lambda f: pow(f, i)
-                else:
-                    msg = "post_func must be callable or in {minus_log, pow_1, pow_2, ...}"
-                    raise ValueError(msg)
-            func = post_func(func)
+        if isinstance(post_func, str):
+            if post_func == "minus_log":
+                post_func = lambda f: -sp.log(f)
+            elif post_func.startswith("pow_"):
+                i = int(post_func.split("_")[-1])
+                post_func = lambda f: pow(f, i)
+            else:
+                msg = "post_func must be callable or in {minus_log, pow_1, pow_2, ...}"
+                raise ValueError(msg)
 
-        self.func = func
+        self.func: Expr = func if post_func is None else post_func(func)
         self.args = args
         self.expand = expand
         self._cache: dict[str, Any] = {}
@@ -179,11 +188,10 @@ class SymDerivBase:
     @cached.meth
     def __getitem__(self, order: SupportsIndex, /) -> Expr:
         if order == 0:
-            out = self.func
-        else:
-            out = self[int(order) - 1].diff(self.beta, 1)
-            if self.expand:
-                out = out.expand()
+            return self.func
+        out = self[int(order) - 1].diff(self.beta, 1)
+        if self.expand:
+            out = out.expand()
         return out
 
 
@@ -214,7 +222,7 @@ class SymSubs:
     funcs: SupportsGetItem[Expr] = field(validator=_validate_supports_getitem)
     subs: SupportsGetItem[Mapping[Any, Expr]] | None = field(default=None)
     subs_final: SupportsGetItem[Mapping[Any, Expr]] | None = field(default=None)
-    subs_all: Mapping[Any, Expr] | None = field(default=None)
+    subs_all: Mapping[Any, Expr | Literal["None"]] | None = field(default=None)
     recursive: bool = field(default=True)
     simplify: bool = field(default=False)
     expand: bool = field(default=True)
@@ -400,7 +408,7 @@ class Derivatives(MyAttrsMixin):
         ----------
         data : object
             Data object.
-            If passed, use `args=data.derivs_args`
+            If passed, use `args=data.deriv_args`
         order : int, optional
             If pass `data` and `order` is `None`, then `order=data.order`
             Otherwise, must mass order
@@ -424,7 +432,7 @@ class Derivatives(MyAttrsMixin):
         output : list of xarray.DataArray
             See above for nature of output
         """
-        args = data.derivs_args
+        args = data.deriv_args
         if order is None:
             order = data.order
 
@@ -518,49 +526,6 @@ def taylor_series_norm(order: int, order_dim: str = "order") -> xr.DataArray:
     """``taylor_series_coefficients = derivs * taylor_series_norm``."""
     out = np.array([1 / math.factorial(i) for i in range(order + 1)])
     return xr.DataArray(out, dims=order_dim)
-
-
-# @attrs.define
-# class ModelABC(MyAttrsMixin, Generic[DataT]):
-#     """Generic model class"""
-
-#     #: Alpha value data is evaluated at
-#     _alpha0: float = field(converter=float, alias="alpha0")
-
-#     #: Data object
-#     data: SupportsDataProtocol[DataT] = field(validator=attv.instance_of(SupportsDataProtocol))  # type: ignore[type-abstract]
-
-#     #: Derivatives object
-#     derivatives: Derivatives = field(validator=attv.instance_of(Derivatives))
-
-#     #: Maximum order of expansion (defaults to self.data.order)
-#     _order: int | None = field(default=None, alias="order")
-
-#     @property
-#     def alpha0(self) -> float:
-#         return self._alpha0
-
-#     @property
-#     def order(self) -> int:
-#         if self._order is None:
-#             return self.data.order
-#         return self._order
-
-#     @abstractmethod
-#     def derivs(self, *args: Any, **kwargs: Any) -> DataT:
-#         pass
-
-#     @abstractmethod
-#     def coefs(self, *args: Any, **kwargs: Any) -> DataT:
-#         pass
-
-#     @abstractmethod
-#     def predict(self, alpha: ArrayLike) -> DataT:
-#         pass
-
-#     @abstractmethod
-#     def resample(self, sampler: Sampler) -> Self:
-#         pass
 
 
 @attrs.define
