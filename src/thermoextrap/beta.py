@@ -1,4 +1,5 @@
 # pyright: reportMissingTypeStubs=false, reportIncompatibleMethodOverride=false
+# ruff: noqa: ARG003  # bunch of unused arguments
 
 """
 Inverse temperature (beta) extrapolation (:mod:`~thermoextrap.beta`)
@@ -24,7 +25,6 @@ from .models import (
     PerturbModel,
     SymDerivBase,
     SymFuncBase,
-    SymSubs,
 )
 
 if TYPE_CHECKING:
@@ -71,18 +71,21 @@ class du_func(SymFuncBase):
             - n * self.tcall(beta, n=n - 1) * self.tcall(beta, n=2)
         )
 
+    def doit(self, deep: bool = False, **hints: Any) -> Expr:
+        self._doit_args(deep, **hints)
+        n = self.args[1]
+        return self.du[n]  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+
     @classmethod
-    def eval(cls, beta: Symbol | None, n: int | Number = 0) -> Any:
+    def eval(cls, beta: Symbol, n: int | Number = 0) -> Any:
         if n == 0:
             return Number(1)
         if n == 1:
             return Number(0)
-        if beta is None:
-            return cls.du[n]  # pyright: ignore[reportUnknownVariableType]
         return None
 
     @classmethod
-    def tcall(cls, beta: Symbol | None, *, n: int | Number = 0) -> Expr:
+    def tcall(cls, beta: Symbol, *, n: int | Number = 0) -> Expr:
         return cls(beta, n)
 
 
@@ -104,14 +107,16 @@ class u_func_central(SymFuncBase):
         (beta,) = self.args
         return -du_func.tcall(beta, n=2)
 
+    def doit(self, deep: bool = False, **hints: Any) -> Expr:
+        self._doit_args(deep, **hints)
+        return self.u
+
     @classmethod
-    def eval(cls, beta: Symbol | None) -> Any:
-        if beta is None:
-            return cls.u
+    def eval(cls, beta: Symbol) -> Any:
         return None
 
     @classmethod
-    def tcall(cls, beta: Symbol | None) -> Expr:
+    def tcall(cls, beta: Symbol) -> Expr:
         return cls(beta)
 
 
@@ -151,23 +156,29 @@ class dxdu_func(SymFuncBase):
             return out
         return out + self.tcall(beta, n=n, deriv=d + 1)
 
+    def doit(self, deep: bool = False, **hints: Any) -> Expr:
+        self._doit_args(deep, **hints)
+        if len(self.args) == 2:
+            _, n = self.args
+            return cast("Expr", self.dxdu[n])
+        _, n, deriv = self.args
+        return cast("Expr", self.dxdu[n, deriv])
+
     @classmethod
     def eval(
         cls,
-        beta: Symbol | None,
+        beta: Symbol,
         n: int | Number = 0,
         deriv: int | Number | None = None,
     ) -> Any:
         if n == 0:
             return Number(0)
-        if beta is None:
-            return cls.dxdu[n] if deriv is None else cls.dxdu[n, deriv]  # pyright: ignore[reportUnknownVariableType]
         return None
 
     @classmethod
     def tcall(
         cls,
-        beta: Symbol | None,
+        beta: Symbol,
         *,
         n: int | Number = 0,
         deriv: int | Number | None = None,
@@ -205,14 +216,19 @@ class x_func_central(SymFuncBase):
             return out
         return out + self.tcall(beta, deriv=d + 1)
 
+    def doit(self, deep: bool = False, **hints: Any) -> Expr:
+        self._doit_args(deep, **hints)
+        if len(self.args) == 1:
+            return self.x1_indexed
+        _, deriv = self.args
+        return cast("Expr", self.x1_indexed[deriv])
+
     @classmethod
-    def eval(cls, beta: Symbol | None, deriv: int | Number | None = None) -> Any:
-        if beta is None:
-            return cls.x1_indexed if deriv is None else cls.x1_indexed[deriv]  # pyright: ignore[reportUnknownVariableType]
+    def eval(cls, beta: Symbol, deriv: int | Number | None = None) -> Any:
         return None
 
     @classmethod
-    def tcall(cls, beta: Symbol | None, *, deriv: int | Number | None = None) -> Expr:
+    def tcall(cls, beta: Symbol, *, deriv: int | Number | None = None) -> Expr:
         if deriv is None:
             return cls(beta)
         return cls(beta, deriv)
@@ -235,16 +251,19 @@ class u_func(SymFuncBase):
             self.tcall(beta, n=n + 1) - self.tcall(beta, n=n) * self.tcall(beta, n=1)
         )
 
+    def doit(self, deep: bool = False, **hints: Any) -> Expr:
+        self._doit_args(deep, **hints)
+        _, n = self.args
+        return cast("Expr", self.u[n])
+
     @classmethod
-    def eval(cls, beta: Symbol | None, n: int | Number = 0) -> Any:
+    def eval(cls, beta: Symbol, n: int | Number = 0) -> Any:
         if n == 0:
             return Number(1)
-        if beta is None:
-            return cls.u[n]  # pyright: ignore[reportUnknownVariableType]
         return None
 
     @classmethod
-    def tcall(cls, beta: Symbol | None, *, n: int | Number = 0) -> Expr:
+    def tcall(cls, beta: Symbol, *, n: int | Number = 0) -> Expr:
         return cls(beta, n)
 
 
@@ -277,21 +296,27 @@ class xu_func(SymFuncBase):
             return out
         return out + self.tcall(beta, n=n, deriv=d + 1)
 
+    def doit(self, deep: bool = False, **hints: Any) -> Expr:
+        self._doit_args(deep, **hints)
+        if len(self.args) == 2:
+            _, n = self.args
+            return cast("Expr", self.xu[n])
+        _, n, deriv = self.args
+        return cast("Expr", self.xu[n, deriv])
+
     @classmethod
     def eval(
         cls,
-        beta: Symbol | None,
+        beta: Symbol,
         n: int | Number = 0,
         deriv: int | Number | None = None,
     ) -> Any:
-        if beta is None:
-            return cls.xu[n] if deriv is None else cls.xu[n, deriv]  # pyright: ignore[reportUnknownVariableType]
         return None
 
     @classmethod
     def tcall(
         cls,
-        beta: Symbol | None,
+        beta: Symbol,
         *,
         n: int | Number = 0,
         deriv: int | Number | None = None,
@@ -626,13 +651,7 @@ def factory_derivatives(
         post_func=post_func,
         expand=expand,
     )
-    exprs = SymSubs(
-        derivs,
-        subs_all={derivs.beta: "None"},
-        expand=False,
-        simplify=False,
-    )
-    return Derivatives.from_sympy(exprs, args=derivs.args)
+    return Derivatives.from_sympy(derivs.doit(), args=derivs.args)
 
 
 @docfiller_shared.decorate

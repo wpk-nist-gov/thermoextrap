@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, NamedTuple
 import pytest
 
 import thermoextrap as xtrap
-from thermoextrap.core.sputils import get_default_indexed
+from thermoextrap.core.sputils import get_default_indexed, get_default_symbol
 
 if TYPE_CHECKING:
     from typing import Any
@@ -29,8 +29,8 @@ class DataNamedTuple(NamedTuple):
 @pytest.fixture(params=n_list)
 def data(request) -> DataNamedTuple:
     n = request.param
-    u = xtrap.models.get_default_symbol("u")
-    x1 = xtrap.models.get_default_indexed("x1")
+    u = get_default_symbol("u")
+    x1 = get_default_indexed("x1")
     du, dxdu = get_default_indexed("du", "dxdu")
     xu, ui = get_default_indexed("xu", "u")
 

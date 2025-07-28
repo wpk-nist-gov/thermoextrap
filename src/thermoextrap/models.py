@@ -6,14 +6,12 @@ General extrapolation/interpolation models (:mod:`~thermoextrap.models`)
 from __future__ import annotations
 
 import math
-from abc import abstractmethod
 from collections.abc import Mapping, Sequence, Sized
 from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
     Any,
     Generic,
-    Literal,
     SupportsIndex,
     overload,
 )
@@ -34,7 +32,7 @@ from .core._attrs_utils import (
 from .core._imports import has_pymbar
 from .core._imports import sympy as sp
 from .core.compat import xr_dot
-from .core.sputils import get_default_indexed, get_default_symbol
+from .core.sputils import get_default_indexed
 from .core.typing import (
     DataT,
     SupportsDataPerturbModel,
@@ -48,6 +46,7 @@ from .docstrings import DOCFILLER_SHARED
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable
+    from typing import ClassVar
 
     from cmomy.core.typing import Sampler
     from numpy.typing import ArrayLike, NDArray
@@ -98,12 +97,12 @@ class SymFuncBase(sp.Function):  # type: ignore[misc,name-defined]
     See Also
     --------
     :class:`thermoextrap.models.SymDerivBase`
-
     """
+
+    nargs: ClassVar[int | tuple[int, ...]]
 
     # allow override of this simply for typing...
     @classmethod
-    @abstractmethod
     def deriv_args(cls) -> tuple[Symbol | IndexedBase, ...]:
         """
         Symbol arguments of function.
@@ -114,25 +113,84 @@ class SymFuncBase(sp.Function):  # type: ignore[misc,name-defined]
         --------
         sympy.utilities.lambdify.lambdify
         """
+        raise NotImplementedError
 
-    @abstractmethod
     def fdiff(self, argindex: int | Number = 1) -> Expr:
         """Derivative of function.  This will be used by :class:`thermoextrap.models.SymDerivBase`."""
+        raise NotImplementedError
+
+    def _doit_args(self, deep: bool = False, **hints: Any) -> None:
+        """Perform doit on args"""
+        if deep:
+            for a in self.args:
+                a.doit(deep=deep, **hints)
+
+    def doit(self, deep: bool = False, **hints: Any) -> Expr:
+        """Generic ``doit`` method (See :func:`sympy.doit`)."""
+        raise NotImplementedError
 
     @classmethod
-    @abstractmethod
-    def eval(cls, beta: Symbol | None) -> Any:
+    def eval(cls, beta: Symbol) -> Any:  # noqa: ARG003
         """
         Evaluate function.
 
-        We use the convention of passing in `beta='None'` to evaluate the
-        function to an indexed variable.
+        Other than trivial cases where the function returns a number, Function
+        should return None. The heavy lifting is deferred to :meth:`doit`
         """
+        return None
 
     @classmethod
-    @abstractmethod
-    def tcall(cls, beta: Symbol | None) -> Expr:
-        """Typed interface to cls(...)"""
+    def tcall(cls, beta: Symbol) -> Expr:
+        """
+        Typed interface to cls(...)
+
+        This also allows us to call with named keyword arguments, etc.
+        """
+        raise NotImplementedError
+
+
+@attrs.define
+class _GetItemSympyOperations:
+    """
+    Class to perform sympy operations on :class:`thermoextrap.models.SymDerivBase`.
+
+    Parameters
+    ----------
+    funcs : sequence of SymFunction
+        Symbolic functions to consider.
+    subs : Sequence, optional
+        Substitutions.
+    subs_final : Sequence, optional
+        Final substitutions.
+    subs_all : mapping, optional
+        Total substitution.
+    recursive : bool, default=True
+        If True, recursively apply substitutions.
+    simplify : bool, default=False
+        If True, simplify result.
+    expand : bool, default=True
+        If True, try to expand result.
+    """
+
+    funcs: SupportsGetItem[Expr] = field(validator=_validate_supports_getitem)
+    simplify: bool = field(default=False)
+    expand: bool = field(default=True)
+
+    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
+
+    @cached.meth
+    def __getitem__(self, order: SupportsIndex, /) -> Expr:
+        func = self.funcs[order]
+
+        func = func.doit()
+
+        if self.simplify:
+            func = func.simplify()
+
+        if self.expand:
+            func = func.expand()
+
+        return func
 
 
 @docfiller_shared.decorate
@@ -151,6 +209,7 @@ class SymDerivBase:
     {post_func}
     """
 
+    # TODO(wpk): Should just be on version of this class....
     beta: Symbol
 
     def __init__(
@@ -190,71 +249,34 @@ class SymDerivBase:
             out = out.expand()
         return out
 
-
-@attrs.define
-class SymSubs:
-    """
-    Class to handle substitution on :class:`thermoextrap.models.SymDerivBase`.
-
-    Parameters
-    ----------
-    funcs : sequence of SymFunction
-        Symbolic functions to consider.
-    subs : Sequence, optional
-        Substitutions.
-    subs_final : Sequence, optional
-        Final substitutions.
-    subs_all : mapping, optional
-        Total substitution.
-    recursive : bool, default=True
-        If True, recursively apply substitutions.
-    simplify : bool, default=False
-        If True, simplify result.
-    expand : bool, default=True
-        If True, try to expand result.
-    """
-
-    # TODO(wpk): specify types of Seqence/mapping
-    funcs: SupportsGetItem[Expr] = field(validator=_validate_supports_getitem)
-    subs: SupportsGetItem[Mapping[Any, Expr]] | None = field(default=None)
-    subs_final: SupportsGetItem[Mapping[Any, Expr]] | None = field(default=None)
-    subs_all: Mapping[Any, Expr | Literal["None"]] | None = field(default=None)
-    recursive: bool = field(default=True)
-    simplify: bool = field(default=False)
-    expand: bool = field(default=True)
-
-    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
+    @cached.meth
+    def doit(
+        self,
+        simplify: bool = False,
+        expand: bool = False,
+    ) -> _GetItemSympyOperations:
+        """Indexer for Derivatives with :func:`sympy.doit` applied"""
+        return _GetItemSympyOperations(
+            funcs=self,
+            simplify=simplify,
+            expand=expand,
+        )
 
     @cached.meth
-    def __getitem__(self, order: SupportsIndex, /) -> Expr:
-        func = self.funcs[order]
-
-        if self.subs is not None:
-            if self.recursive:
-                for o in range(order, -1, -1):
-                    func = func.subs(self.subs[o])
-            else:
-                func = func.subs(self.subs[order])
-
-        if self.subs_final is not None:
-            func = func.subs(self.subs_final[order])
-
-        if self.subs_all is not None:
-            func = func.subs(self.subs_all)
-
-        if self.simplify:
-            func = func.simplify()
-
-        if self.expand:
-            func = func.expand()
-
-        return func
+    def lambdify(
+        self, args: Sequence[Symbol | IndexedBase] | None = None, **lambdify_kws: Any
+    ) -> Lambdify:
+        return Lambdify(
+            self,
+            args=self.args if args is None else args,
+            lambdify_kws=lambdify_kws,
+        )
 
 
 @attrs.define
 class Lambdify:
     """
-    Create python function from list of expressions.
+    Create list-like of python functions from list-like of expressions.
 
     Parameters
     ----------
@@ -282,22 +304,6 @@ class Lambdify:
     @cached.meth
     def __getitem__(self, order: SupportsIndex, /) -> Callable[..., Any]:
         return sp.lambdify(self.args, self.exprs[order], **self.lambdify_kws)  # type: ignore[no-any-return]
-
-    @classmethod
-    def from_u_xu(cls, exprs: SupportsGetItem[Expr], **lambdify_kws: Any) -> Self:
-        """Factory for u/xu args."""
-        u, xu = get_default_indexed("u", "xu")
-        # args = (u, xu)
-        return cls(exprs=exprs, args=(u, xu), lambdify_kws=lambdify_kws)
-
-    @classmethod
-    def from_du_dxdu(
-        cls, exprs: SupportsGetItem[Expr], xalpha: bool = False, **lambdify_kws: Any
-    ) -> Self:
-        """Factory for du/dxdu args."""
-        x1 = get_default_indexed("x1") if xalpha else get_default_symbol("x1")
-        du, dxdu = get_default_indexed("du", "dxdu")
-        return cls(exprs=exprs, args=(x1, du, dxdu), lambdify_kws=lambdify_kws)
 
 
 # -log<X>

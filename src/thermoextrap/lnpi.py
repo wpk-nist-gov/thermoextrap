@@ -28,10 +28,13 @@ from .core._attrs_utils import convert_dims_to_tuple
 from .core.sputils import get_default_indexed, get_default_symbol
 from .data import DataCallbackABC
 from .docstrings import DOCFILLER_SHARED
-from .models import Derivatives, ExtrapModel, SymFuncBase, SymSubs
+from .models import Derivatives, ExtrapModel, SymFuncBase
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Sequence
+    from typing import Any
+
+    from sympy.core.expr import Expr
 
 docfiller_shared = DOCFILLER_SHARED.levels_to_top("cmomy", "xtrap", "beta").decorate
 
@@ -74,7 +77,6 @@ class lnPi_func_central(SymFuncBase):
     """
 
     nargs = 1
-    u = get_default_symbol("u")
     lnPi0 = get_default_symbol("lnPi0")
     mudotN = get_default_symbol("mudotN")
 
@@ -86,11 +88,9 @@ class lnPi_func_central(SymFuncBase):
         (beta,) = self.args
         return self.mudotN - beta_xpan.u_func_central.tcall(beta)
 
-    @classmethod
-    def eval(cls, beta):
-        if beta is None:
-            return cls.lnPi0
-        return None
+    def doit(self, deep: bool = False, **hints: Any) -> Expr:
+        self._doit_args(deep, **hints)
+        return self.lnPi0
 
     @classmethod
     def tcall(cls, beta):
@@ -113,11 +113,9 @@ class lnPi_func_raw(SymFuncBase):
         (beta,) = self.args
         return self.mudotN - beta_xpan.u_func.tcall(beta, n=1)
 
-    @classmethod
-    def eval(cls, beta):
-        if beta is None:
-            return cls.lnPi0
-        return None
+    def doit(self, deep: bool = False, **hints: Any) -> Expr:
+        self._doit_args(deep, **hints)
+        return self.lnPi0
 
     @classmethod
     def tcall(cls, beta):
@@ -163,10 +161,7 @@ def factory_derivatives(
         func = lnPi_func_central(beta) if central else lnPi_func_raw(beta)
         derivs = beta_xpan.SymDerivBeta(func=func, expand=expand, post_func=post_func)
 
-        exprs = SymSubs(
-            derivs, subs_all={derivs.beta: "None"}, expand=False, simplify=False
-        )
-        return Derivatives.from_sympy(exprs, args=derivs.args)
+        return Derivatives.from_sympy(derivs.doit(), args=derivs.args)
     return beta_xpan.factory_derivatives(
         name=name,
         n=n,
