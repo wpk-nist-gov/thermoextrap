@@ -102,9 +102,6 @@ class SymFuncBase(sp.Function):  # type: ignore[misc,name-defined]
     """
 
     # allow override of this simply for typing...
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__()
-
     @classmethod
     @abstractmethod
     def deriv_args(cls) -> tuple[Symbol | IndexedBase, ...]:
@@ -124,7 +121,7 @@ class SymFuncBase(sp.Function):  # type: ignore[misc,name-defined]
 
     @classmethod
     @abstractmethod
-    def eval(cls, beta: Symbol | None) -> Expr | None:
+    def eval(cls, beta: Symbol | None) -> Any:
         """
         Evaluate function.
 
@@ -132,11 +129,10 @@ class SymFuncBase(sp.Function):  # type: ignore[misc,name-defined]
         function to an indexed variable.
         """
 
-    # @classmethod
-    # @abstractmethod
-    # def _as_expr(cls, beta: Symbol | None) -> Expr | None:
-    #     """Typed interface to cls(...)"""
-    #     return cls(beta)
+    @classmethod
+    @abstractmethod
+    def tcall(cls, beta: Symbol | None) -> Expr:
+        """Typed interface to cls(...)"""
 
 
 @docfiller_shared.decorate

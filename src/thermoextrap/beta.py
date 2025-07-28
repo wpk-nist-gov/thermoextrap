@@ -32,7 +32,6 @@ if TYPE_CHECKING:
     from typing import Any
 
     import xarray as xr
-    from sympy.core.add import Add
     from sympy.core.mul import Expr
     from sympy.core.symbol import Symbol
     from sympy.tensor.indexed import IndexedBase
@@ -42,15 +41,9 @@ if TYPE_CHECKING:
 
 docfiller_shared = DOCFILLER_SHARED.levels_to_top("cmomy", "xtrap", "beta")
 
-##############################################################################
-# recursive derivatives for beta expansion
-###############################################################################
 
-####################
-# Central moments
-####################
-
-
+# * Recursive derivatives for beta expansion ----------------------------------
+# ** Central moments ----------------------------------------------------------
 class du_func(SymFuncBase):
     r"""
     Sympy function to evaluate energy fluctuations using central moments.
@@ -67,27 +60,30 @@ class du_func(SymFuncBase):
     nargs = 2
     du = get_default_indexed("du")
 
-    # NOTE: only including init so typing makes sense...
-    def __init__(self, beta: Symbol | None, n: int | Number, /) -> None:
-        super().__init__()
-
     @classmethod
     def deriv_args(cls) -> tuple[IndexedBase]:
         return (cls.du,)
 
     def fdiff(self, argindex: int | Number = 1) -> Expr:
         beta, n = self.args
-        return -(+du_func(beta, n + 1) - n * du_func(beta, n - 1) * du_func(beta, 2))  # pyright: ignore[reportUnknownVariableType]
+        return -(
+            +self.tcall(beta, n=n + 1)
+            - n * self.tcall(beta, n=n - 1) * self.tcall(beta, n=2)
+        )
 
     @classmethod
-    def eval(cls, beta: Symbol | None, n: int | Number = 0) -> Expr | None:
+    def eval(cls, beta: Symbol | None, n: int | Number = 0) -> Any:
         if n == 0:
             return Number(1)
         if n == 1:
             return Number(0)
         if beta is None:
-            return cls.du[n]  # pyright: ignore[reportUnknownVariableType,reportReturnType]
+            return cls.du[n]  # pyright: ignore[reportUnknownVariableType]
         return None
+
+    @classmethod
+    def tcall(cls, beta: Symbol | None, *, n: int | Number = 0) -> Expr:
+        return cls(beta, n)
 
 
 class u_func_central(SymFuncBase):
@@ -100,156 +96,134 @@ class u_func_central(SymFuncBase):
     nargs = 1
     u = get_default_symbol("u")
 
-    def __init__(self, beta: Symbol | None, /) -> None:
-        super().__init__()
-
     @classmethod
     def deriv_args(cls) -> tuple[Symbol, IndexedBase]:
         return (cls.u, *du_func.deriv_args())
 
     def fdiff(self, argindex: int | Number = 1) -> Expr:
         (beta,) = self.args
-        return -du_func(beta, 2)  # pyright: ignore[reportUnknownVariableType]
+        return -du_func.tcall(beta, n=2)
 
     @classmethod
-    def eval(cls, beta: Symbol | None) -> Expr | None:
+    def eval(cls, beta: Symbol | None) -> Any:
         if beta is None:
             return cls.u
         return None
 
-
-class dxdu_func_nobeta(SymFuncBase):
-    r"""
-    Sympy function to evaluate observable energy fluctuations using central moments.
-
-    :math:`\text{dxdu_func_nobeta}(\beta, n) = \langle \delta x (\delta u)^n \rangle`
-
-    for use when x is not a function of beta.
-    """
-
-    nargs = 2
-    dxdu = get_default_indexed("dxdu")
-
-    def __init__(self, beta: Symbol | None, n: int | Number, /) -> None:
-        super().__init__()
-
     @classmethod
-    def deriv_args(cls) -> tuple[IndexedBase, IndexedBase]:
-        return (*du_func.deriv_args(), cls.dxdu)
-
-    def fdiff(self, argindex: int | Number = 1) -> Expr:
-        beta, n = self.args
-        return (  # pyright: ignore[reportUnknownVariableType]
-            -dxdu_func_nobeta(beta, n + 1)
-            + n * dxdu_func_nobeta(beta, n - 1) * du_func(beta, 2)
-            + dxdu_func_nobeta(beta, 1) * du_func(beta, n)
-        )
-
-    @classmethod
-    def eval(cls, beta: Symbol | None, n: int | Number = 0) -> Expr | None:
-        if n == 0:
-            return Number(0)
-        if beta is None:
-            return cls.dxdu[n]  # pyright: ignore[reportUnknownVariableType,reportReturnType]
-        return None
+    def tcall(cls, beta: Symbol | None) -> Expr:
+        return cls(beta)
 
 
-class dxdu_func_beta(SymFuncBase):
+class dxdu_func(SymFuncBase):
     r"""
     Sympy function to evaluate derivatives of observable fluctuations using central moments.
 
-    :math:`\text{dxdu_func_beta}(\beta, n, d) = \langle \delta  x^{(d)}(\beta)(\delta u)^n \rangle`, where :math:`x^{(k)} = d^k x / d\beta^k`.
+    :math:`\text{dxdu_func}(\beta, n, d) = \langle \delta  x^{(d)}(\beta)(\delta u)^n \rangle`, where :math:`x^{(k)} = d^k x / d\beta^k`.
 
+    or
+
+    :math:`\text{dxdu_func_nobeta}(\beta, n) = \langle \delta x (\delta u)^n \rangle`
+
+    If ``u`` doesn't depend on ``beta``, don't pass d
     """
 
-    nargs = 3
+    nargs = (2, 3)
     dxdu = get_default_indexed("dxdu")
-
-    def __init__(
-        self, beta: Symbol | None, n: int | Number, deriv: int | Number, /
-    ) -> None:
-        super().__init__()
 
     @classmethod
     def deriv_args(cls) -> tuple[IndexedBase, IndexedBase]:
         return (*du_func.deriv_args(), cls.dxdu)
 
-    def fdiff(self, argindex: int | Number = 1) -> Add:
-        beta, n, d = self.args
-        return (  # pyright: ignore[reportUnknownVariableType]
-            -dxdu_func_beta(beta, n + 1, d)
-            + n * dxdu_func_beta(beta, n - 1, d) * du_func(beta, 2)
-            + dxdu_func_beta(beta, n, d + 1)
-            + dxdu_func_beta(beta, 1, d) * du_func(beta, n)
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
+        if len(self.args) == 2:
+            (beta, n), d = self.args, None
+        else:
+            beta, n, d = self.args
+
+        out = (
+            -self.tcall(beta, n=n + 1, deriv=d)
+            + n * self.tcall(beta, n=n - 1, deriv=d) * du_func.tcall(beta, n=2)
+            + self.tcall(beta, n=1, deriv=d) * du_func.tcall(beta, n=n)
         )
+
+        if d is None:
+            return out
+        return out + self.tcall(beta, n=n, deriv=d + 1)
 
     @classmethod
     def eval(
-        cls, beta: Symbol | None, n: int | Number = 0, deriv: int | Number = 0
-    ) -> Expr | None:
+        cls,
+        beta: Symbol | None,
+        n: int | Number = 0,
+        deriv: int | Number | None = None,
+    ) -> Any:
         if n == 0:
             return Number(0)
         if beta is None:
-            return cls.dxdu[n, deriv]  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+            return cls.dxdu[n] if deriv is None else cls.dxdu[n, deriv]  # pyright: ignore[reportUnknownVariableType]
         return None
 
-
-class x_func_central_nobeta(SymFuncBase):
-    r"""Sympy function to evaluate derivatives of observable :math:`\langle x \rangle` using central moments."""
-
-    nargs = 1
-    x1_symbol = get_default_symbol("x1")
-
-    def __init__(self, beta: Symbol | None, /) -> None:
-        super().__init__()
-
     @classmethod
-    def deriv_args(cls) -> tuple[Symbol, IndexedBase, IndexedBase]:
-        return (cls.x1_symbol, *dxdu_func_nobeta.deriv_args())
+    def tcall(
+        cls,
+        beta: Symbol | None,
+        *,
+        n: int | Number = 0,
+        deriv: int | Number | None = None,
+    ) -> Expr:
+        if deriv is None:
+            return cls(beta, n)
+        return cls(beta, n, deriv)
 
-    def fdiff(self, argindex: int | Number = 1) -> Expr:
-        (beta,) = self.args
-        return -dxdu_func_nobeta(beta, 1)  # pyright: ignore[reportUnknownVariableType]
 
-    @classmethod
-    def eval(cls, beta: Symbol | None) -> Expr | None:
-        return cls.x1_symbol if beta is None else None
+class x_func_central(SymFuncBase):
+    r"""
+    Sympy function to evaluate derivatives of observable :math:`\langle x(\beta) \rangle` using central moments.
 
+    If ``x`` does not depend on beta, don't pass ``deriv`` argument.
+    """
 
-class x_func_central_beta(SymFuncBase):
-    r"""Sympy function to evaluate derivatives of observable :math:`\langle x(\beta) \rangle` using central moments."""
+    nargs = (1, 2)
 
-    nargs = 2
+    # NOTE: take advantage of fact you can use an IndexedBase object
+    # like a symbol.  So don't need to special case deriv_args.
     x1_indexed = get_default_indexed("x1")
-
-    def __init__(self, beta: Symbol | None, deriv: int | Number, /) -> None:
-        super().__init__()
 
     @classmethod
     def deriv_args(cls) -> tuple[IndexedBase, IndexedBase, IndexedBase]:
-        return (cls.x1_indexed, *dxdu_func_beta.deriv_args())
+        return (cls.x1_indexed, *dxdu_func.deriv_args())
 
     def fdiff(self, argindex: int | Number = 1) -> Expr:
-        # xalpha
-        beta, d = self.args
-        return -dxdu_func_beta(beta, 1, d) + x_func_central_beta(beta, d + 1)  # pyright: ignore[reportUnknownVariableType]
+        if len(self.args) == 1:
+            (beta,), d = self.args, None
+        else:
+            beta, d = self.args
+
+        out = -dxdu_func.tcall(beta, n=1, deriv=d)
+        if d is None:
+            return out
+        return out + self.tcall(beta, deriv=d + 1)
 
     @classmethod
-    def eval(cls, beta: Symbol | None, deriv: int | Number = 0) -> Expr | None:
-        return cls.x1_indexed[deriv] if beta is None else None  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+    def eval(cls, beta: Symbol | None, deriv: int | Number | None = None) -> Any:
+        if beta is None:
+            return cls.x1_indexed if deriv is None else cls.x1_indexed[deriv]  # pyright: ignore[reportUnknownVariableType]
+        return None
+
+    @classmethod
+    def tcall(cls, beta: Symbol | None, *, deriv: int | Number | None = None) -> Expr:
+        if deriv is None:
+            return cls(beta)
+        return cls(beta, deriv)
 
 
-####################
-# raw moments
-####################
+# ** raw moments --------------------------------------------------------------
 class u_func(SymFuncBase):
     r"""Sympy function to evaluate derivatives of energy :math:`\langle u \rangle` using raw moments."""
 
     nargs = 2
     u = get_default_indexed("u")
-
-    def __init__(self, beta: Symbol | None, n: int | Number, /) -> None:
-        super().__init__()
 
     @classmethod
     def deriv_args(cls) -> tuple[IndexedBase]:
@@ -257,15 +231,21 @@ class u_func(SymFuncBase):
 
     def fdiff(self, argindex: int | Number = 1) -> Expr:
         beta, n = self.args
-        return -(u_func(beta, n + 1) - u_func(beta, n) * u_func(beta, 1))  # pyright: ignore[reportUnknownVariableType]
+        return -(
+            self.tcall(beta, n=n + 1) - self.tcall(beta, n=n) * self.tcall(beta, n=1)
+        )
 
     @classmethod
-    def eval(cls, beta: Symbol | None, n: int | Number = 0) -> Expr | None:
+    def eval(cls, beta: Symbol | None, n: int | Number = 0) -> Any:
         if n == 0:
             return Number(1)
         if beta is None:
-            return cls.u[n]  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+            return cls.u[n]  # pyright: ignore[reportUnknownVariableType]
         return None
+
+    @classmethod
+    def tcall(cls, beta: Symbol | None, *, n: int | Number = 0) -> Expr:
+        return cls(beta, n)
 
 
 class xu_func(SymFuncBase):
@@ -279,26 +259,23 @@ class xu_func(SymFuncBase):
     nargs = (2, 3)
     xu = get_default_indexed("xu")
 
-    def __init__(
-        self, beta: Symbol | None, n: int | Number, deriv: int | Number | None = None, /
-    ) -> None:
-        super().__init__()
-
     @classmethod
     def deriv_args(cls) -> tuple[IndexedBase, IndexedBase]:
         return (*u_func.deriv_args(), cls.xu)
 
-    def fdiff(self, argindex: int | Number = 1) -> Add:
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
         if len(self.args) == 2:
-            beta, n = self.args
-            return -xu_func(beta, n + 1) + xu_func(beta, n) * u_func(beta, 1)  # pyright: ignore[reportUnknownVariableType]
+            (beta, n), d = self.args, None
+        else:
+            beta, n, d = self.args
 
-        beta, n, d = self.args
-        return (  # pyright: ignore[reportUnknownVariableType]
-            -xu_func(beta, n + 1, d)
-            + xu_func(beta, n, d + 1)
-            + xu_func(beta, n, d) * u_func(beta, 1)
-        )
+        out = -self.tcall(beta, n=n + 1, deriv=d) + self.tcall(
+            beta, n=n, deriv=d
+        ) * u_func.tcall(beta, n=1)
+
+        if d is None:
+            return out
+        return out + self.tcall(beta, n=n, deriv=d + 1)
 
     @classmethod
     def eval(
@@ -306,10 +283,22 @@ class xu_func(SymFuncBase):
         beta: Symbol | None,
         n: int | Number = 0,
         deriv: int | Number | None = None,
-    ) -> Expr | None:
+    ) -> Any:
         if beta is None:
-            return cls.xu[n] if deriv is None else cls.xu[n, deriv]  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+            return cls.xu[n] if deriv is None else cls.xu[n, deriv]  # pyright: ignore[reportUnknownVariableType]
         return None
+
+    @classmethod
+    def tcall(
+        cls,
+        beta: Symbol | None,
+        *,
+        n: int | Number = 0,
+        deriv: int | Number | None = None,
+    ) -> Expr:
+        if deriv is None:
+            return cls(beta, n)
+        return cls(beta, n, deriv)
 
 
 @docfiller_shared.inherit(SymDerivBase)
@@ -341,16 +330,16 @@ class SymDerivBeta(SymDerivBase):
             central = False
 
         if central:
-            if xalpha:
-                func = x_func_central_beta(cls.beta, 0)
-
-            else:
-                func = x_func_central_nobeta(cls.beta)
-
+            func = x_func_central(cls.beta, 0) if xalpha else x_func_central(cls.beta)
         else:
             func = xu_func(cls.beta, 0, 0) if xalpha else xu_func(cls.beta, 0)
 
-        return cls(func=func, expand=expand, post_func=post_func)
+        return cls(
+            func=func,
+            args=func.deriv_args(),
+            expand=expand,
+            post_func=post_func,
+        )
 
     @classmethod
     @docfiller_shared.decorate
@@ -448,20 +437,16 @@ class SymDerivBeta(SymDerivBase):
             msg = f"{central=} nust be `None` or evaluate to `True`"
             raise ValueError(msg)
 
-        if (n := int(n)) <= 0:
-            msg = f"{n=} must be positive integer."
-            raise ValueError(msg)
-        if xalpha:
-            func = dxdu_func_beta(cls.beta, n, validate_positive_integer(d, "d"))
-            args = x_func_central_beta.deriv_args()
-
-        else:
-            func = dxdu_func_nobeta(cls.beta, n)
-            args = x_func_central_nobeta.deriv_args()
+        n = validate_positive_integer(int(n), name="n")
+        func = (
+            dxdu_func(cls.beta, n, validate_positive_integer(d, "d"))
+            if xalpha
+            else dxdu_func(cls.beta, n)
+        )
 
         return cls(
             func=func,
-            args=args,
+            args=x_func_central.deriv_args(),
             expand=expand,
             post_func=post_func,
         )

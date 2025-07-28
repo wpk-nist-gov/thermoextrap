@@ -19,7 +19,7 @@ n_list = [6]
 class DataNamedTuple(NamedTuple):
     n: int
     u: Symbol
-    x1: Symbol
+    x1: IndexedBase
     du: IndexedBase
     dxdu: IndexedBase
     xu: IndexedBase
@@ -29,7 +29,8 @@ class DataNamedTuple(NamedTuple):
 @pytest.fixture(params=n_list)
 def data(request) -> DataNamedTuple:
     n = request.param
-    u, x1 = xtrap.models.get_default_symbol("u", "x1")
+    u = xtrap.models.get_default_symbol("u")
+    x1 = xtrap.models.get_default_indexed("x1")
     du, dxdu = get_default_indexed("du", "dxdu")
     xu, ui = get_default_indexed("xu", "u")
 

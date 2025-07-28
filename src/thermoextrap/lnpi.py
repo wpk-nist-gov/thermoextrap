@@ -84,13 +84,17 @@ class lnPi_func_central(SymFuncBase):
 
     def fdiff(self, argindex=1):
         (beta,) = self.args
-        return self.mudotN - beta_xpan.u_func_central(beta)
+        return self.mudotN - beta_xpan.u_func_central.tcall(beta)
 
     @classmethod
     def eval(cls, beta):
         if beta is None:
             return cls.lnPi0
         return None
+
+    @classmethod
+    def tcall(cls, beta):
+        return cls(beta)
 
 
 class lnPi_func_raw(SymFuncBase):
@@ -107,13 +111,17 @@ class lnPi_func_raw(SymFuncBase):
 
     def fdiff(self, argindex=1):
         (beta,) = self.args
-        return self.mudotN - beta_xpan.u_func(beta, 1)
+        return self.mudotN - beta_xpan.u_func.tcall(beta, n=1)
 
     @classmethod
     def eval(cls, beta):
         if beta is None:
             return cls.lnPi0
         return None
+
+    @classmethod
+    def tcall(cls, beta):
+        return cls(beta)
 
 
 @lru_cache(5)
