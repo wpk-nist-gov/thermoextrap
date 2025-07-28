@@ -32,7 +32,7 @@ from .core._attrs_utils import (
 from .core._imports import has_pymbar
 from .core._imports import sympy as sp
 from .core.compat import xr_dot
-from .core.sputils import get_default_indexed
+from .core.sputils import get_default_indexed, get_default_symbol
 from .core.typing import (
     DataT,
     SupportsDataPerturbModel,
@@ -193,86 +193,6 @@ class _GetItemSympyOperations:
         return func
 
 
-@docfiller_shared.decorate
-class SymDerivBase:
-    """
-    Base class for working with recursive derivatives in expansions.
-
-    Parameters
-    ----------
-    func : symFunction
-        Function to differentiate.  This should (most likely) be an instance
-        of :class:`thermoextrap.models.SymFuncBase`
-    args : sequence of Symbol
-        Arguments to func
-    {expand}
-    {post_func}
-    """
-
-    # TODO(wpk): Should just be on version of this class....
-    beta: Symbol
-
-    def __init__(
-        self,
-        func: SymFuncBase,
-        args: Sequence[Symbol | IndexedBase] | None = None,
-        expand: bool = True,
-        post_func: PostFunc = None,
-    ) -> None:
-        if args is None:
-            args = func.deriv_args()
-
-        self._func_orig = func
-        self._post_func = post_func
-
-        if isinstance(post_func, str):
-            if post_func == "minus_log":
-                post_func = lambda f: -sp.log(f)
-            elif post_func.startswith("pow_"):
-                i = int(post_func.split("_")[-1])
-                post_func = lambda f: pow(f, i)
-            else:
-                msg = "post_func must be callable or in {minus_log, pow_1, pow_2, ...}"
-                raise ValueError(msg)
-
-        self.func: Expr = func if post_func is None else post_func(func)
-        self.args = args
-        self.expand = expand
-        self._cache: dict[str, Any] = {}
-
-    @cached.meth
-    def __getitem__(self, order: SupportsIndex, /) -> Expr:
-        if order == 0:
-            return self.func
-        out = self[int(order) - 1].diff(self.beta, 1)
-        if self.expand:
-            out = out.expand()
-        return out
-
-    @cached.meth
-    def doit(
-        self,
-        simplify: bool = False,
-        expand: bool = False,
-    ) -> _GetItemSympyOperations:
-        """Indexer for Derivatives with :func:`sympy.doit` applied"""
-        return _GetItemSympyOperations(
-            funcs=self,
-            simplify=simplify,
-            expand=expand,
-        )
-
-    @cached.meth
-    def lambdify(
-        self, args: Sequence[Symbol | IndexedBase] | None = None, **lambdify_kws: Any
-    ) -> Lambdify:
-        return Lambdify(
-            self,
-            args=self.args if args is None else args,
-            lambdify_kws=lambdify_kws,
-        )
-
-
 @attrs.define
 class Lambdify:
     """
@@ -304,6 +224,100 @@ class Lambdify:
     @cached.meth
     def __getitem__(self, order: SupportsIndex, /) -> Callable[..., Any]:
         return sp.lambdify(self.args, self.exprs[order], **self.lambdify_kws)  # type: ignore[no-any-return]
+
+
+@docfiller_shared.decorate
+class SymDerivBase:
+    """
+    Base class for working with recursive derivatives in expansions.
+
+    Parameters
+    ----------
+    func : symFunction
+        Function to differentiate.  This should (most likely) be an instance
+        of :class:`thermoextrap.models.SymFuncBase`
+    args : sequence of Symbol
+        Arguments to func
+    {expand}
+    {post_func}
+    """
+
+    def __init__(
+        self,
+        func: SymFuncBase,
+        args: Sequence[Symbol | IndexedBase] | None = None,
+        expand: bool = True,
+        post_func: PostFunc = None,
+        beta: Symbol | None = None,
+    ) -> None:
+        if args is None:
+            args = func.deriv_args()
+
+        if beta is None:
+            beta = get_default_symbol("beta")
+
+        self._func_orig = func
+        self._post_func = post_func
+
+        if isinstance(post_func, str):
+            if post_func == "minus_log":
+                post_func = lambda f: -sp.log(f)
+            elif post_func.startswith("pow_"):
+                i = int(post_func.split("_")[-1])
+                post_func = lambda f: pow(f, i)
+            else:
+                msg = "post_func must be callable or in {minus_log, pow_1, pow_2, ...}"
+                raise ValueError(msg)
+
+        self.func: Expr = func if post_func is None else post_func(func)
+        self.args = args
+        self.expand = expand
+        self.beta = beta
+        self._cache: dict[str, Any] = {}
+
+    @cached.meth
+    def __getitem__(self, order: SupportsIndex, /) -> Expr:
+        if order == 0:
+            return self.func
+        out = self[int(order) - 1].diff(self.beta, 1)
+        if self.expand:
+            out = out.expand()
+        return out
+
+    @cached.meth
+    def doit(
+        self,
+        simplify: bool = False,
+        expand: bool = False,
+    ) -> _GetItemSympyOperations:
+        """Indexer for Derivatives with :func:`sympy.doit` applied"""
+        return _GetItemSympyOperations(
+            funcs=self,
+            simplify=simplify,
+            expand=expand,
+        )
+
+    @cached.meth
+    def lambdify(
+        self,
+        args: Sequence[Symbol | IndexedBase] | None = None,
+        simplify: bool = False,
+        expand: bool = False,
+        **lambdify_kws: Any,
+    ) -> Lambdify:
+        """
+        Indexer of lambdified functions
+
+        See Also
+        --------
+        doit
+        Lambdify
+        """
+        return Lambdify(
+            self.doit(simplify=simplify, expand=expand),
+            args=self.args if args is None else args,
+            lambdify_kws=lambdify_kws,
+        )
 
 
 # -log<X>

@@ -330,8 +330,6 @@ class xu_func(SymFuncBase):
 class SymDerivBeta(SymDerivBase):
     r"""Provide symbolic expressions for :math:`d^n \langle x \rangle /d\beta^n`."""
 
-    beta = get_default_symbol("beta")
-
     @classmethod
     @docfiller_shared.decorate
     def x_ave(
@@ -340,6 +338,7 @@ class SymDerivBeta(SymDerivBase):
         central: bool | None = None,
         expand: bool = True,
         post_func: PostFunc = None,
+        beta: Symbol | None = None,
     ) -> Self:
         r"""
         General method to find derivatives of :math:`\langle x \rangle`.
@@ -353,17 +352,19 @@ class SymDerivBeta(SymDerivBase):
         """
         if central is None:
             central = False
+        beta = beta or get_default_symbol("beta")
 
         if central:
-            func = x_func_central(cls.beta, 0) if xalpha else x_func_central(cls.beta)
+            func = x_func_central(beta, 0) if xalpha else x_func_central(beta)
         else:
-            func = xu_func(cls.beta, 0, 0) if xalpha else xu_func(cls.beta, 0)
+            func = xu_func(beta, 0, 0) if xalpha else xu_func(beta, 0)
 
         return cls(
             func=func,
             args=func.deriv_args(),
             expand=expand,
             post_func=post_func,
+            beta=beta,
         )
 
     @classmethod
@@ -373,6 +374,7 @@ class SymDerivBeta(SymDerivBase):
         central: bool | None = None,
         expand: bool = True,
         post_func: PostFunc = None,
+        beta: Symbol | None = None,
     ) -> Self:
         r"""
         General constructor for symbolic derivatives of :math:`\langle u \rangle`.
@@ -386,10 +388,11 @@ class SymDerivBeta(SymDerivBase):
         """
         if central is None:
             central = False
+        beta = beta or get_default_symbol("beta")
 
-        func = u_func_central(cls.beta) if central else u_func(cls.beta, 1)
+        func = u_func_central(beta) if central else u_func(beta, 1)
 
-        return cls(func=func, expand=expand, post_func=post_func)
+        return cls(func=func, expand=expand, post_func=post_func, beta=beta)
 
     @classmethod
     @docfiller_shared.decorate
@@ -399,6 +402,7 @@ class SymDerivBeta(SymDerivBase):
         expand: bool = True,
         post_func: PostFunc = None,
         central: bool | None = None,
+        beta: Symbol | None = None,
     ) -> Self:
         r"""
         Constructor for derivatives of :math:`\langle (\delta u)^n\rangle`.
@@ -413,11 +417,12 @@ class SymDerivBeta(SymDerivBase):
         if central is not None and not central:
             msg = f"{central=} must be None or evaluate to True"
             raise ValueError(msg)
+        beta = beta or get_default_symbol("beta")
 
         if (n := int(n)) <= 1:
             msg = f"{n=} must be > 1."
             raise ValueError(msg)
-        func = du_func(cls.beta, n)
+        func = du_func(beta, n)
 
         # special case for args.
         # for consistency between uave and dun_ave, also include u variable
@@ -427,6 +432,7 @@ class SymDerivBeta(SymDerivBase):
             args=args,
             expand=expand,
             post_func=post_func,
+            beta=beta,
         )
 
     @classmethod
@@ -439,6 +445,7 @@ class SymDerivBeta(SymDerivBase):
         post_func: PostFunc = None,
         d: int | None = None,
         central: bool | None = None,
+        beta: Symbol | None = None,
     ) -> Self:
         r"""
         Constructor for derivatives of :math:`\langle \delta x \delta u^n\rangle`.
@@ -461,12 +468,13 @@ class SymDerivBeta(SymDerivBase):
         if central is not None and not central:
             msg = f"{central=} nust be `None` or evaluate to `True`"
             raise ValueError(msg)
+        beta = beta or get_default_symbol("beta")
 
         n = validate_positive_integer(int(n), name="n")
         func = (
-            dxdu_func(cls.beta, n, validate_positive_integer(d, "d"))
+            dxdu_func(beta, n, validate_positive_integer(d, "d"))
             if xalpha
-            else dxdu_func(cls.beta, n)
+            else dxdu_func(beta, n)
         )
 
         return cls(
@@ -474,6 +482,7 @@ class SymDerivBeta(SymDerivBase):
             args=x_func_central.deriv_args(),
             expand=expand,
             post_func=post_func,
+            beta=beta,
         )
 
     @classmethod
@@ -484,6 +493,7 @@ class SymDerivBeta(SymDerivBase):
         expand: bool = True,
         post_func: PostFunc = None,
         central: bool | None = None,
+        beta: Symbol | None = None,
     ) -> Self:
         r"""
         Constructor for derivatives of :math:`\langle u^n\rangle`.
@@ -498,13 +508,14 @@ class SymDerivBeta(SymDerivBase):
         if central is not None and central:
             msg = f"{central=} must be `None` or evaluate to False"
             raise ValueError(msg)
+        beta = beta or get_default_symbol("beta")
 
         if (n := int(n)) < 1:
             msg = f"{n=} must be >=1."
             raise ValueError(msg)
 
-        func = u_func(cls.beta, n)
-        return cls(func=func, expand=expand, post_func=post_func)
+        func = u_func(beta, n)
+        return cls(func=func, expand=expand, post_func=post_func, beta=beta)
 
     @classmethod
     @docfiller_shared.decorate
@@ -516,6 +527,7 @@ class SymDerivBeta(SymDerivBase):
         expand: bool = True,
         post_func: PostFunc = None,
         central: bool | None = None,
+        beta: Symbol | None = None,
     ) -> Self:
         r"""
         Constructor for derivatives of :math:`\langle x^{{(d)}} u^n\rangle`.
@@ -532,19 +544,18 @@ class SymDerivBeta(SymDerivBase):
         if central is not None and central:
             msg = f"{central=} must be `None` or False"
             raise ValueError(msg)
+        beta = beta or get_default_symbol("beta")
 
-        # assert isinstance(n, int)
-        # assert n >= 0
         if (n := int(n)) < 0:
             msg = f"{n=} must be >= 0"
             raise ValueError(msg)
 
         if xalpha:
-            func = xu_func(cls.beta, n, validate_positive_integer(d, "d"))
+            func = xu_func(beta, n, validate_positive_integer(d, "d"))
         else:
-            func = xu_func(cls.beta, n)
+            func = xu_func(beta, n)
 
-        return cls(func=func, expand=expand, post_func=post_func)
+        return cls(func=func, expand=expand, post_func=post_func, beta=beta)
 
     @classmethod
     def from_name(
@@ -556,6 +567,7 @@ class SymDerivBeta(SymDerivBase):
         post_func: PostFunc = None,
         n: int | None = None,
         d: int | None = None,
+        beta: Symbol | None = None,
     ) -> Self:
         """
         Create a derivative expressions indexer by name.
@@ -584,6 +596,8 @@ class SymDerivBeta(SymDerivBase):
         d : int, optional
             d parameter for dxdun_ave
         """
+        beta = beta or get_default_symbol("beta")
+
         func = getattr(cls, name, None)
 
         if func is None:
