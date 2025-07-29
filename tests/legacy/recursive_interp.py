@@ -13,10 +13,10 @@ except ImportError:
         " doPlot options are set to False, which is the default."
     )
 
+from cmomy.random import validate_rng
+
 from .ig import IGmodel
 from .interp import InterpModel
-
-from cmomy.random import validate_rng
 
 
 class RecursiveInterp:
@@ -133,16 +133,15 @@ class RecursiveInterp:
         if checkVal <= self.tol:
             newB = None
         # If not, we want to return the state point with the maximum error
+        # Select closest value of state points in list if provided
+        elif Bavail is not None:
+            Bavail = np.array(Bavail)
+            newBInd = np.argmin(abs(Bavail - Bvals[checkInd[0]]))
+            newB = Bavail[newBInd]
         else:
-            # Select closest value of state points in list if provided
-            if Bavail is not None:
-                Bavail = np.array(Bavail)
-                newBInd = np.argmin(abs(Bavail - Bvals[checkInd[0]]))
-                newB = Bavail[newBInd]
-            else:
-                newB = Bvals[
-                    checkInd[0]
-                ]  # First dimension of prediction is along beta values
+            newB = Bvals[
+                checkInd[0]
+            ]  # First dimension of prediction is along beta values
 
         if verbose:
             if newB is not None:
@@ -210,7 +209,7 @@ class RecursiveInterp:
             # Also add this data to what we save - hopefully have enough memory
             self.xData.append(xData1)
             self.uData.append(uData1)
-            if B2 == self.edgeB[-1]:
+            if self.edgeB[-1] == B2:
                 self.xData.append(xData2)
                 self.uData.append(uData2)
             return
@@ -307,8 +306,6 @@ class RecursiveInterp:
             self.modelParamErrs.append(self.model.bootstrap(None))
             # Also add this data to what we save - hopefully have enough memory
 
-        return
-
     def predict(self, B):
         """Makes a prediction using the trained piecewise model.
         Note that the function will not produce output if asked to extrapolate outside
@@ -326,16 +323,16 @@ class RecursiveInterp:
             # Check if out of lower bound
             if beta < self.edgeB[0]:
                 print(
-                    "Have provided point {:f} below interpolation function"
-                    " interval edges ({}).".format(beta, str(self.edgeB))
+                    f"Have provided point {beta:f} below interpolation function"
+                    f" interval edges ({self.edgeB!s})."
                 )
                 raise IndexError("Interpolation point below range")
 
             # Check if out of upper bound
             if beta > self.edgeB[-1]:
                 print(
-                    "Have provided point {:f} above interpolation function"
-                    " interval edges ({}).".format(beta, str(self.edgeB))
+                    f"Have provided point {beta:f} above interpolation function"
+                    f" interval edges ({self.edgeB!s})."
                 )
                 raise IndexError("Interpolation point above range")
 
@@ -466,10 +463,8 @@ class RecursiveInterp:
                 pAx.plot(plotPoints, plotReg1, color=pColors[i], linestyle=":")
                 pAx.plot(plotPoints, plotReg2, color=pColors[i], linestyle="--")
                 allPlotY = np.hstack((plotFull, plotReg1, plotReg2))
-                if np.min(allPlotY) < plotYmin:
-                    plotYmin = np.min(allPlotY)
-                if np.max(allPlotY) > plotYmax:
-                    plotYmax = np.max(allPlotY)
+                plotYmin = min(plotYmin, np.min(allPlotY))
+                plotYmax = max(plotYmax, np.max(allPlotY))
 
         if doPlot:
             for edge in self.edgeB:

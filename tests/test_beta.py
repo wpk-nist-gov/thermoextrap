@@ -6,7 +6,8 @@ import pytest
 import xarray as xr
 
 import thermoextrap as xtrap
-import thermoextrap.legacy
+
+from . import legacy
 
 
 @pytest.fixture(scope="module")
@@ -155,7 +156,7 @@ def test_perturbmodel(fixture) -> None:
     beta0 = 0.5
 
     betas = [0.3, 0.7]
-    pm = thermoextrap.legacy.PerturbModel(beta0, xData=fixture.x, uData=fixture.u)
+    pm = legacy.PerturbModel(beta0, xData=fixture.x, uData=fixture.u)
 
     xpm = xtrap.beta.factory_perturbmodel(beta0, uv=fixture.u, xv=fixture.x)
 
@@ -169,7 +170,7 @@ def test_extrapmodel_weighted_slow(fixture) -> None:
     observable = np.array((fixture.x, fixture.xb))
     energy = np.array((fixture.u, fixture.ub))
 
-    emw = thermoextrap.legacy.ExtrapWeightedModel(
+    emw = legacy.ExtrapWeightedModel(
         fixture.order, beta0, xData=observable, uData=energy
     )
 
@@ -315,9 +316,7 @@ def test_interpmodel_slow(fixture, rng: np.random.Generator) -> None:
 
     observable = np.array([rng.random(fixture.x.shape) for _ in beta0])
     energy = np.array([rng.random(fixture.u.shape) for _ in beta0])
-    emi = thermoextrap.legacy.InterpModel(
-        fixture.order, beta0, xData=observable, uData=energy
-    )
+    emi = legacy.InterpModel(fixture.order, beta0, xData=observable, uData=energy)
 
     betas = [0.3, 0.4, 0.6, 0.7]
 
@@ -458,9 +457,7 @@ def test_mbar(fixture) -> None:
     observable = np.array((fixture.x, fixture.xb))
     energy = np.array((fixture.u, fixture.ub))
 
-    emi = thermoextrap.legacy.MBARModel(
-        fixture.order, beta0, xData=observable, uData=energy
-    )
+    emi = legacy.MBARModel(fixture.order, beta0, xData=observable, uData=energy)
 
     betas = [0.3, 0.4]
 
@@ -485,15 +482,13 @@ from sympy import bell
 # Test log
 
 
-class LogAvgExtrapModel(thermoextrap.legacy.ExtrapModel):
+class LogAvgExtrapModel(legacy.ExtrapModel):
     def calcDerivVals(self, refB, x, energy):  # noqa: N802, ARG002, N803
         if x.shape[0] != energy.shape[0]:
             msg = f"First observable dimension {x.shape[0]} and size of potential energy array {energy.shape[0]} do not match!"
             raise ValueError(msg)
 
-        avg_ufunc, avg_xufunc = thermoextrap.legacy.buildAvgFuncs(
-            x, energy, self.maxOrder
-        )
+        avg_ufunc, avg_xufunc = legacy.buildAvgFuncs(x, energy, self.maxOrder)
 
         deriv_vals = np.zeros((self.maxOrder + 1, x.shape[1]))
         for o in range(self.maxOrder + 1):
@@ -616,10 +611,10 @@ def test_extrapmodel_minuslog_ig() -> None:
 
 # depend on alpha/betas
 # Need to import from utilities
-from thermoextrap.legacy.utilities import buildAvgFuncsDependent, symDerivAvgXdependent
+from .legacy.utilities import buildAvgFuncsDependent, symDerivAvgXdependent
 
 
-class ExtrapModelDependent(thermoextrap.legacy.ExtrapModel):
+class ExtrapModelDependent(legacy.ExtrapModel):
     """Class to hold information about an extrapolation that is dependent on the extrapolation variable."""
 
     # Calculates symbolic derivatives up to maximum order given data

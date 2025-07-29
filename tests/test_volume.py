@@ -4,7 +4,8 @@ import numpy as np
 import xarray as xr
 
 import thermoextrap as xtrap
-from thermoextrap.legacy.extrap import ExtrapModel
+
+from .legacy.extrap import ExtrapModel
 
 # from thermoextrap import xpan_vol as volxtrap
 # from thermoextrap import xpan_vol_ig as volxtrap_ig

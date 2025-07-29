@@ -10,7 +10,7 @@ extend-exclude = [
     # "tests/",
     # "src/testpackage_book_nocli/tests",
     "examples/gpr_active_learning",
-    "src/thermoextrap/legacy/",
+    "tests/legacy/",
 ]
 fix = true
 # unsafe-fixes = true

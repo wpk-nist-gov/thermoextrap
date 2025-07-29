@@ -9,7 +9,7 @@ import sympy as sp
 import tensorflow as tf
 import xarray as xr
 
-from ..models import StateCollection
+from thermoextrap.models import StateCollection
 
 
 # First define classes needed for a GPR model

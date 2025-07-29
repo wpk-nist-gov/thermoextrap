@@ -291,7 +291,7 @@ module = [
     "sympy.*",
     "pymbar.*",
     "scipy.special.*",
-    "thermoextrap.legacy.*",
+    "tests.legacy.*",
 ]
 
 # [[tool.mypy.overrides]]
@@ -311,7 +311,7 @@ exclude = [
     ".venv/**",
     "**/.mypy_cache",
     "**/.numba_cache",
-    "**/thermoextrap/legacy/*.py",
+    "**/legacy/*.py",
 ]
 # strict = ["src", "tests", "noxfile.py", "tools/*.py"]
 strict = [

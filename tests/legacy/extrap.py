@@ -1,6 +1,7 @@
 """Main extrapolation classes
 """
 import math
+
 import numpy as np
 
 from .utilities import buildAvgFuncs, symDerivAvgX
@@ -202,7 +203,6 @@ class VolumeExtrapModel(ExtrapModel):
             )
             print("Setting order to 1st order.")
             self.maxOrder = 1
-        return None
 
     # And given data, calculate numerical values of derivatives up to maximum order
     # Will be very helpful when generalize to different extrapolation techniques

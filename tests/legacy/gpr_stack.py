@@ -11,12 +11,7 @@ import xarray as xr
 from module_utilities import cached
 
 
-from ..stack import GPRData, StackedDerivatives, multiindex_to_array
-
-__all__ = ("GPRData", "GPRModel", "StackedDerivatives", "factory_gprmodel")
-
-# First define classes needed for a GPR model
-# A general derivative kernel based on a sympy expression
+from thermoextrap.stack import multiindex_to_array
 
 
 class DerivativeKernel(gpflow.kernels.Kernel):

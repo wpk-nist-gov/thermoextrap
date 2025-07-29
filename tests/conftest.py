@@ -8,8 +8,9 @@ import xarray as xr
 from module_utilities import cached
 
 import thermoextrap as xtrap
-import thermoextrap.legacy
 from thermoextrap.core.xrutils import xrwrap_uv, xrwrap_xv
+
+from . import legacy
 
 
 class FixtureData:
@@ -86,7 +87,7 @@ class FixtureData:
     @cached.prop
     def em(self):
         """Extrapolation model fixture"""
-        em = thermoextrap.legacy.ExtrapModel(maxOrder=self.order)
+        em = legacy.ExtrapModel(maxOrder=self.order)
         em.train(self.beta0, xData=self.x, uData=self.u, saveParams=True)
 
         return em
@@ -101,12 +102,12 @@ class FixtureData:
 
     @cached.prop
     def u_xu_funcs(self):
-        ufunc, xufunc = thermoextrap.legacy.buildAvgFuncs(self.x, self.u, self.order)
+        ufunc, xufunc = legacy.buildAvgFuncs(self.x, self.u, self.order)
         return ufunc, xufunc
 
     @cached.prop
     def derivs_list(self):
-        fs = [thermoextrap.legacy.symDerivAvgX(i) for i in range(self.order + 1)]
+        fs = [legacy.symDerivAvgX(i) for i in range(self.order + 1)]
         ufunc, xufunc = self.u_xu_funcs
 
         return [fs[i](ufunc, xufunc) for i in range(self.order + 1)]

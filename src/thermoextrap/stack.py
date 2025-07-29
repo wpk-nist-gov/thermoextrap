@@ -542,7 +542,10 @@ class StackedDerivatives:
         )
 
 
-# class GPRData(StateCollection[SupportsModelProtocolDerivsT, xr.DataArray], Generic[SupportsModelProtocolDerivsT]):
+# class GPRData(
+#     StateCollection[SupportsModelProtocolT, xr.DataArray],
+#     Generic[SupportsModelProtocolT],
+# ):
 #     """
 #     Statecollection for GPFlow analysis.
 
