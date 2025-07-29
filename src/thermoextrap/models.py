@@ -300,6 +300,7 @@ class SymDerivBase:
     @cached.meth
     def lambdify(
         self,
+        /,
         args: Sequence[Symbol | IndexedBase] | None = None,
         simplify: bool = False,
         expand: bool = False,
@@ -736,7 +737,7 @@ class StateCollection(
     states: Sequence[SupportsModelProtocolT] = field()
     kws: dict[str, Any] = field(
         kw_only=True,
-        default=None,
+        factory=dict[str, "Any"],
         converter=convert_mapping_or_none_to_dict,
     )
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import warnings
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic
 
 import attrs
 import cmomy
@@ -23,18 +23,26 @@ from attrs import field
 from attrs import validators as attv
 from module_utilities import cached
 
+from thermoextrap.core.validate import validator_xarray_typevar
+
 from . import beta as beta_xpan
 from .core._attrs_utils import convert_dims_to_tuple
 from .core.sputils import get_default_indexed, get_default_symbol
+from .core.typing import DataDerivArgs, DataT, MetaKws, SupportsDataProtocol
 from .data import DataCallbackABC
 from .docstrings import DOCFILLER_SHARED
 from .models import Derivatives, ExtrapModel, SymFuncBase
 
 if TYPE_CHECKING:
-    from collections.abc import Hashable, Sequence
+    from collections.abc import Hashable, Mapping
     from typing import Any
 
     from sympy.core.expr import Expr
+    from sympy.core.symbol import Symbol
+    from sympy.tensor.indexed import IndexedBase
+
+    from .core.typing import PostFunc
+    from .core.typing_compat import Self
 
 docfiller_shared = DOCFILLER_SHARED.levels_to_top("cmomy", "xtrap", "beta").decorate
 
@@ -81,10 +89,10 @@ class lnPi_func_central(SymFuncBase):
     mudotN = get_default_symbol("mudotN")
 
     @classmethod
-    def deriv_args(cls):
-        return [*beta_xpan.u_func_central.deriv_args(), cls.lnPi0, cls.mudotN]
+    def deriv_args(cls) -> tuple[Symbol, IndexedBase, Symbol, Symbol]:
+        return (*beta_xpan.u_func_central.deriv_args(), cls.lnPi0, cls.mudotN)
 
-    def fdiff(self, argindex=1):
+    def fdiff(self, argindex: int = 1) -> Expr:
         (beta,) = self.args
         return self.mudotN - beta_xpan.u_func_central.tcall(beta)
 
@@ -93,7 +101,11 @@ class lnPi_func_central(SymFuncBase):
         return self.lnPi0
 
     @classmethod
-    def tcall(cls, beta):
+    def eval(cls, beta: Symbol) -> Any:  # noqa: ARG003
+        return None
+
+    @classmethod
+    def tcall(cls, beta: Symbol) -> Expr:
         return cls(beta)
 
 
@@ -106,10 +118,10 @@ class lnPi_func_raw(SymFuncBase):
     mudotN = get_default_symbol("mudotN")
 
     @classmethod
-    def deriv_args(cls):
-        return [*beta_xpan.u_func.deriv_args(), cls.lnPi0, cls.mudotN]
+    def deriv_args(cls) -> tuple[IndexedBase, Symbol, Symbol]:
+        return (*beta_xpan.u_func.deriv_args(), cls.lnPi0, cls.mudotN)
 
-    def fdiff(self, argindex=1):
+    def fdiff(self, argindex: int = 1) -> Expr:
         (beta,) = self.args
         return self.mudotN - beta_xpan.u_func.tcall(beta, n=1)
 
@@ -118,21 +130,25 @@ class lnPi_func_raw(SymFuncBase):
         return self.lnPi0
 
     @classmethod
-    def tcall(cls, beta):
+    def eval(cls, beta: Symbol) -> Any:  # noqa: ARG003
+        return None
+
+    @classmethod
+    def tcall(cls, beta: Symbol) -> Expr:
         return cls(beta)
 
 
 @lru_cache(5)
 @docfiller_shared
 def factory_derivatives(
-    name="lnPi",
-    n=None,
-    d=None,
-    xalpha=False,
-    central=False,
-    expand=True,
-    post_func=None,
-):
+    name: str = "lnPi",
+    n: int | None = None,
+    d: int | None = None,
+    xalpha: bool = False,
+    central: bool = False,
+    expand: bool = True,
+    post_func: PostFunc = None,
+) -> Derivatives:
     """
     Expansion for ln(Pi/Pi_0) (ignore bad parts of stuff).
 
@@ -173,15 +189,8 @@ def factory_derivatives(
     )
 
 
-def _is_xr(name, x):
-    if not isinstance(x, xr.DataArray):
-        msg = f"{name} must be an xr.DataArray"
-        raise TypeError(msg)
-    return x
-
-
 @attrs.define
-class lnPiDataCallback(DataCallbackABC):
+class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
     """
     Class to handle metadata callbacks for lnPi data.
 
@@ -206,11 +215,11 @@ class lnPiDataCallback(DataCallbackABC):
     # TODO(wpk): rename dims_comp to dim_comp.
 
     #: lnPi data
-    lnPi0: xr.DataArray = field(validator=attv.instance_of(xr.DataArray))
+    lnPi0: DataT = field(validator=validator_xarray_typevar)
     #: Chemical potential
     mu: xr.DataArray = field(validator=attv.instance_of(xr.DataArray))
     #: Dimensions for particle number
-    dims_n: Hashable | Sequence[Hashable] = field(converter=convert_dims_to_tuple)
+    dims_n: tuple[Hashable, ...] = field(converter=convert_dims_to_tuple)
     #: Dimensions for component
     dims_comp: Hashable = field()
     #: Particle number coordinates
@@ -218,49 +227,34 @@ class lnPiDataCallback(DataCallbackABC):
     #: Flag to allow/disallow resampling of ``lnPi0``.
     allow_resample: bool = field(default=False)
 
-    _cache: dict = field(init=False, repr=False, factory=dict)
+    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
     # TODO(wpk): using dims_n, dims_comp naming because this is what is used in lnPi module
 
-    # def __init__(self, lnPi0, mu, dims_n, dims_comp, ncoords=None):
-
-    #     if isinstance(dims_n, str):
-    #         dims_n = [dims_n]
-    #     self.dims_n = dims_n
-    #     self.dims_comp = dims_comp
-
-    #     self.lnPi0 = lnPi0
-
-    #     self.mu = _is_xr("mu", mu)
-    #     if ncoords is None:
-    #         ncoords = self.get_ncoords()
-    #     self.ncoords = _is_xr("ncoords", ncoords)
-
-    def check(self, data) -> None:
+    def check(self, data: SupportsDataProtocol[Any]) -> None:
         pass
 
     @ncoords.default
-    def _set_default_ncoords(self):
+    def _set_default_ncoords(self) -> xr.DataArray:
         # create grid
         ncoords = np.meshgrid(
-            *tuple(self.lnPi0[x].values for x in self.dims_n), indexing="ij"
+            *tuple(self.lnPi0[x].to_numpy() for x in self.dims_n), indexing="ij"
         )
         return xr.DataArray(np.array(ncoords), dims=(self.dims_comp, *self.dims_n))
 
     @property
-    def lnPi0_ave(self):
-        if isinstance(self.lnPi0, xr.DataArray):
-            return self.lnPi0
-        # assume lnPi0 is an averaging object ala cmomy
-        return self.lnPi0.values
+    def lnPi0_ave(self) -> DataT:
+        return self.lnPi0
 
     @cached.prop
-    def mudotN(self):
+    def mudotN(self) -> xr.DataArray:
         """Dot product of `self.mu` and `self.ncoords`, reduces along `self.dims_comp`."""
         from .core.compat import xr_dot
 
-        return xr_dot(self.mu, self.ncoords, dim=self.dims_comp)
+        return xr_dot(self.mu, self.ncoords, dim=self.dims_comp)  # type: ignore[no-any-return]
 
-    def resample(self, data, meta_kws=None, **kws):
+    def resample(
+        self, data: SupportsDataProtocol[Any], *, meta_kws: MetaKws, **kws: Any
+    ) -> Self:
         """Resample lnPi0 data."""
         if not self.allow_resample:
             msg = (
@@ -282,110 +276,34 @@ class lnPiDataCallback(DataCallbackABC):
         # wrap in xarray object:
         dc = cmomy.wrap_reduce_vals(
             self.lnPi0.expand_dims(dim="_new", axis=0),
-            axis="_new",
+            mom=1,
+            dim="_new",
             mom_dims="_mom",
         )
         # resample and reduce
-        dc, _ = dc.resample_and_reduce(**kws)
+        dc = dc.resample_and_reduce(**kws)
         # return new object
-        return self.new_like(lnPi0=dc.values.sel(_mom=1))
+        return self.new_like(lnPi0=dc.obj.sel(_mom=1, drop=True))
 
-    def deriv_args(self, data, deriv_args):
+    def deriv_args(
+        self, data: SupportsDataProtocol[Any], *, deriv_args: DataDerivArgs
+    ) -> DataDerivArgs:
         return (*tuple(deriv_args), self.lnPi0_ave, self.mudotN)
 
 
-# def factory_data_values(
-#     uv,
-#     order,
-#     lnPi,
-#     mu,
-#     dims_n,
-#     dims_comp,
-#     ncoords=None,
-#     central=False,
-#     skipna=False,
-#     rec_dim="rec",
-#     umom_dim="umom",
-#     xmom_dim="xmom",
-#     val_dims="val",
-#     rep_dim="rep",
-#     deriv_dim=None,
-#     chunk=None,
-#     compute=None,
-#     xv=None,
-#     x_is_u=True,
-#     **kws,
-# ):
-#     """
-#     Factory function to produce a Data object
-
-#     Parameters
-#     ----------
-#     uv : array-like
-#         energy values.  These are not averaged
-#     order : int
-#         highest umom_dim to calculate
-#     skipna : bool, default=False
-#         if True, skip `np.nan` values in creating averages.
-#         Can make some "big" calculations slow
-#     rec_dim, umom_dim, val_dim, rep_dim, deriv_dim : str
-#         names of record (i.e. time), umom_dim, value, replicate,
-#         and derivative (with respect to alpha)
-#     chunk : int or dict, optional
-#         If specified, perform chunking on resulting uv, xv arrays.
-#         If integer, chunk with {rec: chunk}
-#         otherwise, should be a mapping of form {dim_0: chunk_0, dim_1: chunk_1, ...}
-#     compute : bool, optional
-#         if compute is True, do compute averages greedily.
-#         if compute is False, and have done chunking, then defer calculation of averages (i.e., will be dask future objects).
-#         Default is to do greedy calculation
-
-#     constructor : 'val'
-#     kws : dict, optional
-
-#         extra arguments
-#     """
-
-#     if central:
-#         cls = DataValuesCentral
-#     else:
-#         cls = DataValues
-
-#     meta = lnPiDataCallback(
-#         lnPi0=lnPi, mu=mu, dims_n=dims_n, dims_comp=dims_comp, ncoords=ncoords
-#     )
-
-#     return cls.from_vals(
-#         uv=uv,
-#         xv=xv,
-#         order=order,
-#         skipna=skipna,
-#         rec_dim=rec_dim,
-#         umom_dim=umom_dim,
-#         val_dims=val_dims,
-#         rep_dim=rep_dim,
-#         deriv_dim=deriv_dim,
-#         chunk=chunk,
-#         compute=compute,
-#         x_is_u=x_is_u,
-#         meta=meta,
-#         **kws,
-#     )
-
-
-# much more likely to have pre-aves here, but save that for the user
+# Much more likely to have pre-aves here, but save that for the user
 @docfiller_shared
 def factory_extrapmodel_lnPi(
-    beta,
-    data,
+    beta: float,
+    data: SupportsDataProtocol[DataT],
     *,
-    central=None,
-    order=None,
-    alpha_name="beta",
-    derivatives=None,
-    post_func=None,
-    derivatives_kws=None,
-):
+    central: bool | None = None,
+    order: int | None = None,
+    alpha_name: str = "beta",
+    derivatives: Derivatives | None = None,
+    post_func: PostFunc = None,
+    derivatives_kws: Mapping[str, Any] | None = None,
+) -> ExtrapModel[DataT]:
     """
     Factory function to create Extrapolation model for beta expansion.
 

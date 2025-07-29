@@ -31,6 +31,7 @@ from .core._attrs_utils import (
     convert_mapping_or_none_to_dict,
 )
 from .core.typing import DataT
+from .core.validate import validator_dims, validator_xarray_typevar
 from .core.xrutils import xrwrap_uv, xrwrap_xv
 from .docstrings import DOCFILLER_SHARED
 
@@ -89,23 +90,6 @@ def _raise_if_not_xarray(x: object, name: str | None = None) -> None:
         raise TypeError(msg)
 
 
-def _validate_dims(self: Any, attribute: attrs.Attribute[Any], dims: Any) -> None:  # noqa: ARG001
-    for d in dims:
-        if d not in self.data.dims:
-            msg = f"{d} not in data.dimensions {self.data.dims}"
-            raise ValueError(msg)
-
-
-def _validate_xarray_typevar(
-    self: Any,  # noqa: ARG001
-    attribute: attrs.Attribute[Any],  # noqa: ARG001
-    x: DataT,
-) -> None:
-    if not is_xarray(x):
-        msg = f"Must pass xarray object.  Passed {type(x)}"
-        raise TypeError(msg)
-
-
 @attrs.frozen
 class DataSelector(MyAttrsMixin, Generic[DataT]):
     """
@@ -128,10 +112,10 @@ class DataSelector(MyAttrsMixin, Generic[DataT]):
     """
 
     #: Data to index
-    data: DataT = field(validator=_validate_xarray_typevar)
+    data: DataT = field(validator=validator_xarray_typevar)
     #: Dims to index along
     dims: tuple[Hashable, ...] = field(
-        converter=convert_dims_to_tuple, validator=_validate_dims
+        converter=convert_dims_to_tuple, validator=validator_dims
     )
 
     @classmethod
@@ -368,7 +352,7 @@ class DataValuesBase(AbstractData, Generic[DataT]):
     #: Energy values
     uv: xr.DataArray = field(validator=attv.instance_of(xr.DataArray))
     #: Obervable values
-    xv: DataT = field(validator=_validate_xarray_typevar)
+    xv: DataT = field(validator=validator_xarray_typevar)
     #: Expansion order
     _order: int = field(alias="order")
     #: Records dimension
@@ -1604,7 +1588,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
     #: Stored energy values
     uv: xr.DataArray = field(validator=attv.instance_of(xr.DataArray))
     #: Stored observable values
-    xv: DataT = field(validator=_validate_xarray_typevar)
+    xv: DataT = field(validator=validator_xarray_typevar)
     #: Expansion order input.  Only needed if not passing dxduave
     _order: int | None = field(
         kw_only=True,
@@ -1621,7 +1605,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
     #: Optional parameters to :func:`cmomy.wrap_reduce_vals`
     from_vals_kws: dict[str, Any] = field(
         kw_only=True,
-        default=None,
+        factory=dict[str, "Any"],
         converter=convert_mapping_or_none_to_dict,
     )
     #: :class:`cmomy.CentralMomentsData` object
