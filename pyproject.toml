@@ -320,6 +320,7 @@ strict = [
     # "src/thermoextrap/models.py",
     "src/thermoextrap/beta.py",
     "src/thermoextrap/lnpy.py",
+    "src/thermoextrap/volume.py",
     "src/thermoextrap/core/*.py",
     "tests/test_typing.py",
 ]

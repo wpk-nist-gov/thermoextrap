@@ -27,16 +27,17 @@ from thermoextrap.core.validate import validator_xarray_typevar
 
 from . import beta as beta_xpan
 from .core._attrs_utils import convert_dims_to_tuple
+from .core.docstrings import DOCFILLER_SHARED
 from .core.sputils import get_default_indexed, get_default_symbol
 from .core.typing import DataDerivArgs, DataT, MetaKws, SupportsDataProtocol
 from .data import DataCallbackABC
-from .docstrings import DOCFILLER_SHARED
 from .models import Derivatives, ExtrapModel, SymFuncBase
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Mapping
     from typing import Any
 
+    from cmomy import IndexSampler
     from sympy.core.expr import Expr
     from sympy.core.symbol import Symbol
     from sympy.tensor.indexed import IndexedBase
@@ -253,7 +254,12 @@ class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
         return xr_dot(self.mu, self.ncoords, dim=self.dims_comp)  # type: ignore[no-any-return]
 
     def resample(
-        self, data: SupportsDataProtocol[Any], *, meta_kws: MetaKws, **kws: Any
+        self,
+        data: SupportsDataProtocol[Any],
+        *,
+        meta_kws: MetaKws,
+        sampler: IndexSampler[Any],
+        **kws: Any,
     ) -> Self:
         """Resample lnPi0 data."""
         if not self.allow_resample:

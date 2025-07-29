@@ -5,7 +5,7 @@ Volume expansion for ideal gas (:mod:`~thermoextrap.volume_idealgas`)
 
 from functools import lru_cache
 
-from .docstrings import DOCFILLER_SHARED
+from .core.docstrings import DOCFILLER_SHARED
 from .models import Derivatives, ExtrapModel
 
 docfiller_shared = DOCFILLER_SHARED.levels_to_top(

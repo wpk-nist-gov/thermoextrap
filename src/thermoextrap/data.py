@@ -30,10 +30,10 @@ from .core._attrs_utils import (
     convert_dims_to_tuple,
     convert_mapping_or_none_to_dict,
 )
+from .core.docstrings import DOCFILLER_SHARED
 from .core.typing import DataT
 from .core.validate import validator_dims, validator_xarray_typevar
 from .core.xrutils import xrwrap_uv, xrwrap_xv
-from .docstrings import DOCFILLER_SHARED
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Mapping

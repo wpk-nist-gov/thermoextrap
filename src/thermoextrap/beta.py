@@ -13,12 +13,12 @@ from typing import TYPE_CHECKING, cast
 
 from sympy.core.numbers import Number
 
+from .core.docstrings import DOCFILLER_SHARED
 from .core.sputils import (
     get_default_indexed,
     get_default_symbol,
 )
 from .core.validate import validate_positive_integer
-from .docstrings import DOCFILLER_SHARED
 from .models import (
     Derivatives,
     ExtrapModel,

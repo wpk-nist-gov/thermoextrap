@@ -7,12 +7,6 @@ Base classes
    :inherited-members:
    :members:
 
-.. autoclass:: thermoextrap.models.PiecewiseMixin
-   :autosummary:
-   :show-inheritance:
-   :inherited-members:
-   :members:
-
 .. autoclass:: thermoextrap.models.SymDerivBase
    :autosummary:
    :show-inheritance:

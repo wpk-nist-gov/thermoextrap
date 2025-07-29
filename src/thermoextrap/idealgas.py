@@ -17,7 +17,7 @@ import numpy as np
 from cmomy.random import validate_rng
 
 from .core._imports import sympy as sp
-from .docstrings import DocFiller
+from .core.docstrings import DocFiller
 
 __all__ = [
     "dbeta_xave",

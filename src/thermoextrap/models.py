@@ -32,6 +32,7 @@ from .core._attrs_utils import (
 from .core._imports import has_pymbar
 from .core._imports import sympy as sp
 from .core.compat import xr_dot
+from .core.docstrings import DOCFILLER_SHARED
 from .core.sputils import get_default_indexed, get_default_symbol
 from .core.typing import (
     DataT,
@@ -42,7 +43,6 @@ from .core.typing import (
     SupportsModelProtocolT,
 )
 from .core.xrutils import xrwrap_alpha
-from .docstrings import DOCFILLER_SHARED
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable
