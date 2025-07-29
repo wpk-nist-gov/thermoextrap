@@ -319,6 +319,7 @@ strict = [
     "tools/*.py",
     "src/thermoextrap/__init__.py",
     "src/thermoextrap/data.py",
+    "src/thermoextrap/idealgas.py",
     # "src/thermoextrap/models.py",
     "src/thermoextrap/beta.py",
     "src/thermoextrap/lnpy.py",
