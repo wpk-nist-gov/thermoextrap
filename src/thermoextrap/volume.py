@@ -52,7 +52,7 @@ docfiller_shared = DOCFILLER_SHARED.levels_to_top(
 
 class VolumeDerivFuncs:
     """
-    Calculates specific derivative values at refV with data x and W.
+    Calculates specific derivative values at reference volume V with data x and W.
     Only go to first order for volume extrapolation.
     Here W represents the virial instead of the potential energy.
     """
@@ -82,14 +82,12 @@ class VolumeDerivFuncs:
             volume: float,
             ndim: int = 1,
         ) -> Any:
-            """
+            r"""
             Calculate function.  dxdq is <sum_{i=1}^N dy/dx_i x_i>.
 
-            for ideal gas
+            :math:`beta_virial=\beta \dot W`, :math:`x_beta_virial = x \dot \beta \dot W`, where `W`
+            is the virial.
             """
-            # NOTE: beta_virial here has beta in it:
-            # that is beta_virial <- beta * virial
-
             # Zeroth order derivative
             if order == 0:
                 deriv_val = x_beta_virial[0]

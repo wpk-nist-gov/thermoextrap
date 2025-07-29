@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -11,16 +11,30 @@ from module_utilities import cached
 
 from .models import StateCollection
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Hashable, Mapping, Sequence
+    from typing import Any
+
+    from numpy.typing import NDArray
+
+    from .core.typing import (
+        ApplyReduceFuncs,
+        SingleDim,
+        StackPolicy,
+        SupportsModelProtocol,
+    )
+    from .core.typing_compat import Self
+
 
 def stack_dataarray(  # noqa: C901
-    da,
-    x_dims,
-    y_dims=None,
-    xstack_dim="xstack",
-    ystack_dim="ystack",
-    stats_dim=None,
-    policy="infer",
-):
+    da: xr.DataArray,
+    x_dims: str | Sequence[Hashable],
+    y_dims: str | Sequence[Hashable] | None = None,
+    xstack_dim: str = "xstack",
+    ystack_dim: str = "ystack",
+    stats_dim: str | Sequence[str] | None = None,
+    policy: StackPolicy = "infer",
+) -> xr.DataArray:
     """
     Given an xarray.DataArray, stack for gpflow analysis.
 
@@ -74,7 +88,7 @@ def stack_dataarray(  # noqa: C901
                 msg = f"da.coords[{dim}] not set"
                 raise ValueError(msg)
 
-    out = da.stack(**stacker)
+    out = da.stack(stacker)
 
     if stats_dim is not None:
         if isinstance(stats_dim, str):
@@ -84,32 +98,19 @@ def stack_dataarray(  # noqa: C901
     return out
 
 
-def wrap_like_dataarray(x, da):
-    """Wrap an array x with properties of da."""
-    return xr.DataArray(
-        x,
-        dims=da.dims,
-        coords=da.coords,
-        indexes=da.indexes,
-        attrs=da.attrs,
-        name=da.name,
-    )
-
-
-def multiindex_to_array(idx):
+def multiindex_to_array(idx: pd.MultiIndex) -> NDArray[Any]:
     """Turn xarray multiindex to numpy array."""
     return np.array(list(idx.values))
 
 
 def apply_reduction(
-    da,
-    dim,
-    funcs,
-    concat=True,  # noqa: ARG001
-    concat_dim=None,
-    concat_kws=None,
-    **kws,
-):
+    da: xr.DataArray,
+    dim: SingleDim,
+    funcs: ApplyReduceFuncs,
+    concat_dim: Any = None,
+    concat_kws: Mapping[str, Any] | None = None,
+    **kws: Any,
+) -> xr.DataArray | list[xr.DataArray]:
     """
     Apply multiple reductions to DataArray.
 
@@ -134,10 +135,10 @@ def apply_reduction(
     out : DataArray or list of DataArray
         if concat_dim is None and multiple funcs, then list of DataArrays corresponding to each reduction.  Otherwise, single DataArray
     """
-    if not isinstance(funcs, (tuple, list)):
+    if isinstance(funcs, str) or callable(funcs):
         funcs = [funcs]
 
-    out = []
+    out: list[xr.DataArray] = []
     for func in funcs:
         if callable(func):
             y = func(da, dim=dim, **kws)
@@ -146,15 +147,21 @@ def apply_reduction(
         out.append(y)
 
     if len(out) == 1:
-        out = out[0]
-    elif concat_dim is not None:
-        if concat_kws is None:
-            concat_kws = {}
-        out = xr.concat(out, dim=concat_dim, **concat_kws)
+        return out[0]
+    if concat_dim is not None:
+        return xr.concat(
+            out, dim=concat_dim, **({} if concat_kws is None else concat_kws)
+        )
     return out
 
 
-def to_mean_var(da, dim, concat_dim=None, concat_kws=None, **kws):
+def to_mean_var(
+    da: xr.DataArray,
+    dim: str,
+    concat_dim: Any = None,
+    concat_kws: Mapping[str, Any] | None = None,
+    **kws: Any,
+) -> xr.DataArray:
     """
     For a dataarray apply mean/variance along a dimension.
 
@@ -183,7 +190,12 @@ def to_mean_var(da, dim, concat_dim=None, concat_kws=None, **kws):
     )
 
 
-def states_derivs_concat(states, dim=None, concat_kws=None, **kws):
+def states_derivs_concat(
+    states: StateCollection[Any, xr.DataArray],
+    dim: Any = None,
+    concat_kws: Mapping[str, Any] | None = None,
+    **kws: Any,
+) -> xr.DataArray:
     """
     Concatenate [s.derivs(norm=False) for s in states].
 
@@ -213,7 +225,13 @@ def states_derivs_concat(states, dim=None, concat_kws=None, **kws):
 
     kws.setdefault("norm", False)
 
-    return xr.concat((s.derivs(**kws) for s in states), dim=dim, **concat_kws)
+    return xr.concat((s.derivs(**kws) for s in states), dim=dim, **concat_kws)  # type: ignore[no-any-return]
+
+
+def _convert_dims(dims: str | Sequence[str]) -> tuple[str, ...]:
+    if isinstance(dims, str):
+        return (dims,)
+    return tuple(dims)
 
 
 class StackedDerivatives:
@@ -247,18 +265,17 @@ class StackedDerivatives:
 
     def __init__(
         self,
-        da,
-        x_dims,
-        y_dims=None,
-        xstack_dim="xstack",
-        ystack_dim="ystack",
-        stats_dim="stats",
-        policy="infer",
+        da: xr.DataArray,
+        x_dims: str | Sequence[str],
+        y_dims: str | Sequence[str] | None = None,
+        xstack_dim: str = "xstack",
+        ystack_dim: str = "ystack",
+        stats_dim: str = "stats",
+        policy: StackPolicy = "infer",
     ) -> None:
-        if isinstance(x_dims, str):
-            x_dims = [x_dims]
-        if isinstance(y_dims, str):
-            y_dims = [y_dims]
+        x_dims = _convert_dims(x_dims)
+        if y_dims is not None:
+            y_dims = _convert_dims(y_dims)
 
         self.da = da
         self.x_dims = x_dims
@@ -266,28 +283,28 @@ class StackedDerivatives:
         self.xstack_dim = xstack_dim
         self.ystack_dim = ystack_dim
         self.stats_dim = stats_dim
-        self.policy = policy
+        self.policy: StackPolicy = policy
         self._cache: dict[str, Any] = {}
 
     @property
-    def order_dim(self):
+    def order_dim(self) -> str:
         return self.x_dims[-1]
 
     @property
-    def order(self):
+    def order(self) -> int:
         """Maximum order available."""
         return self.da.sizes[self.order_dim] - 1
 
     @property
-    def alpha_name(self):
+    def alpha_name(self) -> str:
         return self.x_dims[0]
 
     @cached.meth
-    def _stacked(self, order):
+    def _stacked(self, order: int) -> xr.DataArray:
         da = self.da
         if order is not None:
             # select orders up to and including order
-            da = da.isel(**{self.order_dim: slice(None, order + 1)})
+            da = da.isel({self.order_dim: slice(None, order + 1)})
 
         return stack_dataarray(
             da,
@@ -299,21 +316,23 @@ class StackedDerivatives:
             policy=self.policy,
         )
 
-    def stacked(self, order=None):
+    def stacked(self, order: int | None = None) -> xr.DataArray:
         if order is None:
             order = self.order
         return self._stacked(order)
 
-    def array_data(self, order=None):
+    def array_data(
+        self, order: int | None = None
+    ) -> tuple[NDArray[Any], list[NDArray[Any]]]:
         """Get X and Y data for gpflow analysis."""
         stacked = self.stacked(order=order)
         xdata = multiindex_to_array(stacked.indexes[self.xstack_dim])
 
-        ydata = [g.values for _, g in stacked.groupby(self.ystack_dim)]
+        ydata = [g.to_numpy() for _, g in stacked.groupby(self.ystack_dim)]
 
         return xdata, ydata
 
-    def xindexer_from_arrays(self, **kwargs):
+    def xindexer_from_arrays(self, **kwargs: Any) -> pd.Index:
         """
         Create indexer for indexing into gpflow trained object by name.
 
@@ -325,7 +344,7 @@ class StackedDerivatives:
         """
         return self.xindexer_from_dataframe(pd.DataFrame(kwargs))
 
-    def xindexer_from_dataframe(self, df):
+    def xindexer_from_dataframe(self, df: pd.DataFrame) -> pd.Index:
         """
         Create indexer from frame.
 
@@ -343,16 +362,16 @@ class StackedDerivatives:
     @classmethod
     def from_mean_var(
         cls,
-        mean,
-        var,
-        x_dims,
-        y_dims=None,
-        xstack_dim="xstack",
-        ystack_dim="ystack",
-        policy="infer",
-        concat_dim=None,
-        concat_kws=None,
-    ):
+        mean: xr.DataArray,
+        var: xr.DataArray,
+        x_dims: str | Sequence[str],
+        y_dims: str | Sequence[str] | None = None,
+        xstack_dim: str = "xstack",
+        ystack_dim: str = "ystack",
+        policy: StackPolicy = "infer",
+        concat_dim: Any = None,
+        concat_kws: Mapping[str, Any] | None = None,
+    ) -> Self:
         """Create object from mean and variance."""
         if concat_dim is None:
             concat_dim = pd.Index(["mean", "var"], name="stats")
@@ -382,19 +401,18 @@ class StackedDerivatives:
     @classmethod
     def from_derivs(
         cls,
-        derivs,
-        x_dims,
-        reduce_dim="rep",
-        reduce_funcs=None,
-        reduce_kws=None,
-        concat_dim=None,
-        concat_kws=None,
-        # alpha_name="alpha",
-        y_dims=None,
-        xstack_dim="xstack",
-        ystack_dim="ystack",
-        policy="infer",
-    ):
+        derivs: xr.DataArray,
+        x_dims: str | Sequence[str],
+        reduce_dim: str = "rep",
+        reduce_funcs: ApplyReduceFuncs | None = None,
+        reduce_kws: Mapping[str, Any] | None = None,
+        concat_dim: Any = None,
+        concat_kws: Mapping[str, Any] | None = None,
+        y_dims: str | Sequence[str] | None = None,
+        xstack_dim: str = "xstack",
+        ystack_dim: str = "ystack",
+        policy: StackPolicy = "infer",
+    ) -> Self:
         """
         Create object from DataArray of derivatives.
 
@@ -425,7 +443,7 @@ class StackedDerivatives:
         if reduce_kws is None:
             reduce_kws = {}
 
-        da = apply_reduction(
+        da: xr.DataArray = apply_reduction(  # type: ignore[assignment]
             derivs,
             dim=reduce_dim,
             funcs=reduce_funcs,
@@ -448,23 +466,23 @@ class StackedDerivatives:
     @classmethod
     def from_states(
         cls,
-        states,
-        x_dims,
-        resample=True,
-        resample_kws=None,
-        map_func="derivs",
-        map_kws=None,
-        reduce_dim="rep",
-        reduce_funcs=None,
-        reduce_kws=None,
-        concat_dim=None,
-        concat_kws=None,
-        # alpha_name=None,
-        y_dims=None,
-        xstack_dim="xstack",
-        ystack_dim="ystack",
-        policy="infer",
-    ):
+        states: StateCollection[Any, xr.DataArray]
+        | Sequence[SupportsModelProtocol[xr.DataArray]],
+        x_dims: str | Sequence[str],
+        resample: bool = True,
+        resample_kws: Mapping[str, Any] | None = None,
+        map_func: str | Callable[..., Any] = "derivs",
+        map_kws: Mapping[str, Any] | None = None,
+        reduce_dim: SingleDim = "rep",
+        reduce_funcs: ApplyReduceFuncs | None = None,
+        reduce_kws: Mapping[str, Any] | None = None,
+        concat_dim: Any = None,
+        concat_kws: Mapping[str, Any] | None = None,
+        y_dims: str | Sequence[str] | None = None,
+        xstack_dim: str = "xstack",
+        ystack_dim: str = "ystack",
+        policy: StackPolicy = "infer",
+    ) -> Self:
         """
         Create data object for StateCollection or list of states.
 
@@ -499,7 +517,15 @@ class StackedDerivatives:
 
         if map_kws is None:
             map_kws = {}
-        derivs = states.map_concat(map_func, **map_kws)
+        if isinstance(map_func, str):
+            from operator import methodcaller
+
+            map_func = methodcaller(map_func, **map_kws)
+        else:
+            from functools import partial
+
+            map_func = partial(map_func, **map_kws)
+        derivs = states.map_concat(map_func)
 
         return cls.from_derivs(
             derivs=derivs,
@@ -516,150 +542,150 @@ class StackedDerivatives:
         )
 
 
-class GPRData(StateCollection):
-    """
-    Statecollection for GPFlow analysis.
+# class GPRData(StateCollection[SupportsModelProtocolDerivsT, xr.DataArray], Generic[SupportsModelProtocolDerivsT]):
+#     """
+#     Statecollection for GPFlow analysis.
 
-    Parameters
-    ----------
-    collection : StateCollection object
-    x_dims : sequence of str
-        dimensions for X.   The last element should correspond to the dimension
-        which specifies the order of the derivative (eg, 'order').
-        If not specified, then `x_dims = [collections.alpha_name, 'order']`
-    y_dims : str or sequence of str
-        dimensions for Y
-    reduce_dim : str, default='rep'
-        name of dimensions to calculate mean/variance along
-    stats_dim : str, default='stats'
-        name of mean/variance dimension
-    xstack_dim, ystack_dim : str
-        name of new stacked dimensions
-    order_dim : str, default='order'
-        name of derivative order dimension
-    deriv_kws : dict, optional
-        optional arguments to be passed to `collection[i].derivs`
-    """
+#     Parameters
+#     ----------
+#     collection : StateCollection object
+#     x_dims : sequence of str
+#         dimensions for X.   The last element should correspond to the dimension
+#         which specifies the order of the derivative (eg, 'order').
+#         If not specified, then `x_dims = [collections.alpha_name, 'order']`
+#     y_dims : str or sequence of str
+#         dimensions for Y
+#     reduce_dim : str, default='rep'
+#         name of dimensions to calculate mean/variance along
+#     stats_dim : str, default='stats'
+#         name of mean/variance dimension
+#     xstack_dim, ystack_dim : str
+#         name of new stacked dimensions
+#     order_dim : str, default='order'
+#         name of derivative order dimension
+#     deriv_kws : dict, optional
+#         optional arguments to be passed to `collection[i].derivs`
+#     """
 
-    # reduce_dim -> dimension to reduce along
+#     # reduce_dim -> dimension to reduce along
 
-    def __init__(
-        self,
-        states,
-        x_dims=None,
-        y_dims=None,
-        xstack_dim="xstack",
-        ystack_dim="ystack",
-        stats_dim="stats",
-        reduce_dim="rep",
-        deriv_kws=None,
-    ) -> None:
-        if x_dims is None:
-            x_dims = [states[0].alpha_name, "order"]
-        if deriv_kws is None:
-            deriv_kws = {}
+#     def __init__(
+#         self,
+#         states,
+#         x_dims=None,
+#         y_dims=None,
+#         xstack_dim="xstack",
+#         ystack_dim="ystack",
+#         stats_dim="stats",
+#         reduce_dim="rep",
+#         deriv_kws=None,
+#     ) -> None:
+#         if x_dims is None:
+#             x_dims = [states[0].alpha_name, "order"]
+#         if deriv_kws is None:
+#             deriv_kws = {}
 
-        self.x_dims = x_dims
-        self.y_dims = y_dims
-        self.xstack_dim = xstack_dim
-        self.ystack_dim = ystack_dim
-        self.stats_dim = stats_dim
-        self.reduce_dim = reduce_dim
-        self.deriv_kws = deriv_kws
+#         self.x_dims = x_dims
+#         self.y_dims = y_dims
+#         self.xstack_dim = xstack_dim
+#         self.ystack_dim = ystack_dim
+#         self.stats_dim = stats_dim
+#         self.reduce_dim = reduce_dim
+#         self.deriv_kws = deriv_kws
 
-        super().__init__(
-            states,
-            x_dims=self.x_dims,
-            y_dims=self.y_dims,
-            xstack_dim=self.xstack_dim,
-            ystack_dim=self.ystack_dim,
-            stats_dim=self.stats_dim,
-            reduce_dim=self.reduce_dim,
-            deriv_kws=self.deriv_kws,
-        )
+#         super().__init__(
+#             states,
+#             x_dims=self.x_dims,
+#             y_dims=self.y_dims,
+#             xstack_dim=self.xstack_dim,
+#             ystack_dim=self.ystack_dim,
+#             stats_dim=self.stats_dim,
+#             reduce_dim=self.reduce_dim,
+#             deriv_kws=self.deriv_kws,
+#         )
 
-    @property
-    def order_dim(self):
-        return self.x_dims[-1]
+#     @property
+#     def order_dim(self):
+#         return self.x_dims[-1]
 
-    @cached.meth
-    def _stacked(self, order):
-        """
-        Get stacked data representation.
+#     @cached.meth
+#     def _stacked(self, order):
+#         """
+#         Get stacked data representation.
 
-        Parameters
-        ----------
-        order : int
-            order of derivatives to consider
-        kws : dict
-            extra arguments to `self.derivs`
+#         Parameters
+#         ----------
+#         order : int
+#             order of derivatives to consider
+#         kws : dict
+#             extra arguments to `self.derivs`
 
-        Returns
-        -------
-        stacked : DataArray
-            this will be in a stacked representation
+#         Returns
+#         -------
+#         stacked : DataArray
+#             this will be in a stacked representation
 
-        See Also
-        --------
-        states_derivs_concat, to_mean_var, stack_dataarray
+#         See Also
+#         --------
+#         states_derivs_concat, to_mean_var, stack_dataarray
 
-        """
-        kws = dict(self.deriv_kws, order_dim=self.order_dim)
-        return (
-            states_derivs_concat(self, order=order, **kws)
-            .pipe(
-                to_mean_var,
-                dim=self.reduce_dim,
-                concat_dim=pd.Index(["mean", "var"], name=self.stats_dim),
-            )
-            .pipe(
-                stack_dataarray,
-                x_dims=self.x_dims,
-                y_dims=self.y_dims,
-                xstack_dim=self.xstack_dim,
-                ystack_dim=self.ystack_dim,
-                stats_dim=self.stats_dim,
-                policy="infer",
-            )
-        )
+#         """
+#         kws = dict(self.deriv_kws, order_dim=self.order_dim)
+#         return (
+#             states_derivs_concat(self, order=order, **kws)
+#             .pipe(
+#                 to_mean_var,
+#                 dim=self.reduce_dim,
+#                 concat_dim=pd.Index(["mean", "var"], name=self.stats_dim),
+#             )
+#             .pipe(
+#                 stack_dataarray,
+#                 x_dims=self.x_dims,
+#                 y_dims=self.y_dims,
+#                 xstack_dim=self.xstack_dim,
+#                 ystack_dim=self.ystack_dim,
+#                 stats_dim=self.stats_dim,
+#                 policy="infer",
+#             )
+#         )
 
-    def stacked(self, order=None):
-        if order is None:
-            order = self.order
-        return self._stacked(order)
+#     def stacked(self, order=None):
+#         if order is None:
+#             order = self.order
+#         return self._stacked(order)
 
-    def array_data(self, order=None):
-        """Get X and Y data for gpflow analysis."""
-        stacked = self.stacked(order=order)
-        xdata = multiindex_to_array(stacked.indexes[self.xstack_dim])
+#     def array_data(self, order=None):
+#         """Get X and Y data for gpflow analysis."""
+#         stacked = self.stacked(order=order)
+#         xdata = multiindex_to_array(stacked.indexes[self.xstack_dim])
 
-        ydata = [g.values for _, g in stacked.groupby(self.ystack_dim)]
+#         ydata = [g.values for _, g in stacked.groupby(self.ystack_dim)]
 
-        return xdata, ydata
+#         return xdata, ydata
 
-    def xindexer_from_arrays(self, **kwargs):
-        """
-        Create indexer for indexing into gpflow trained object by name.
+#     def xindexer_from_arrays(self, **kwargs):
+#         """
+#         Create indexer for indexing into gpflow trained object by name.
 
-        Parameters
-        ----------
-        kwargs : dict
-            should include all names in `self.x_dims[:-1]`
-            sets self.x_dims[-1] (the order dimension) to 0
-        """
-        return self.xindexer_from_dataframe(pd.DataFrame(kwargs))
+#         Parameters
+#         ----------
+#         kwargs : dict
+#             should include all names in `self.x_dims[:-1]`
+#             sets self.x_dims[-1] (the order dimension) to 0
+#         """
+#         return self.xindexer_from_dataframe(pd.DataFrame(kwargs))
 
-    def xindexer_from_dataframe(self, df):
-        """
-        Create indexer from frame.
+#     def xindexer_from_dataframe(self, df):
+#         """
+#         Create indexer from frame.
 
-        Example:
-        -------
-        x_dims = ['beta', 'order']
+#         Example:
+#         -------
+#         x_dims = ['beta', 'order']
 
-        df = pd.DataFrame([{'beta': 1}, {'beta': 2}, ...])
-        """
-        if set(df.columns) != set(self.x_dims[:-1]):
-            raise ValueError
+#         df = pd.DataFrame([{'beta': 1}, {'beta': 2}, ...])
+#         """
+#         if set(df.columns) != set(self.x_dims[:-1]):
+#             raise ValueError
 
-        return df.assign(**{self.order_dim: 0}).set_index(self.x_dims).index
+#         return df.assign(**{self.order_dim: 0}).set_index(self.x_dims).index

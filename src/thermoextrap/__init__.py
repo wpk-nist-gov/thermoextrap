@@ -10,7 +10,6 @@ if TYPE_CHECKING:
         idealgas,
         lnpi,
         models,
-        random,
         volume,
         volume_idealgas,
     )
@@ -102,7 +101,6 @@ __all__ = [
     "idealgas",
     "lnpi",
     "models",
-    "random",
     "volume",
     "volume_idealgas",
     "xrwrap_alpha",

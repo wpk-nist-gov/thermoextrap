@@ -291,6 +291,7 @@ module = [
     "sympy.*",
     "pymbar.*",
     "scipy.special.*",
+    "thermoextrap.legacy.*",
 ]
 
 # [[tool.mypy.overrides]]
@@ -316,11 +317,14 @@ exclude = [
 strict = [
     "noxfile.py",
     "tools/*.py",
+    "src/thermoextrap/__init__.py",
     "src/thermoextrap/data.py",
     # "src/thermoextrap/models.py",
     "src/thermoextrap/beta.py",
     "src/thermoextrap/lnpy.py",
     "src/thermoextrap/volume.py",
+    "src/thermoextrap/volume_idealgas.py",
+    # "src/thermoextrap/stack.py",
     "src/thermoextrap/core/*.py",
     "tests/test_typing.py",
 ]

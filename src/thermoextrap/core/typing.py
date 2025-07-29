@@ -6,7 +6,7 @@ Typing aliases (:mod:`thermoextrap.core.typing`)
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -47,6 +47,11 @@ SymDerivNames = Literal[
     "x_ave", "u_ave", "dun_ave", "dxdun_ave", "un_ave", "xun_ave", "lnPi_energy"
 ]
 
+StackPolicy = Literal["infer", "raise"]
+ApplyReduceFuncs: TypeAlias = Union[
+    str, Callable[..., Any], Iterable[str | Callable[..., Any]]
+]
+
 
 @runtime_checkable
 class SupportsGetItem(Protocol[T_co]):
@@ -63,8 +68,8 @@ class SupportsDataProtocol(Protocol[T_co]):
     # def meta(self) -> DataCallbackABC: ...
     # @property
     # def umom_dim(self) -> SingleDim: ...
-    # @property
-    # def deriv_dim(self) -> SingleDim | None: ...
+    @property
+    def deriv_dim(self) -> SingleDim | None: ...
     @property
     def x_is_u(self) -> bool: ...
     @property
