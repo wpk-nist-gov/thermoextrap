@@ -137,8 +137,8 @@ class FixtureData:
             self.xr_test(a.dxdu_selector[i], b.dxdu_selector[i])
 
     @staticmethod
-    def xr_test(a, b) -> None:
-        xr.testing.assert_allclose(a, b.transpose(*a.dims))
+    def xr_test(a, b, **kwargs) -> None:
+        xr.testing.assert_allclose(a, b.transpose(*a.dims), **kwargs)
 
 
 @pytest.fixture(params=[(100, 5)])  # , scope="module")

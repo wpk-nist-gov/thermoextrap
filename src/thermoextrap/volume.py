@@ -21,7 +21,7 @@ from thermoextrap.data import DataValues
 from thermoextrap.models import Derivatives, ExtrapModel
 
 from .core.docstrings import DOCFILLER_SHARED
-from .core.typing import DataDerivArgs, DataT, MetaKws, SupportsDataProtocol
+from .core.typing import DataDerivArgs, DataT, OptionalKwsAny, SupportsDataProtocol
 from .core.xrutils import xrwrap_xv
 from .data import DataCallbackABC
 
@@ -143,7 +143,7 @@ class VolumeDataCallback(DataCallbackABC, Generic[DataT]):
         self,
         data: SupportsDataProtocol[Any],
         *,
-        meta_kws: MetaKws,  # noqa: ARG002
+        meta_kws: OptionalKwsAny,  # noqa: ARG002
         sampler: IndexSampler[Any],
         **kws: Any,  # noqa: ARG002
     ) -> Self:

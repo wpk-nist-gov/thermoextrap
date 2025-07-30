@@ -5,14 +5,14 @@ from typing import TYPE_CHECKING
 import attrs
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Hashable, Mapping, Sequence
+    from collections.abc import Callable, Hashable, Sequence
     from typing import Any
 
-    from thermoextrap.core.typing import MultDims
-    from thermoextrap.core.typing_compat import Self
+    from .typing import MultDims, OptionalKwsAny
+    from .typing_compat import Self
 
 
-def convert_mapping_or_none_to_dict(kws: Mapping[str, Any] | None) -> dict[str, Any]:
+def convert_mapping_or_none_to_dict(kws: OptionalKwsAny) -> dict[str, Any]:
     if kws is None:
         return {}
     return dict(kws)

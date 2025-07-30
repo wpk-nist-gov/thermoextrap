@@ -12,13 +12,14 @@ from module_utilities import cached
 from .models import StateCollection
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Hashable, Mapping, Sequence
+    from collections.abc import Callable, Hashable, Sequence
     from typing import Any
 
     from numpy.typing import NDArray
 
     from .core.typing import (
         ApplyReduceFuncs,
+        OptionalKwsAny,
         SingleDim,
         StackPolicy,
         SupportsModelProtocol,
@@ -108,7 +109,7 @@ def apply_reduction(
     dim: SingleDim,
     funcs: ApplyReduceFuncs,
     concat_dim: Any = None,
-    concat_kws: Mapping[str, Any] | None = None,
+    concat_kws: OptionalKwsAny = None,
     **kws: Any,
 ) -> xr.DataArray | list[xr.DataArray]:
     """
@@ -159,7 +160,7 @@ def to_mean_var(
     da: xr.DataArray,
     dim: str,
     concat_dim: Any = None,
-    concat_kws: Mapping[str, Any] | None = None,
+    concat_kws: OptionalKwsAny = None,
     **kws: Any,
 ) -> xr.DataArray:
     """
@@ -193,7 +194,7 @@ def to_mean_var(
 def states_derivs_concat(
     states: StateCollection[Any, xr.DataArray],
     dim: Any = None,
-    concat_kws: Mapping[str, Any] | None = None,
+    concat_kws: OptionalKwsAny = None,
     **kws: Any,
 ) -> xr.DataArray:
     """
@@ -370,7 +371,7 @@ class StackedDerivatives:
         ystack_dim: str = "ystack",
         policy: StackPolicy = "infer",
         concat_dim: Any = None,
-        concat_kws: Mapping[str, Any] | None = None,
+        concat_kws: OptionalKwsAny = None,
     ) -> Self:
         """Create object from mean and variance."""
         if concat_dim is None:
@@ -405,9 +406,9 @@ class StackedDerivatives:
         x_dims: str | Sequence[str],
         reduce_dim: str = "rep",
         reduce_funcs: ApplyReduceFuncs | None = None,
-        reduce_kws: Mapping[str, Any] | None = None,
+        reduce_kws: OptionalKwsAny = None,
         concat_dim: Any = None,
-        concat_kws: Mapping[str, Any] | None = None,
+        concat_kws: OptionalKwsAny = None,
         y_dims: str | Sequence[str] | None = None,
         xstack_dim: str = "xstack",
         ystack_dim: str = "ystack",
@@ -470,14 +471,14 @@ class StackedDerivatives:
         | Sequence[SupportsModelProtocol[xr.DataArray]],
         x_dims: str | Sequence[str],
         resample: bool = True,
-        resample_kws: Mapping[str, Any] | None = None,
+        resample_kws: OptionalKwsAny = None,
         map_func: str | Callable[..., Any] = "derivs",
-        map_kws: Mapping[str, Any] | None = None,
+        map_kws: OptionalKwsAny = None,
         reduce_dim: SingleDim = "rep",
         reduce_funcs: ApplyReduceFuncs | None = None,
-        reduce_kws: Mapping[str, Any] | None = None,
+        reduce_kws: OptionalKwsAny = None,
         concat_dim: Any = None,
-        concat_kws: Mapping[str, Any] | None = None,
+        concat_kws: OptionalKwsAny = None,
         y_dims: str | Sequence[str] | None = None,
         xstack_dim: str = "xstack",
         ystack_dim: str = "ystack",

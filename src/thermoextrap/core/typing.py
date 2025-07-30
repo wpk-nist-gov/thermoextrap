@@ -30,10 +30,12 @@ DataT = TypeVar("DataT", xr.DataArray, xr.Dataset, default=xr.DataArray)
 DataT_ = TypeVar("DataT_", xr.DataArray, xr.Dataset, default=xr.DataArray)
 
 T_co = TypeVar("T_co", covariant=True)
+_T = TypeVar("_T")
 
 # Alias
 XArrayObj: TypeAlias = Union[xr.DataArray, xr.Dataset]
-MetaKws: TypeAlias = Union[Mapping[str, Any], None]
+OptionalKws: TypeAlias = Union[Mapping[str, _T], None]
+OptionalKwsAny: TypeAlias = OptionalKws[Any]
 SingleDim: TypeAlias = str
 MultDims: TypeAlias = Union[str, Sequence[Hashable]]
 PostFunc: TypeAlias = Union[str, Callable[["Expr"], "Expr"], None]
@@ -133,3 +135,6 @@ SupportsModelProtocolDerivsT = TypeVar(
     "SupportsModelProtocolDerivsT",
     bound=SupportsModelProtocolDerivs[XArrayObj],
 )
+
+
+# TODO(wpk): Create SupportsStateCollection protocol

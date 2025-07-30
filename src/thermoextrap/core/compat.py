@@ -25,4 +25,5 @@ def xr_dot(
     try:
         return xr.dot(*arrays, dim=dim, **kwargs)  # type: ignore[arg-type,unused-ignore]
     except TypeError:
+        # TODO(wpk): pretty sure can get rid of this.
         return xr.dot(*arrays, dims=dim, **kwargs)  # type: ignore[arg-type,unused-ignore]

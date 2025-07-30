@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """Utilities for sympy."""
 
 from __future__ import annotations
@@ -9,8 +10,12 @@ from typing import TYPE_CHECKING, overload
 from ._imports import sympy as sp
 
 if TYPE_CHECKING:
-    from sympy.core.symbol import Symbol  # pyright: ignore[reportMissingTypeStubs]
-    from sympy.tensor.indexed import (  # pyright: ignore[reportMissingTypeStubs]
+    from collections.abc import Callable, Sequence
+    from typing import Any
+
+    from sympy.core.expr import Expr
+    from sympy.core.symbol import Symbol
+    from sympy.tensor.indexed import (
         IndexedBase,
     )
 
@@ -43,3 +48,26 @@ def get_default_indexed(*args: str) -> IndexedBase | tuple[IndexedBase, ...]:
     if len(out) == 1:
         return out[0]
     return out
+
+
+def lambdify_with_defaults(
+    args: Any,
+    expr: Expr,
+    modules: str | Sequence[str] | None = None,
+    printer: Any = None,
+    use_imps: bool = True,
+    dummify: bool = True,
+    cse: bool | Callable[..., Any] = True,
+    docstring_limit: int | None = 10,
+) -> Callable[..., Any]:
+    """Interface to :func:`~sympy.utilities.lambdify.lambdify`"""
+    return sp.lambdify(  # type: ignore[no-any-return]
+        args=args,
+        expr=expr,
+        modules=modules,
+        printer=printer,
+        use_imps=use_imps,
+        dummify=dummify,
+        cse=cse,
+        docstring_limit=docstring_limit,
+    )

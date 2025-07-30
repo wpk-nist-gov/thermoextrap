@@ -29,12 +29,12 @@ from . import beta as beta_xpan
 from .core._attrs_utils import convert_dims_to_tuple
 from .core.docstrings import DOCFILLER_SHARED
 from .core.sputils import get_default_indexed, get_default_symbol
-from .core.typing import DataDerivArgs, DataT, MetaKws, SupportsDataProtocol
+from .core.typing import DataDerivArgs, DataT, OptionalKwsAny, SupportsDataProtocol
 from .data import DataCallbackABC
 from .models import Derivatives, ExtrapModel, SymFuncBase
 
 if TYPE_CHECKING:
-    from collections.abc import Hashable, Mapping
+    from collections.abc import Hashable
     from typing import Any
 
     from cmomy import IndexSampler
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from sympy.core.symbol import Symbol
     from sympy.tensor.indexed import IndexedBase
 
-    from .core.typing import PostFunc
+    from .core.typing import OptionalKwsAny, PostFunc
     from .core.typing_compat import Self
 
 docfiller_shared = DOCFILLER_SHARED.levels_to_top("cmomy", "xtrap", "beta").decorate
@@ -257,7 +257,7 @@ class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
         self,
         data: SupportsDataProtocol[Any],
         *,
-        meta_kws: MetaKws,
+        meta_kws: OptionalKwsAny,
         sampler: IndexSampler[Any],
         **kws: Any,
     ) -> Self:
@@ -308,7 +308,7 @@ def factory_extrapmodel_lnPi(
     alpha_name: str = "beta",
     derivatives: Derivatives | None = None,
     post_func: PostFunc = None,
-    derivatives_kws: Mapping[str, Any] | None = None,
+    derivatives_kws: OptionalKwsAny = None,
 ) -> ExtrapModel[DataT]:
     """
     Factory function to create Extrapolation model for beta expansion.

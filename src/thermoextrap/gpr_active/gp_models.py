@@ -14,6 +14,8 @@ import tensorflow as tf
 from gpflow import logdensities
 from scipy import optimize
 
+from thermoextrap.core.sputils import lambdify_with_defaults
+
 logger = logging.getLogger(__name__)
 
 
@@ -191,7 +193,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
                 *zip(self.x_syms[self.obs_dims :], pair[1].numpy()),
             )
             # Get lambdified function compatible with tensorflow
-            this_func = sp.lambdify(
+            this_func = lambdify_with_defaults(
                 (*self.x_syms, *self.param_syms),
                 this_expr,
                 modules="tensorflow",
@@ -234,7 +236,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
                 *zip(self.x_syms[: self.obs_dims], d.numpy()),
                 *zip(self.x_syms[self.obs_dims :], d.numpy()),
             )
-            this_func = sp.lambdify(
+            this_func = lambdify_with_defaults(
                 (*self.x_syms, *self.param_syms),
                 this_expr,
                 modules="tensorflow",
@@ -1329,7 +1331,7 @@ class SympyMeanFunc(gpflow.functions.MeanFunction):
                 setattr(self, s.name, 1.0)
 
         # Create function at zeroth order
-        mean_func = sp.lambdify(
+        mean_func = lambdify_with_defaults(
             (*self.x_syms, *self.param_syms), self.expr, modules="numpy"
         )
         # And also wrap derivatives w.r.t. parameters for Jacobian
@@ -1337,7 +1339,9 @@ class SympyMeanFunc(gpflow.functions.MeanFunction):
         for p_sym in self.param_syms:
             this_jac = sp.diff(self.expr, p_sym, 1)
             deriv_funcs.append(
-                sp.lambdify((*self.x_syms, *self.param_syms), this_jac, modules="numpy")
+                lambdify_with_defaults(
+                    (*self.x_syms, *self.param_syms), this_jac, modules="numpy"
+                )
             )
 
         # Create loss function
@@ -1385,7 +1389,7 @@ class SympyMeanFunc(gpflow.functions.MeanFunction):
                 self.expr,
                 *zip(self.x_syms, d.numpy()),
             )
-            this_func = sp.lambdify(
+            this_func = lambdify_with_defaults(
                 (*self.x_syms, *self.param_syms),
                 this_expr,
                 modules="tensorflow",

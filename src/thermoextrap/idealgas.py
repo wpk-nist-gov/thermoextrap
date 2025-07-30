@@ -19,6 +19,7 @@ from cmomy.random import validate_rng
 from module_utilities.docfiller import DocFiller
 
 from .core._imports import sympy as sp
+from .core.sputils import lambdify_with_defaults
 
 if TYPE_CHECKING:
     # from .core.typing_compat import TypeVar
@@ -248,7 +249,7 @@ def dbeta_xave(k: int) -> Callable[[FloatOrArray, FloatOrArray], FloatOrArray]:
     Returns sympy function with expression for derivative.
     """
     deriv = sp.diff(xave_sym, beta_sym, k)
-    return sp.lambdify([beta_sym, vol_sym], deriv, "numpy")  # type: ignore[no-any-return]
+    return lambdify_with_defaults([beta_sym, vol_sym], deriv)
 
 
 @lru_cache(maxsize=100)
@@ -259,7 +260,7 @@ def dbeta_xave_minuslog(k: int) -> Callable[[FloatOrArray, FloatOrArray], FloatO
     Returns sympy function with expression for derivative.
     """
     deriv = sp.diff(-sp.log(xave_sym), beta_sym, k)
-    return sp.lambdify([beta_sym, vol_sym], deriv, "numpy")  # type: ignore[no-any-return]
+    return lambdify_with_defaults([beta_sym, vol_sym], deriv)
 
 
 @lru_cache(maxsize=100)
@@ -273,7 +274,7 @@ def dbeta_xave_depend(k: int) -> Callable[[FloatOrArray, FloatOrArray], FloatOrA
     And since particles are independent, can just multiply by N for a system of N particles
     """
     deriv = sp.diff(beta_sym * xave_sym, beta_sym, k)
-    return sp.lambdify([beta_sym, vol_sym], deriv, "numpy")  # type: ignore[no-any-return]
+    return lambdify_with_defaults([beta_sym, vol_sym], deriv)
 
 
 @lru_cache(maxsize=100)
@@ -286,7 +287,7 @@ def dbeta_xave_depend_minuslog(
     Returns sympy function with expression for derivative.
     """
     deriv = sp.diff(-sp.log(beta_sym * xave_sym), beta_sym, k)
-    return sp.lambdify([beta_sym, vol_sym], deriv, "numpy")  # type: ignore[no-any-return]
+    return lambdify_with_defaults([beta_sym, vol_sym], deriv)
 
 
 @lru_cache(maxsize=100)
@@ -297,7 +298,7 @@ def dvol_xave(k: int) -> Callable[[FloatOrArray, FloatOrArray], FloatOrArray]:
     Returns sympy function with expression for derivative.
     """
     deriv = sp.diff(xave_sym, vol_sym, k)
-    return sp.lambdify([beta_sym, vol_sym], deriv, "numpy")  # type: ignore[no-any-return]
+    return lambdify_with_defaults([beta_sym, vol_sym], deriv)
 
 
 @docfiller_shared

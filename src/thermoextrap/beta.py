@@ -28,7 +28,6 @@ from .models import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
     from typing import Any
 
     import xarray as xr
@@ -36,7 +35,13 @@ if TYPE_CHECKING:
     from sympy.core.symbol import Symbol
     from sympy.tensor.indexed import IndexedBase
 
-    from .core.typing import DataT, PostFunc, SupportsDataProtocol, SymDerivNames
+    from .core.typing import (
+        DataT,
+        OptionalKwsAny,
+        PostFunc,
+        SupportsDataProtocol,
+        SymDerivNames,
+    )
     from .core.typing_compat import Self
 
 docfiller_shared = DOCFILLER_SHARED.levels_to_top("cmomy", "xtrap", "beta")
@@ -574,10 +579,11 @@ class SymDerivBeta(SymDerivBase):
 
         Parameters
         ----------
-        name : {'xave', 'uave', 'dun_ave', 'un_ave'}
-        All properties use post_func and expand parameters.
+        name : {'x_ave', 'u_ave', 'dun_ave', 'dxdun_ave', 'un_ave', 'xun_ave', 'lnPi_energy'}
+            All properties use post_func and expand parameters.
+
             * x_ave: general average of <x>(central, xalpha)
-            * un_ave: <u>(central)
+            * u_ave: <u>(central)
             * dun_ave: derivative of <(u - <u>)**n>(central, n)
             * dxdun_ave: derivatives of <dx^(d) * du**n>(xalpha, n, d)
 
@@ -682,7 +688,7 @@ def factory_extrapmodel(
     alpha_name: str = "beta",
     derivatives: Derivatives | None = None,
     post_func: PostFunc = None,
-    derivatives_kws: Mapping[str, Any] | None = None,
+    derivatives_kws: OptionalKwsAny = None,
 ) -> ExtrapModel[DataT]:
     """
     Factory function to create Extrapolation model for beta expansion.

@@ -9,7 +9,10 @@ See :ref:`examples/usage/basic/temperature_interp:recursive interpolation` for e
 """
 
 # TODO(wpk): rework this code to be cleaner
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 import numpy as np
 from cmomy.random import validate_rng
@@ -18,6 +21,9 @@ from . import idealgas
 from .core._deprecate import deprecate, deprecate_kwarg
 from .data import factory_data_values
 from .models import ExtrapModel, InterpModel
+
+if TYPE_CHECKING:
+    from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +61,7 @@ class RecursiveInterp:
     @deprecate_kwarg("edgeB", "edge_beta")
     @deprecate_kwarg("maxOrder", "max_order")
     @deprecate_kwarg("errTol", "tol")
-    def __init__(
+    def __init__(  # type: ignore[no-untyped-def]
         self,
         model_cls,
         derivatives,
@@ -68,7 +74,7 @@ class RecursiveInterp:
             model_cls  # The model CLASS used for interpolation, like InterpModel
         )
         self.derivatives = derivatives  # Derivatives object describing how derivatives will be calculated
-        self.states = []  # List of ExtrapModel objects sharing same Derivatives but different Data
+        self.states: Any = []  # List of ExtrapModel objects sharing same Derivatives but different Data
         self.edge_beta = np.array(
             edge_beta
         )  # Values of state points that we interpolate between
@@ -110,7 +116,7 @@ class RecursiveInterp:
     @deprecate_kwarg("Bavail", "beta_avail")
     @deprecate_kwarg("doPlot", "do_plot")
     @deprecate_kwarg("plotCompareFunc", "plot_func")
-    def recursive_train(  # noqa: C901, PLR0912, PLR0914, PLR0915
+    def recursive_train(  # type: ignore[no-untyped-def] # noqa: C901, PLR0912, PLR0914, PLR0915
         self,
         beta1,
         beta2,
@@ -269,7 +275,7 @@ class RecursiveInterp:
     recursiveTrain = deprecate("recursiveTrain", recursive_train, "0.2.0")  # noqa: N815
 
     @deprecate_kwarg("Btrain", "beta_train")
-    def sequential_train(self, beta_train, verbose=False) -> None:
+    def sequential_train(self, beta_train, verbose=False) -> None:  # type: ignore[no-untyped-def]
         """
         Trains sequentially without recursion. List of state point values is provided and
         training happens just on those without adding points.
@@ -445,7 +451,7 @@ class RecursiveInterp:
 
         # Before loop, set up plot if wanted
         if do_plot:
-            pcolors = plt.cm.cividis(np.linspace(0.0, 1.0, len(edge_sets)))
+            pcolors = plt.cm.cividis(np.linspace(0.0, 1.0, len(edge_sets)))  # pyright: ignore[reportAttributeAccessIssue]
             pfig, pax = plt.subplots()
             plotymin = 1e10
             plotymax = -1e10

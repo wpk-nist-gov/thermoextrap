@@ -136,6 +136,7 @@ test-notebook = [
 ]
 typecheck = [
     "pandas-stubs",
+    "scipy-stubs; python_version>='3.10'",
     "thermoextrap[mbar,gpr]",
     { include-group = "pylint" },
     { include-group = "pytest" },
@@ -290,13 +291,21 @@ ignore_missing_imports = true
 module = [
     "sympy.*",
     "pymbar.*",
-    "scipy.special.*",
+]
+
+[[tool.mypy.overrides]]
+strict = false
+allow_untyped_defs = true
+allow_untyped_calls = true
+module = [
+    "thermoextrap.recursive_interp.*",
     "tests.legacy.*",
 ]
 
 # [[tool.mypy.overrides]]
 # ignore_errors = true
 # module = [
+#     "tests.legacy.*",
 # ]
 
 [tool.pyright]
@@ -325,6 +334,7 @@ strict = [
     "src/thermoextrap/lnpy.py",
     "src/thermoextrap/volume.py",
     "src/thermoextrap/volume_idealgas.py",
+    "src/thermoextrap/adaptive_interp.py",
     # "src/thermoextrap/stack.py",
     "src/thermoextrap/core/*.py",
     "tests/test_typing.py",

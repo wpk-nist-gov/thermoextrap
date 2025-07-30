@@ -33,7 +33,11 @@ from .core._imports import has_pymbar
 from .core._imports import sympy as sp
 from .core.compat import xr_dot
 from .core.docstrings import DOCFILLER_SHARED
-from .core.sputils import get_default_indexed, get_default_symbol
+from .core.sputils import (
+    get_default_indexed,
+    get_default_symbol,
+    lambdify_with_defaults,
+)
 from .core.typing import (
     DataT,
     SupportsDataPerturbModel,
@@ -56,7 +60,7 @@ if TYPE_CHECKING:
     from sympy.core.symbol import Symbol
     from sympy.tensor.indexed import IndexedBase
 
-    from .core.typing import PostFunc
+    from .core.typing import OptionalKwsAny, PostFunc
     from .core.typing_compat import Self, TypeVar
 
     _T = TypeVar("_T")
@@ -193,6 +197,12 @@ class _GetItemSympyOperations:
         return func
 
 
+def _convert_lambdify_kws(value: OptionalKwsAny) -> dict[str, Any]:
+    out: dict[str, Any] = {} if value is None else dict(value)
+    out.setdefault("cse", True)
+    return out
+
+
 @attrs.define
 class Lambdify:
     """
@@ -205,7 +215,8 @@ class Lambdify:
     args : sequence of Symbol
         array of symbols which will be in args of the resulting function
     lambdify_kws : dict
-        extra arguments to ``lambdify``
+        Extra arguments to :func:`~sympy.utilities.lambidfy.lambdify`.
+        Note that by default we set ``cse = True``, ``dummify = True`` by default.
 
     See Also
     --------
@@ -216,14 +227,15 @@ class Lambdify:
     args: Sequence[Symbol | IndexedBase] = field()
     lambdify_kws: dict[str, Any] = field(
         kw_only=True,
-        factory=dict,
+        factory=dict[str, "Any"],
+        converter=_convert_lambdify_kws,
     )
 
     _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
 
     @cached.meth
     def __getitem__(self, order: SupportsIndex, /) -> Callable[..., Any]:
-        return sp.lambdify(self.args, self.exprs[order], **self.lambdify_kws)  # type: ignore[no-any-return]
+        return lambdify_with_defaults(self.args, self.exprs[order], **self.lambdify_kws)
 
 
 @docfiller_shared.decorate
@@ -393,7 +405,7 @@ class Derivatives(MyAttrsMixin):
         order: int | None = ...,
         minus_log: bool = ...,
         order_dim: None,
-        concat_kws: Mapping[str, Any] | None = ...,
+        concat_kws: OptionalKwsAny = ...,
         norm: bool = ...,
     ) -> list[DataT]: ...
     @overload
@@ -404,7 +416,7 @@ class Derivatives(MyAttrsMixin):
         order: int | None = ...,
         minus_log: bool = ...,
         order_dim: str = ...,
-        concat_kws: Mapping[str, Any] | None = ...,
+        concat_kws: OptionalKwsAny = ...,
         norm: bool = ...,
     ) -> DataT: ...
 
@@ -415,7 +427,7 @@ class Derivatives(MyAttrsMixin):
         order: int | None = None,
         minus_log: bool = False,
         order_dim: str | None = "order",
-        concat_kws: Mapping[str, Any] | None = None,
+        concat_kws: OptionalKwsAny = None,
         norm: bool = False,
     ) -> DataT | list[DataT]:
         """
@@ -714,8 +726,6 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
         )
 
 
-# TODO(wpk): rename StateCollection to ModelSequence?
-# TODO(wpk): maybe make Generic(ModelProtocolT, DataT)
 @attrs.define
 class StateCollection(
     MyAttrsMixin,
@@ -778,6 +788,24 @@ class StateCollection(
                 msg = f"{a} outside of bounds [{lb}, {ub}]"
                 raise ValueError(msg)
 
+    def predict(self, alpha: ArrayLike, **kwargs: Any) -> DataT:
+        """
+        Prediction routine.
+
+        To be implemented by subclasses.
+        """
+        msg = "To be implemented by subclass"
+        raise NotImplementedError(msg)
+
+    def coefs(self, order: int | None = None, **kwargs: Any) -> DataT:
+        """
+        Coefficients.
+
+        To be implemented by subclass
+        """
+        msg = "To be implemented by subclass"
+        raise NotImplementedError(msg)
+
     def resample(self, sampler: Sampler | Sequence[Sampler], **kws: Any) -> Self:
         """
         Resample underlying models.
@@ -818,7 +846,7 @@ class StateCollection(
         self,
         func: Callable[..., DataT],
         concat_dim: Any = None,
-        concat_kws: Mapping[str, Any] | None = None,
+        concat_kws: OptionalKwsAny = None,
         *args: Any,
         **kwargs: Any,
     ) -> DataT:
@@ -927,6 +955,7 @@ class ExtrapWeightedModel(
     def predict(
         self,
         alpha: ArrayLike,
+        *,
         order: int | None = None,
         order_dim: str = "order",
         cumsum: bool = False,
@@ -934,6 +963,7 @@ class ExtrapWeightedModel(
         alpha_name: str | None = None,
         method: str | None = None,
         bounded: bool = False,
+        **kwargs: Any,
     ) -> DataT:
         """
         Parameters
@@ -977,6 +1007,7 @@ class ExtrapWeightedModel(
                             minus_log=minus_log,
                             alpha_name=alpha_name,
                             method=method,
+                            **kwargs,
                         )
                         for a in alpha_
                     ),
@@ -996,6 +1027,7 @@ class ExtrapWeightedModel(
                     cumsum=cumsum,
                     minus_log=minus_log,
                     alpha_name=alpha_name,
+                    **kwargs,
                 )
                 for m in states
             ),
@@ -1014,9 +1046,12 @@ class InterpModel(StateCollection[SupportsModelProtocolDerivsT, DataT]):
     @cached.meth
     def coefs(
         self,
+        /,
         order: int | None = None,
+        *,
         order_dim: str = "porder",
         minus_log: bool | None = None,
+        **kwargs: Any,
     ) -> DataT:
         from scipy.special import factorial as sp_factorial
 
@@ -1076,10 +1111,12 @@ class InterpModel(StateCollection[SupportsModelProtocolDerivsT, DataT]):
     def predict(
         self,
         alpha: ArrayLike,
+        *,
         order: int | None = None,
         order_dim: str = "porder",
         minus_log: bool = False,
         alpha_name: str | None = None,
+        **kwargs: Any,
     ) -> DataT:
         if order is None:
             order = self.order
@@ -1116,12 +1153,14 @@ class InterpModelPiecewise(
     def predict(
         self,
         alpha: ArrayLike,
+        *,
         order: int | None = None,
         order_dim: str = "porder",
         minus_log: bool = False,
         alpha_name: str | None = None,
         method: str | None = None,
         bounded: bool = False,
+        **kwargs: Any,
     ) -> DataT:
         """
         Parameters
@@ -1144,6 +1183,7 @@ class InterpModelPiecewise(
                 order_dim=order_dim,
                 minus_log=minus_log,
                 alpha_name=alpha_name,
+                **kwargs,
             )
 
         out: list[DataT] = []
@@ -1161,6 +1201,7 @@ class InterpModelPiecewise(
                     order_dim=order_dim,
                     minus_log=minus_log,
                     alpha_name=alpha_name,
+                    **kwargs,
                 )
             )
 
@@ -1180,7 +1221,9 @@ class PerturbModel(MyAttrsMixin, Generic[DataT]):
         default="alpha",
     )
 
-    def predict(self, alpha: ArrayLike, alpha_name: str | None = None) -> DataT:
+    def predict(
+        self, alpha: ArrayLike, *, alpha_name: str | None = None, **kwargs: Any
+    ) -> DataT:
         if alpha_name is None:
             alpha_name = self.alpha_name
 
@@ -1243,7 +1286,9 @@ class MBARModel(StateCollection[Any, xr.DataArray]):
 
         return uv, xv, alpha0, mbar_obj
 
-    def predict(self, alpha: ArrayLike, alpha_name: str | None = None) -> xr.DataArray:
+    def predict(
+        self, alpha: ArrayLike, *, alpha_name: str | None = None, **kwargs: Any
+    ) -> xr.DataArray:
         if alpha_name is None:
             alpha_name = self.alpha_name
 

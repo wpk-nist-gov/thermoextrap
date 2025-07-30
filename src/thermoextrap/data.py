@@ -50,8 +50,8 @@ if TYPE_CHECKING:
 
     from .core.typing import (
         DataDerivArgs,
-        MetaKws,
         MultDims,
+        OptionalKwsAny,
         SingleDim,
         SupportsDataProtocol,
         XArrayObj,
@@ -200,7 +200,7 @@ class DataCallbackABC(
         self,
         data: SupportsDataProtocol[Any],
         *,
-        meta_kws: MetaKws,
+        meta_kws: OptionalKwsAny,
         sampler: cmomy.IndexSampler[Any],
         **kws: Any,
     ) -> Self:
@@ -212,7 +212,7 @@ class DataCallbackABC(
         raise NotImplementedError
 
     def reduce(
-        self, data: SupportsDataProtocol[Any], *, meta_kws: MetaKws, **kws: Any
+        self, data: SupportsDataProtocol[Any], *, meta_kws: OptionalKwsAny, **kws: Any
     ) -> Self:
         """Reduce along dimension."""
         raise NotImplementedError
@@ -244,7 +244,7 @@ class DataCallback(DataCallbackABC):
         self,
         data: SupportsDataProtocol[Any],  # noqa: ARG002
         *,
-        meta_kws: MetaKws,  # noqa: ARG002
+        meta_kws: OptionalKwsAny,  # noqa: ARG002
         sampler: cmomy.IndexSampler[Any],  # noqa: ARG002
         **kws: Any,  # noqa: ARG002
     ) -> Self:
@@ -254,7 +254,7 @@ class DataCallback(DataCallbackABC):
         self,
         data: SupportsDataProtocol[Any],  # noqa: ARG002
         *,
-        meta_kws: MetaKws,  # noqa: ARG002
+        meta_kws: OptionalKwsAny,  # noqa: ARG002
         **kws: Any,  # noqa: ARG002
     ) -> Self:
         return self
@@ -377,7 +377,7 @@ class DataValuesBase(AbstractData, Generic[DataT]):
         sampler: Sampler,
         *,
         rep_dim: SingleDim = "rep",
-        meta_kws: MetaKws = None,
+        meta_kws: OptionalKwsAny = None,
     ) -> Self:
         """
         Resample object.
@@ -951,7 +951,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         self,
         dim: DimsReduce | MissingType = MISSING,
         axis: AxisReduce | MissingType = MISSING,
-        meta_kws: MetaKws = None,
+        meta_kws: OptionalKwsAny = None,
         **kwargs: Any,
     ) -> Self:
         """
@@ -981,7 +981,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         axis: AxisReduce | MissingType = MISSING,
         rep_dim: SingleDim = "rep",
         parallel: bool | None = None,
-        meta_kws: MetaKws = None,
+        meta_kws: OptionalKwsAny = None,
         **kwargs: Any,
     ) -> Self:
         """
@@ -1272,7 +1272,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         deriv_dim: SingleDim | None = None,
         central: bool = False,
         meta: DataCallbackABC | None = None,
-        meta_kws: MetaKws = None,
+        meta_kws: OptionalKwsAny = None,
         x_is_u: bool = False,
         parallel: bool | None = None,
         **kwargs: Any,
@@ -1629,7 +1629,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         xmom_dim: SingleDim = "xmom",
         deriv_dim: SingleDim | None = None,
         central: bool = False,
-        from_vals_kws: Mapping[str, Any] | None = None,
+        from_vals_kws: OptionalKwsAny = None,
         meta: DataCallbackABC | None = None,
         x_is_u: bool = False,
     ) -> Self:
@@ -1688,7 +1688,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         axis: AxisReduce | MissingType = MISSING,
         rep_dim: SingleDim = "rep",
         parallel: bool | None = None,
-        meta_kws: MetaKws = None,
+        meta_kws: OptionalKwsAny = None,
         **kwargs: Any,
     ) -> Self:
         """

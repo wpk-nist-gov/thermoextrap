@@ -71,7 +71,7 @@ def test_make_gp_input() -> None:
         logbeta_sym = sp.symbols("lnbeta_sym")
         log_expr = idealgas.xave_sym.subs([(idealgas.beta_sym, 10 ** (logbeta_sym))])
         deriv = sp.diff(log_expr, logbeta_sym, k)
-        return sp.lambdify([logbeta_sym, idealgas.vol_sym], deriv, "numpy")
+        return sp.lambdify([logbeta_sym, idealgas.vol_sym], deriv, modules="numpy")
 
     check_x_log, check_y_log, check_cov_log = active_utils.input_GP_from_state(
         state, log_scale=True
@@ -101,7 +101,7 @@ def test_make_gp_input() -> None:
                 beta_sym,
             ],
             deriv,
-            "numpy",
+            modules="numpy",
         )
 
     state_mult = ig_active.multiOutput_extrap_IG(beta, rng=np.random.default_rng(42))
