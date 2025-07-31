@@ -43,6 +43,7 @@ dependencies = [
     "module-utilities[inherit]>=0.11.0",
     "numba>=0.60.0",
     "numpy>=1.26.0",
+    "packaging",
     "scipy",
     "sympy",
     "xarray>=2024.7.0",
@@ -298,7 +299,7 @@ strict = false
 allow_untyped_defs = true
 allow_untyped_calls = true
 module = [
-    "thermoextrap.recursive_interp.*",
+
     "tests.legacy.*",
 ]
 
@@ -335,6 +336,7 @@ strict = [
     "src/thermoextrap/volume.py",
     "src/thermoextrap/volume_idealgas.py",
     "src/thermoextrap/adaptive_interp.py",
+    # "src/thermoextrap/recursive_interp.py",
     # "src/thermoextrap/stack.py",
     "src/thermoextrap/core/*.py",
     "tests/test_typing.py",
@@ -362,6 +364,8 @@ reportPrivateImportUsage = false
 reportUnboundVariable = false
 # Turn on too see unused ignores
 # reportUnnecessaryTypeIgnoreComment = true
+# infer types.  Can be slow...
+# useLibraryCodeForTypes = true
 
 [tool.pytype]
 inputs = [

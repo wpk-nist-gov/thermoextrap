@@ -29,7 +29,7 @@ from .core._attrs_utils import (
     MyAttrsMixin,
     convert_mapping_or_none_to_dict,
 )
-from .core._imports import has_pymbar
+from .core._imports import module_available
 from .core._imports import sympy as sp
 from .core.compat import xr_dot
 from .core.docstrings import DOCFILLER_SHARED
@@ -1259,7 +1259,7 @@ class MBARModel(StateCollection[Any, xr.DataArray]):
     """Sadly, this doesn't work as beautifully."""
 
     def __attrs_pre_init__(self) -> None:
-        if not has_pymbar():
+        if not module_available("pymbar"):
             msg = "need pymbar to use this"
             raise ImportError(msg)
 

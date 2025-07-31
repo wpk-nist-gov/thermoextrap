@@ -24,15 +24,15 @@ if TYPE_CHECKING:
 
     from numpy.typing import ArrayLike, NDArray
 
-    from .core.typing import OptionalKwsAny, SupportsModelProtocolDerivs
+    from .core.typing import (
+        OptionalKwsAny,
+        SupportsModelProtocolDerivs,
+        SupportsModelProtocolDerivsDataArrayT,
+    )
     from .core.typing_compat import TypeVar
     from .models import ExtrapModel, StateCollection
 
     _T = TypeVar("_T")
-    SupportsModelProtocolDerivsDataArrayT = TypeVar(
-        "SupportsModelProtocolDerivsDataArrayT",
-        bound=SupportsModelProtocolDerivs[xr.DataArray],
-    )
 
 
 def window(seq: Iterable[_T], n: int = 2) -> Iterator[tuple[_T, ...]]:

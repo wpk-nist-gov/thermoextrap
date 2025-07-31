@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, SupportsFloat, SupportsIndex, SupportsInt
 
 import cmomy
 import numpy as np
 import xarray as xr
 
 import thermoextrap as xtrap
-from thermoextrap.core.typing import SupportsModelProtocol
+from thermoextrap.core.typing import (
+    SupportsModelProtocol,
+)
 
 if sys.version_info >= (3, 11):
     from typing import assert_type
@@ -18,7 +20,13 @@ else:
     from typing_extensions import assert_type
 
 if TYPE_CHECKING:
+    import sympy as sp
     from cmomy.core.typing_compat import TypeVar
+
+    from thermoextrap.core.typing import (
+        SupportsModelProtocolT,
+    )
+    from thermoextrap.models import StateCollection
 
     T = TypeVar("T")
 
@@ -298,12 +306,15 @@ def test_thermoextrap_data_datacentralmoments_dataset() -> None:
 
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from thermoextrap.core.typing import (
         DataT,
         SupportsDataPerturbModel,
         SupportsDataProtocol,
         SupportsModelProtocol,
     )
+    from thermoextrap.models import ExtrapModel, InterpModel
 
     def func_data(x: SupportsDataProtocol[DataT]) -> int:
         return x.order
@@ -341,3 +352,44 @@ if TYPE_CHECKING:
 
         assert_type(func_dataperturbmodel(c), xr.Dataset)
         assert_type(func_dataperturbmodel(d), xr.Dataset)
+
+    def func_statecollection(
+        # factory_state: Callable[..., SupportsModelProtocolDerivsT]
+        state: SupportsModelProtocolT,
+        state_collection: StateCollection[SupportsModelProtocolT, xr.DataArray],
+        factory_state_collection: Callable[
+            ..., StateCollection[SupportsModelProtocolT, xr.DataArray]
+        ],
+    ) -> None:
+        pass
+
+    def tester_statecollection(
+        state: ExtrapModel[xr.DataArray],
+        state_collection: InterpModel[ExtrapModel[xr.DataArray], xr.DataArray],
+        factory_state_collection: type[
+            InterpModel[ExtrapModel[xr.DataArray], xr.DataArray]
+        ],
+    ) -> None:
+        func_statecollection(state, state_collection, factory_state_collection)
+
+    def func_supports(
+        index: SupportsIndex,
+        int_: SupportsInt,
+        float_: SupportsFloat,
+    ) -> None:
+        pass
+
+    def tester_supports(
+        x_int: int,
+        x_np_int: np.int_,
+        x_sp_int: sp.Integer,
+        x_float: float,
+        x_np_float: np.float_,
+        x_sp_float: sp.Float,
+    ) -> None:
+        func_supports(x_int, x_int, x_int)
+        func_supports(x_np_int, x_np_int, x_np_int)
+        func_supports(x_sp_int, x_sp_int, x_sp_int)
+        func_supports(x_int, x_float, x_float)
+        func_supports(x_np_int, x_np_float, x_np_float)
+        func_supports(x_sp_int, x_sp_float, x_sp_float)

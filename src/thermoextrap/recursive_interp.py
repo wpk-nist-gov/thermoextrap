@@ -23,18 +23,17 @@ from .data import factory_data_values
 from .models import ExtrapModel, InterpModel
 
 if TYPE_CHECKING:
-    from typing import Any
+    from collections.abc import Callable, Sequence
+    from typing import Any, SupportsFloat, SupportsIndex
+
+    import xarray as xr
+    from numpy.typing import ArrayLike, NDArray
+
+    from .data import DataValues
+    from .models import Derivatives
+
 
 logger = logging.getLogger(__name__)
-
-
-def _get_plt():
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError as err:
-        msg = "must install matplotlib to use plotting"
-        raise ImportError(msg) from err
-    return plt
 
 
 class RecursiveInterp:
@@ -61,32 +60,38 @@ class RecursiveInterp:
     @deprecate_kwarg("edgeB", "edge_beta")
     @deprecate_kwarg("maxOrder", "max_order")
     @deprecate_kwarg("errTol", "tol")
-    def __init__(  # type: ignore[no-untyped-def]
+    def __init__(
         self,
-        model_cls,
-        derivatives,
-        edge_beta,
-        max_order=1,
-        tol=0.01,
-        rng=None,
+        model_cls: type[InterpModel[ExtrapModel[xr.DataArray], xr.DataArray]],
+        derivatives: Derivatives,
+        edge_beta: Sequence[SupportsFloat],
+        max_order: SupportsIndex = 1,
+        tol: SupportsFloat = 0.01,
+        rng: np.random.Generator | None = None,
     ) -> None:
         self.model_cls = (
             model_cls  # The model CLASS used for interpolation, like InterpModel
         )
         self.derivatives = derivatives  # Derivatives object describing how derivatives will be calculated
-        self.states: Any = []  # List of ExtrapModel objects sharing same Derivatives but different Data
+        self.states: list[
+            ExtrapModel[xr.DataArray] | None
+        ] = []  # List of ExtrapModel objects sharing same Derivatives but different Data
         self.edge_beta = np.array(
             edge_beta
         )  # Values of state points that we interpolate between
         # Start with outer edges, but will add points as needed
-        self.max_order = max_order  # Maximum order of derivatives to use - default is 1
-        self.tol = tol  # Default bootstrap absolute relative error tolerance of 1%
+        self.max_order = int(
+            max_order
+        )  # Maximum order of derivatives to use - default is 1
+        self.tol = float(
+            tol
+        )  # Default bootstrap absolute relative error tolerance of 1%
         # i.e. sigma_bootstrap/|interpolated value| <= 0.01
 
         self.rng = validate_rng(rng)
 
     @deprecate_kwarg("B", "beta")
-    def get_data(self, beta):
+    def get_data(self, beta: SupportsFloat) -> DataValues[xr.DataArray]:
         """
         Obtains data at the specified state point.
         Can modify to run MD or MC simulation, load trajectory or data files, etc.
@@ -105,7 +110,7 @@ class RecursiveInterp:
         # datModel = IGmodel(nParticles=1000)
         # xdata, udata = datModel.genData(B, nConfigs=10000)
         # Need to also change data object kwargs based on data when change getData
-        return factory_data_values(uv=udata, xv=xdata, order=self.max_order)
+        return factory_data_values(uv=udata, xv=xdata, order=self.max_order)  # type: ignore[return-value]
 
     getData = deprecate("getData", get_data, "0.2.0")  # noqa: N815
 
@@ -116,18 +121,18 @@ class RecursiveInterp:
     @deprecate_kwarg("Bavail", "beta_avail")
     @deprecate_kwarg("doPlot", "do_plot")
     @deprecate_kwarg("plotCompareFunc", "plot_func")
-    def recursive_train(  # type: ignore[no-untyped-def] # noqa: C901, PLR0912, PLR0914, PLR0915
+    def recursive_train(  # noqa: C901, PLR0912, PLR0914, PLR0915
         self,
-        beta1,
-        beta2,
-        data1=None,
-        data2=None,
-        recurse_depth=0,
-        recurse_max=10,
-        beta_avail=None,
-        verbose=False,
-        do_plot=False,
-        plot_func=None,
+        beta1: SupportsFloat,
+        beta2: SupportsFloat,
+        data1: DataValues[xr.DataArray] | None = None,
+        data2: DataValues[xr.DataArray] | None = None,
+        recurse_depth: int = 0,
+        recurse_max: int = 10,
+        beta_avail: ArrayLike | None = None,
+        verbose: bool = False,
+        do_plot: bool = False,
+        plot_func: Callable[..., Any] | None = None,
     ) -> None:
         """
         Recursively trains interpolating models on successively smaller intervals
@@ -138,7 +143,7 @@ class RecursiveInterp:
         specific state points and you do not wish to generate more.
         """
         if do_plot:
-            plt = _get_plt()
+            import matplotlib.pyplot as plt
 
         if recurse_depth > recurse_max:
             msg = "Maximum recursion depth reached."
@@ -170,7 +175,7 @@ class RecursiveInterp:
 
         # Decide if need more data to extrapolate from
         # Check convergence at grid of values between edges, using worst case to check
-        beta_vals = np.linspace(beta1, beta2, num=50)
+        beta_vals = np.linspace(float(beta1), float(beta2), num=50)
         predict_vals = this_model.predict(beta_vals, order=self.max_order)
         boot_err = (
             this_model.resample(sampler={"nrep": 100})
@@ -189,7 +194,7 @@ class RecursiveInterp:
 
         # Checking maximum over both tested interior state points AND observable values
         # (if observable is a vector, use element with maximum error
-        check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)
+        check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)  # type: ignore[arg-type]
         check_val = rel_err[check_ind]
 
         logger.info("Maximum bootstrapped error within interval: %s", check_val)
@@ -275,7 +280,9 @@ class RecursiveInterp:
     recursiveTrain = deprecate("recursiveTrain", recursive_train, "0.2.0")  # noqa: N815
 
     @deprecate_kwarg("Btrain", "beta_train")
-    def sequential_train(self, beta_train, verbose=False) -> None:  # type: ignore[no-untyped-def]
+    def sequential_train(
+        self, beta_train: Sequence[SupportsFloat], verbose: bool = False
+    ) -> None:
         """
         Trains sequentially without recursion. List of state point values is provided and
         training happens just on those without adding points.
@@ -284,7 +291,7 @@ class RecursiveInterp:
         # Fill in None in self.states where we have not yet trained
         for beta_val in beta_train:
             if beta_val not in self.edge_beta:
-                self.edge_beta = np.hstack((self.edge_beta, [beta_val]))
+                self.edge_beta = np.hstack((self.edge_beta, [float(beta_val)]))
                 self.states = [*self.states, None]
         sort_inds = np.argsort(self.edge_beta)
         self.states = [self.states[i] for i in sort_inds]
@@ -300,7 +307,8 @@ class RecursiveInterp:
             logger.info("Interpolating from points %f and %f", beta1, beta2)
 
             # Check if already have ExtrapModel with data for beta1
-            if self.states[i] is None:
+            state_tmp = self.states[i]
+            if state_tmp is None:
                 data1 = self.get_data(beta1)
                 extrap1 = ExtrapModel(
                     alpha0=beta1,
@@ -310,10 +318,11 @@ class RecursiveInterp:
                 )
                 self.states[i] = extrap1
             else:
-                extrap1 = self.states[i]
+                extrap1 = state_tmp
 
             # And for beta2
-            if self.states[i + 1] is None:
+            state_tmp = self.states[i + 1]
+            if state_tmp is None:
                 data2 = self.get_data(beta2)
                 extrap2 = ExtrapModel(
                     alpha0=beta2,
@@ -323,7 +332,7 @@ class RecursiveInterp:
                 )
                 self.states[i + 1] = extrap2
             else:
-                extrap2 = self.states[i + 1]
+                extrap2 = state_tmp
 
             # Train the model and get interpolation
             this_model = self.model_cls((extrap1, extrap2))
@@ -349,7 +358,7 @@ class RecursiveInterp:
 
                 # Checking maximum over both tested interior state points AND observable values
                 # (if observable is a vector, use element with maximum error
-                check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)
+                check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)  # type: ignore[arg-type]
                 check_val = rel_err[check_ind]
                 logger.info("Maximum bootstrapped error within interval: %f", check_val)
                 logger.info("At point: %f", beta_vals[check_ind[0]])
@@ -357,7 +366,7 @@ class RecursiveInterp:
     sequentialTrain = deprecate("sequentialTrain", sequential_train, "0.2.0")  # noqa: N815
 
     @deprecate_kwarg("B", "beta")
-    def predict(self, beta):
+    def predict(self, beta: ArrayLike) -> NDArray[Any]:
         """
         Makes a prediction using the trained piecewise model.
         Note that the function will not produce output if asked to extrapolate outside
@@ -369,8 +378,10 @@ class RecursiveInterp:
             raise ValueError(msg)
 
         # For each state point in beta, select a piecewise model to use
-        if "val" in self.states[0].data.xv.dims:
-            predict_vals = np.zeros((len(beta), self.states[0].data.xv["val"].size))
+        beta = np.asarray(beta)
+        xv: xr.DataArray = self.state[0].data.xv  # type: ignore[attr-defined]
+        if "val" in xv.dims:
+            predict_vals = np.zeros((len(beta), xv["val"].size))
         else:
             predict_vals = np.zeros(len(beta))
 
@@ -403,13 +414,13 @@ class RecursiveInterp:
                 hi_ind = len(self.edge_beta) - 1
 
             # Create interpolation object and predict
-            this_model = self.model_cls((self.states[low_ind], self.states[hi_ind]))
+            this_model = self.model_cls((self.states[low_ind], self.states[hi_ind]))  # pyright: ignore[reportArgumentType]
             predict_vals[i] = this_model.predict(beta_val, order=self.max_order)
 
         return predict_vals
 
     @deprecate_kwarg("doPlot", "do_plot")
-    def check_poly_consistency(self, do_plot=False):  # noqa: PLR0914, PLR0915
+    def check_poly_consistency(self, do_plot: bool = False) -> list[NDArray[Any]]:  # noqa: PLR0914, PLR0915
         """
         If the interpolation model is a polynomial, checks to see if the polynomials
         are locally consistent. In other words, we want the coefficients between
@@ -423,7 +434,7 @@ class RecursiveInterp:
         from scipy import stats
 
         if do_plot:
-            plt = _get_plt()
+            import matplotlib.pyplot as plt
 
         if self.model_cls != InterpModel:
             msg = "Incorrect class provided. Can only check polynomial consistency with a polynomial interpolation model class."
@@ -451,7 +462,7 @@ class RecursiveInterp:
 
         # Before loop, set up plot if wanted
         if do_plot:
-            pcolors = plt.cm.cividis(np.linspace(0.0, 1.0, len(edge_sets)))  # pyright: ignore[reportAttributeAccessIssue]
+            pcolors = plt.cm.cividis(np.linspace(0.0, 1.0, len(edge_sets)))  # type: ignore[attr-defined]
             pfig, pax = plt.subplots()
             plotymin = 1e10
             plotymax = -1e10
@@ -512,9 +523,9 @@ class RecursiveInterp:
                 plotpoints = np.linspace(
                     self.edge_beta[aset[0]], self.edge_beta[aset[2]], 50
                 )
-                plotfull = np.polynomial.polynomial.polyval(plotpoints, fullcoeffs)
-                plotreg1 = np.polynomial.polynomial.polyval(plotpoints, reg1coeffs)
-                plotreg2 = np.polynomial.polynomial.polyval(plotpoints, reg2coeffs)
+                plotfull = np.polynomial.polynomial.polyval(plotpoints, fullcoeffs)  # type: ignore[no-untyped-call]
+                plotreg1 = np.polynomial.polynomial.polyval(plotpoints, reg1coeffs)  # type: ignore[no-untyped-call]
+                plotreg2 = np.polynomial.polynomial.polyval(plotpoints, reg2coeffs)  # type: ignore[no-untyped-call]
                 pax.plot(plotpoints, plotfull, color=pcolors[i], linestyle="-")
                 pax.plot(plotpoints, plotreg1, color=pcolors[i], linestyle=":")
                 pax.plot(plotpoints, plotreg2, color=pcolors[i], linestyle="--")

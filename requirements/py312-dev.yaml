@@ -30,6 +30,7 @@ dependencies:
   - numba>=0.60.0
   - numpy>=1.26.0
   - orjson
+  - packaging
   - pandas
   - pandas-stubs
   - pylint

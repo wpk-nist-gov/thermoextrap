@@ -135,6 +135,11 @@ SupportsModelProtocolDerivsT = TypeVar(
     "SupportsModelProtocolDerivsT",
     bound=SupportsModelProtocolDerivs[XArrayObj],
 )
+# Special case for DataArray only
+SupportsModelProtocolDerivsDataArrayT = TypeVar(
+    "SupportsModelProtocolDerivsDataArrayT",
+    bound=SupportsModelProtocolDerivs[xr.DataArray],
+)
 
 
 # TODO(wpk): Create SupportsStateCollection protocol
