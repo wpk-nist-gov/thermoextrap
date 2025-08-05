@@ -1,3 +1,4 @@
+# pyright: reportUnknownMemberType=false,reportUnknownVariableType=false,reportMissingTypeStubs=false, reportUnknownArgumentType=false
 """
 General extrapolation/interpolation models (:mod:`~thermoextrap.models`)
 ========================================================================
@@ -40,12 +41,13 @@ from .core.sputils import (
 )
 from .core.typing import (
     DataT,
-    SupportsDataPerturbModel,
-    SupportsDataProtocol,
+    SupportsData,
+    SupportsDataXU,
     SupportsGetItem,
-    SupportsModelProtocolDerivsT,
-    SupportsModelProtocolT,
+    SupportsModelDerivsT,
+    SupportsModelT,
 )
+from .core.validate import validate_alpha
 from .core.xrutils import xrwrap_alpha
 
 if TYPE_CHECKING:
@@ -400,7 +402,7 @@ class Derivatives(MyAttrsMixin):
     @overload
     def derivs(
         self,
-        data: SupportsDataProtocol[DataT],
+        data: SupportsData[DataT],
         *,
         order: int | None = ...,
         minus_log: bool = ...,
@@ -411,7 +413,7 @@ class Derivatives(MyAttrsMixin):
     @overload
     def derivs(
         self,
-        data: SupportsDataProtocol[DataT],
+        data: SupportsData[DataT],
         *,
         order: int | None = ...,
         minus_log: bool = ...,
@@ -422,7 +424,7 @@ class Derivatives(MyAttrsMixin):
 
     def derivs(
         self,
-        data: SupportsDataProtocol[DataT],
+        data: SupportsData[DataT],
         *,
         order: int | None = None,
         minus_log: bool = False,
@@ -465,10 +467,6 @@ class Derivatives(MyAttrsMixin):
         if order is None:
             order = data.order
 
-        if args is None:
-            msg = "must specify args or data"
-            raise ValueError(msg)
-
         out: list[DataT] = [self.funcs[i](*args) for i in range(order + 1)]
 
         if minus_log:
@@ -485,7 +483,7 @@ class Derivatives(MyAttrsMixin):
     @overload
     def coefs(
         self,
-        data: SupportsDataProtocol[DataT],
+        data: SupportsData[DataT],
         *,
         order: int | None = ...,
         minus_log: bool = ...,
@@ -495,7 +493,7 @@ class Derivatives(MyAttrsMixin):
     @overload
     def coefs(
         self,
-        data: SupportsDataProtocol[DataT],
+        data: SupportsData[DataT],
         *,
         order: int | None = ...,
         minus_log: bool = ...,
@@ -505,7 +503,7 @@ class Derivatives(MyAttrsMixin):
 
     def coefs(
         self,
-        data: SupportsDataProtocol[DataT],
+        data: SupportsData[DataT],
         *,
         order: int | None = None,
         minus_log: bool = False,
@@ -565,8 +563,8 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
     _alpha0: float = field(converter=float, alias="alpha0")
 
     #: Data object
-    data: SupportsDataProtocol[DataT] = field(
-        validator=attv.instance_of(SupportsDataProtocol)  # type: ignore[type-abstract]
+    data: SupportsData[DataT] = field(
+        validator=attv.instance_of(SupportsData)  # type: ignore[type-abstract]
     )
 
     #: Derivatives object
@@ -582,7 +580,7 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
         validator=attv.instance_of(bool),
     )
     #: Name of `alpha`
-    alpha_name: str = field(kw_only=True, default="alpha", converter=str)
+    alpha_name: str = field(kw_only=True, default="alpha")
 
     _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
 
@@ -638,6 +636,7 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
     def predict(
         self,
         alpha: ArrayLike,
+        *,
         order: int | None = None,
         order_dim: str = "order",
         cumsum: bool = False,
@@ -693,7 +692,7 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
 
         # TODO(wpk): this should be an option, same for derivs
         coords = {}
-        if dalpha_coords is not None:
+        if dalpha_coords:
             coords[dalpha_coords] = dalpha
 
         if alpha0_coords:
@@ -729,8 +728,8 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
 @attrs.define
 class StateCollection(
     MyAttrsMixin,
-    Sequence[SupportsModelProtocolT],
-    Generic[SupportsModelProtocolT, DataT],
+    Sequence[SupportsModelT],
+    Generic[SupportsModelT, DataT],
 ):
     """
     Sequence of models.
@@ -744,7 +743,7 @@ class StateCollection(
         additional key word arguments to keep internally in self.kws
     """
 
-    states: Sequence[SupportsModelProtocolT] = field()
+    states: Sequence[SupportsModelT] = field()
     kws: dict[str, Any] = field(
         kw_only=True,
         factory=dict[str, "Any"],
@@ -757,13 +756,13 @@ class StateCollection(
         return len(self.states)
 
     @overload
-    def __getitem__(self, idx: SupportsIndex, /) -> SupportsModelProtocolT: ...
+    def __getitem__(self, idx: SupportsIndex, /) -> SupportsModelT: ...
     @overload
     def __getitem__(self, idx: slice[Any, Any, Any], /) -> Self: ...
 
-    def __getitem__(
+    def __getitem__(  # pyright: ignore[reportIncompatibleMethodOverride]  # NOTE: adding slice functionality...
         self, idx: SupportsIndex | slice[Any, Any, Any], /
-    ) -> SupportsModelProtocolT | Self:
+    ) -> SupportsModelT | Self:
         if isinstance(idx, slice):
             return type(self)(self.states[idx], kws=self.kws)
         return self.states[int(idx)]
@@ -779,14 +778,6 @@ class StateCollection(
     @property
     def alpha0(self) -> list[float]:
         return [m.alpha0 for m in self]
-
-    def _check_alpha(self, alpha: ArrayLike, bounded: bool = False) -> None:
-        if bounded:
-            a = np.asarray(alpha)
-            lb, ub = self[0].alpha0, self[-1].alpha0
-            if np.any((a < lb) | (ub < a)):
-                msg = f"{a} outside of bounds [{lb}, {ub}]"
-                raise ValueError(msg)
 
     def predict(self, alpha: ArrayLike, **kwargs: Any) -> DataT:
         """
@@ -880,7 +871,7 @@ class StateCollection(
         sort : bool, default=True
             if true, sort states by key `alpha0`
         key : callable, optional
-            callable function to use as key.
+            callable function to use as key if ``sort=True``.
             Default is `lambda x: x.alpha0`
             see `sorted` function
         kws : dict
@@ -895,7 +886,7 @@ class StateCollection(
 
         if sort:
             if key is None:
-                key = lambda x: x.alpha0
+                key = lambda x: x.alpha0  # pyright: ignore[reportUnknownLambdaType]
             new_states = sorted(new_states, key=key, **kws)
         return type(self)(new_states, **self.kws)
 
@@ -908,7 +899,7 @@ def xr_weights_minkowski(
 
 
 @attrs.define
-class _PiecewiseStateCollection(StateCollection[SupportsModelProtocolT, DataT]):
+class _PiecewiseStateCollection(StateCollection[SupportsModelT, DataT]):
     """Provide methods for Piecewise state collection."""
 
     def _indices_between_alpha(self, alpha: float) -> NDArray[np.int64]:
@@ -981,7 +972,7 @@ class ExtrapWeightedModel(
         -----
         This requires that `states` are ordered in ascending `alpha0` order
         """
-        self._check_alpha(alpha, bounded)
+        alpha = validate_alpha(alpha, self.states if bounded else None)
 
         if order is None:
             order = self.order
@@ -993,8 +984,7 @@ class ExtrapWeightedModel(
 
         else:
             # multiple states
-            alpha_ = np.asarray(alpha)
-            if alpha_.ndim > 0:
+            if alpha.ndim > 0:
                 # have multiple alphas
                 # recursively call
                 return xr.concat(  # pyright: ignore[reportCallIssue]
@@ -1009,12 +999,12 @@ class ExtrapWeightedModel(
                             method=method,
                             **kwargs,
                         )
-                        for a in alpha_
+                        for a in alpha
                     ),
                     dim=alpha_name,
                 )
             states = self._states_alpha(
-                float(alpha_),
+                float(alpha),
                 method,
             )
 
@@ -1040,7 +1030,7 @@ class ExtrapWeightedModel(
 
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
-class InterpModel(StateCollection[SupportsModelProtocolDerivsT, DataT]):
+class InterpModel(StateCollection[SupportsModelDerivsT, DataT]):
     """Interpolation model."""
 
     @cached.meth
@@ -1102,7 +1092,7 @@ class InterpModel(StateCollection[SupportsModelProtocolDerivsT, DataT]):
             dim="state",
         )
         if isinstance(coefs, xr.Dataset):
-            coefs = coefs.map(lambda x: xr.dot(mat_inv, x))
+            coefs = coefs.map(lambda x: xr.dot(mat_inv, x))  # pyright: ignore[reportUnknownLambdaType]
         else:
             coefs = xr.dot(mat_inv, coefs)
 
@@ -1135,9 +1125,7 @@ class InterpModel(StateCollection[SupportsModelProtocolDerivsT, DataT]):
 
 
 @docfiller_shared.inherit(StateCollection)
-class InterpModelPiecewise(
-    _PiecewiseStateCollection[SupportsModelProtocolDerivsT, DataT]
-):
+class InterpModelPiecewise(_PiecewiseStateCollection[SupportsModelDerivsT, DataT]):
     """Apposed to the multiple model InterpModel, perform a piecewise interpolation."""
 
     # @cached.meth
@@ -1146,7 +1134,7 @@ class InterpModelPiecewise(
     @cached.meth
     def single_interpmodel(
         self, *state_indices: SupportsIndex
-    ) -> InterpModel[SupportsModelProtocolDerivsT, DataT]:
+    ) -> InterpModel[SupportsModelDerivsT, DataT]:
         state0, state1 = (self[i] for i in state_indices)
         return InterpModel([state0, state1])
 
@@ -1168,7 +1156,7 @@ class InterpModelPiecewise(
         alpha : float or sequence of float
 
         """
-        self._check_alpha(alpha, bounded)
+        alpha = validate_alpha(alpha, self.states if bounded else None)
 
         if alpha_name is None:
             alpha_name = self.alpha_name
@@ -1214,8 +1202,8 @@ class PerturbModel(MyAttrsMixin, Generic[DataT]):
     """Perturbation model."""
 
     alpha0: float = field(converter=float)
-    data: SupportsDataPerturbModel[DataT] = field(
-        validator=attv.instance_of(SupportsDataPerturbModel)  # type: ignore[type-abstract]
+    data: SupportsDataXU[DataT] = field(
+        validator=attv.instance_of(SupportsDataXU)  # type: ignore[type-abstract]
     )
     alpha_name: str = field(
         default="alpha",

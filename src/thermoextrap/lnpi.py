@@ -29,7 +29,7 @@ from . import beta as beta_xpan
 from .core._attrs_utils import convert_dims_to_tuple
 from .core.docstrings import DOCFILLER_SHARED
 from .core.sputils import get_default_indexed, get_default_symbol
-from .core.typing import DataDerivArgs, DataT, OptionalKwsAny, SupportsDataProtocol
+from .core.typing import DataDerivArgs, DataT, OptionalKwsAny, SupportsData
 from .data import DataCallbackABC
 from .models import Derivatives, ExtrapModel, SymFuncBase
 
@@ -231,7 +231,7 @@ class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
     _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
     # TODO(wpk): using dims_n, dims_comp naming because this is what is used in lnPi module
 
-    def check(self, data: SupportsDataProtocol[Any]) -> None:
+    def check(self, data: SupportsData[Any]) -> None:
         pass
 
     @ncoords.default
@@ -255,7 +255,7 @@ class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
 
     def resample(
         self,
-        data: SupportsDataProtocol[Any],
+        data: SupportsData[Any],
         *,
         meta_kws: OptionalKwsAny,
         sampler: IndexSampler[Any],
@@ -292,7 +292,7 @@ class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
         return self.new_like(lnPi0=dc.obj.sel(_mom=1, drop=True))
 
     def deriv_args(
-        self, data: SupportsDataProtocol[Any], *, deriv_args: DataDerivArgs
+        self, data: SupportsData[Any], *, deriv_args: DataDerivArgs
     ) -> DataDerivArgs:
         return (*tuple(deriv_args), self.lnPi0_ave, self.mudotN)
 
@@ -301,7 +301,7 @@ class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
 @docfiller_shared
 def factory_extrapmodel_lnPi(
     beta: float,
-    data: SupportsDataProtocol[DataT],
+    data: SupportsData[DataT],
     *,
     central: bool | None = None,
     order: int | None = None,

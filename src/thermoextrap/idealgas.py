@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
+    from .core.typing import OptionalRng
     from .core.typing_compat import TypeAlias
 
     # from xarray.core.dataarray import DataArray
@@ -190,7 +191,7 @@ def x_sample(
     shape: Sequence[int],
     beta: FloatOrArray,
     vol: FloatOrArray = 1.0,
-    rng: np.random.Generator | None = None,
+    rng: OptionalRng = None,
 ) -> NDArray[np.float64]:
     """
     Sample positions from distribution at `beta` and `vol`.
@@ -222,7 +223,7 @@ def u_sample(
     shape: Sequence[int],
     beta: FloatOrArray,
     vol: FloatOrArray = 1.0,
-    rng: np.random.Generator | None = None,
+    rng: OptionalRng = None,
 ) -> FloatOrArray:
     """
     Samples potential energy values from a system.
@@ -449,7 +450,7 @@ def generate_data(
     shape: Sequence[int],
     beta: FloatOrArray,
     vol: FloatOrArray = 1.0,
-    rng: np.random.Generator | None = None,
+    rng: OptionalRng = None,
 ) -> tuple[FloatOrArray, FloatOrArray]:
     """
     Generates data points in specified shape, where the first index is the number of samples and the second is the number of independent IG particles

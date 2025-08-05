@@ -20,19 +20,29 @@ import xarray as xr
 from .core.typing import DataT
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator, Sequence
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 
     from numpy.typing import ArrayLike, NDArray
 
     from .core.typing import (
         OptionalKwsAny,
-        SupportsModelProtocolDerivs,
-        SupportsModelProtocolDerivsDataArrayT,
+        OptionalRng,
+        SupportsModelDerivs,
+        SupportsModelDerivsDataArrayT,
     )
-    from .core.typing_compat import TypeVar
+    from .core.typing_compat import Concatenate, TypeAlias, TypeVar
     from .models import ExtrapModel, StateCollection
 
     _T = TypeVar("_T")
+
+    FactoryState: TypeAlias = Callable[
+        Concatenate[float, ...], SupportsModelDerivsDataArrayT
+    ]
+
+    FactoryStateCollection: TypeAlias = Callable[
+        Concatenate[Sequence[SupportsModelDerivsDataArrayT], ...],
+        StateCollection[SupportsModelDerivsDataArrayT, DataT],
+    ]
 
 
 def window(seq: Iterable[_T], n: int = 2) -> Iterator[tuple[_T, ...]]:
@@ -71,7 +81,7 @@ class _InfoDict(TypedDict, Generic[DataT], total=True):
 def _check_relative_fluctuations(
     alphas: NDArray[Any],
     model: StateCollection[Any, xr.DataArray],
-    states: Sequence[SupportsModelProtocolDerivs[xr.DataArray]],
+    states: Sequence[SupportsModelDerivs[xr.DataArray]],
     reduce_dim: str = "rep",
     # states_avail=None,
     predict_kws: OptionalKwsAny = None,
@@ -122,11 +132,11 @@ def _check_relative_fluctuations(
 
 def train_iterative(
     alphas: ArrayLike,
-    factory_state: Callable[..., SupportsModelProtocolDerivsDataArrayT],
-    factory_statecollection: Callable[
-        ..., StateCollection[SupportsModelProtocolDerivsDataArrayT, xr.DataArray]
+    factory_state: FactoryState[SupportsModelDerivsDataArrayT],
+    factory_statecollection: FactoryStateCollection[
+        SupportsModelDerivsDataArrayT, xr.DataArray
     ],
-    states: Sequence[SupportsModelProtocolDerivsDataArrayT] | None = None,
+    states: Sequence[SupportsModelDerivsDataArrayT] | None = None,
     reduce_dim: str = "rep",
     maxiter: int = 10,
     state_kws: OptionalKwsAny = None,
@@ -137,7 +147,7 @@ def train_iterative(
     callback: Callable[..., Any] | None = None,
     callback_kws: OptionalKwsAny = None,
 ) -> tuple[
-    StateCollection[SupportsModelProtocolDerivsDataArrayT, xr.DataArray],
+    StateCollection[SupportsModelDerivsDataArrayT, xr.DataArray],
     list[_InfoDict[xr.DataArray]],
 ]:
     """
@@ -260,13 +270,13 @@ def train_iterative(
 
 def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
     alphas: ArrayLike,
-    factory_state: Callable[..., SupportsModelProtocolDerivsDataArrayT],
-    factory_statecollection: Callable[
-        ..., StateCollection[SupportsModelProtocolDerivsDataArrayT, xr.DataArray]
+    factory_state: FactoryState[SupportsModelDerivsDataArrayT],
+    factory_statecollection: FactoryStateCollection[
+        SupportsModelDerivsDataArrayT, xr.DataArray
     ],
-    state0: SupportsModelProtocolDerivsDataArrayT | None = None,
-    state1: SupportsModelProtocolDerivsDataArrayT | None = None,
-    states: Sequence[SupportsModelProtocolDerivsDataArrayT] | None = None,
+    state0: SupportsModelDerivsDataArrayT | None = None,
+    state1: SupportsModelDerivsDataArrayT | None = None,
+    states: Sequence[SupportsModelDerivsDataArrayT] | None = None,
     info: list[_InfoDict[xr.DataArray]] | None = None,
     reduce_dim: str = "rep",
     depth: int = 0,
@@ -276,9 +286,18 @@ def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
     predict_kws: OptionalKwsAny = None,
     tol: float = 0.003,
     alpha_tol: float = 0.01,
-    callback: Callable[..., Any] | None = None,
+    callback: Callable[
+        Concatenate[
+            StateCollection[SupportsModelDerivsDataArrayT, xr.DataArray],
+            ArrayLike,
+            Mapping[str, Any],
+            ...,
+        ],
+        Any,
+    ]
+    | None = None,
     callback_kws: OptionalKwsAny = None,
-) -> tuple[list[SupportsModelProtocolDerivsDataArrayT], list[_InfoDict[xr.DataArray]]]:
+) -> tuple[list[SupportsModelDerivsDataArrayT], list[_InfoDict[xr.DataArray]]]:
     """
     Add states to satisfy some tolerance.
 
@@ -368,8 +387,8 @@ def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
     alphas = np.atleast_1d(alphas)
 
     def get_state(
-        alpha: float, states: Iterable[SupportsModelProtocolDerivsDataArrayT]
-    ) -> SupportsModelProtocolDerivsDataArrayT:
+        alpha: float, states: Iterable[SupportsModelDerivsDataArrayT]
+    ) -> SupportsModelDerivsDataArrayT:
         states_dict = {s.alpha0: s for s in states}
         if alpha in states_dict:
             return states_dict[alpha]
@@ -461,14 +480,15 @@ def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
 
 
 def check_polynomial_consistency(
-    states: Sequence[SupportsModelProtocolDerivsDataArrayT],
-    factory_statecollection: Callable[
-        ..., StateCollection[SupportsModelProtocolDerivsDataArrayT, xr.DataArray]
+    states: Sequence[SupportsModelDerivsDataArrayT],
+    factory_statecollection: FactoryStateCollection[
+        SupportsModelDerivsDataArrayT, xr.DataArray
     ],
     reduce_dim: str = "rep",
+    statecollection_kws: OptionalKwsAny = None,
 ) -> tuple[
     dict[Any, xr.DataArray],
-    dict[Any, StateCollection[SupportsModelProtocolDerivsDataArrayT, xr.DataArray]],
+    dict[Any, StateCollection[SupportsModelDerivsDataArrayT, xr.DataArray]],
 ]:
     """
     Check polynomial consistency across subsegments.
@@ -499,13 +519,14 @@ def check_polynomial_consistency(
 
     ave = {}
     var = {}
-    models: dict[
-        Any, StateCollection[SupportsModelProtocolDerivsDataArrayT, xr.DataArray]
-    ] = {}
+    models: dict[Any, StateCollection[SupportsModelDerivsDataArrayT, xr.DataArray]] = {}
+
+    if statecollection_kws is None:
+        statecollection_kws = {}
 
     key: tuple[Any, ...]
     for state_pair in chain(zip(states[:-1], states[1:]), zip(states[:-2], states[2:])):
-        model = factory_statecollection(list(state_pair))
+        model = factory_statecollection(list(state_pair), **statecollection_kws)
         key = tuple(model.alpha0)
         coef = model.coefs(order=None)
 
@@ -543,8 +564,8 @@ def factory_state_idealgas(
     rep_dim: str = "rep",
     nconfig: int = 10_000,
     npart: int = 1_000,
-    rng: np.random.Generator | None = None,
-) -> ExtrapModel:
+    rng: OptionalRng = None,
+) -> ExtrapModel[xr.DataArray]:
     """
     Example factory function to create single state.
 
@@ -592,7 +613,7 @@ def factory_state_idealgas(
 
 
 def callback_plot_progress(
-    model: StateCollection[SupportsModelProtocolDerivsDataArrayT, xr.DataArray],
+    model: StateCollection[SupportsModelDerivsDataArrayT, xr.DataArray],
     alphas: ArrayLike,  # noqa: ARG001
     info_dict: _InfoDict[xr.DataArray],
     verbose: bool = True,

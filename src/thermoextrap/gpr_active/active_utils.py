@@ -11,7 +11,7 @@ import multiprocessing
 import time
 import warnings
 from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING
 
 import gpflow
 import numpy as np
@@ -24,14 +24,30 @@ from scipy import integrate, linalg, special
 
 from thermoextrap import beta as xpan_beta
 from thermoextrap.data import DataCentralMomentsVals
+from thermoextrap.gpr_active.gp_models import HeteroscedasticGPR
 from thermoextrap.models import ExtrapModel
 
 from .gp_models import (
     ConstantMeanWithDerivs,
     DerivativeKernel,
-    HeteroscedasticGPR,
     LinearWithDerivs,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+    from os import PathLike
+    from typing import Any, NoReturn
+
+    from gpflow.mean_functions import MeanFunction
+    from numpy.typing import ArrayLike, NDArray
+    from scipy.optimize import OptimizeResult
+    from sympy.core.expr import Expr
+    from tensorflow_probability.python.bijectors.softplus import Softplus
+
+    from thermoextrap.core.typing import OptionalKwsAny, OptionalRng
+    from thermoextrap.core.typing_compat import TypeVar
+
+    _ArrayT = TypeVar("_T", bound="NDArray[Any] | xr.DataArray")
 
 logger = logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,7 +56,7 @@ logger = logging.getLogger(__name__)
 # from typing import Optional
 
 
-def get_logweights(bias):
+def get_logweights(bias: _ArrayT) -> _ArrayT:
     """
     Given values of the biasing potential for each configuration, calculates the weights
     for averaging over those configurations for the biased ensemble so that the
@@ -55,7 +71,9 @@ def get_logweights(bias):
     )  # - np.log(bias.shape[0]) # Acts as weight summing to 1 this way
 
 
-def input_GP_from_state(state, n_rep=100, log_scale=False):
+def input_GP_from_state(
+    state: ExtrapModel, n_rep: int = 100, log_scale: bool = False
+) -> tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
     """
     Builds input for GP model up to specified order from ExtrapModel object of thermoextrap.
     If log_scale, adjust x inputs and derivatives to reflect taking the logarithm of x.
@@ -183,14 +201,14 @@ class DataWrapper:
 
     def __init__(
         self,
-        sim_info_files,
-        cv_bias_files,
-        beta,
-        x_files=None,
-        n_frames=10000,
-        u_col=2,
-        cv_cols=None,
-        x_col=None,
+        sim_info_files: Sequence[str | PathLike[Any]],
+        cv_bias_files: Sequence[str | PathLike[Any]],
+        beta: float,
+        x_files: Sequence[str | PathLike[Any]] | None = None,
+        n_frames: int = 10000,
+        u_col: int = 2,
+        cv_cols: Sequence[int] | None = None,
+        x_col: Sequence[int] | None = None,
     ) -> None:
         if x_col is None:
             x_col = [1]
@@ -209,13 +227,13 @@ class DataWrapper:
             ]
         self.x_col = x_col
 
-    def load_U_info(self):
+    def load_U_info(self) -> NDArray[Any]:
         """Loads potential energies from a list of files."""
         U = [np.loadtxt(f)[-self.n_frames :, self.u_col] for f in self.sim_info_files]
         # If eventually using MBAR, will want to vstack instead
         return np.hstack(U)
 
-    def load_CV_info(self):
+    def load_CV_info(self) -> tuple[NDArray[Any], NDArray[Any]]:
         """
         Loads data from a file specifying CV coordinate and added bias at each frame.
         Assumes that the first value in col_ind is the index of the CV coordinate column and the
@@ -231,12 +249,12 @@ class DataWrapper:
         cv_bias = np.hstack(cv_bias)
         return cv_vals, cv_bias
 
-    def load_x_info(self):
+    def load_x_info(self) -> NDArray[Any]:
         """Loads observable data."""
         x = [np.loadtxt(f)[-self.n_frames :, self.x_col] for f in self.x_files]
         return np.vstack(x)
 
-    def get_data(self):
+    def get_data(self) -> tuple[xr.DataArray, xr.DataArray, NDArray[Any]]:
         """
         Loads data from files needed to generate data classes for thermoextrap.
         Will change significantly if using MBAR on trajectories with different biases.
@@ -275,7 +293,11 @@ class DataWrapper:
         x = xr.DataArray(x, dims=["rec", "val"])
         return pot, x, w
 
-    def build_state(self, all_data=None, max_order=6):
+    def build_state(
+        self,
+        all_data: tuple[xr.DataArray, xr.DataArray, NDArray[Any]] | None = None,
+        max_order: int = 6,
+    ) -> ExtrapModel[xr.DataArray]:
         """
         Builds a thermoextrap data object for the data described by this wrapper class.
         If all_data is provided, should be list or tuple of (potential energies, X) to
@@ -330,18 +352,18 @@ class SimWrapper:
 
     def __init__(
         self,
-        sim_func,
-        struc_name,
-        sys_name,
-        info_name,
-        bias_name,
-        kw_inputs=None,
-        data_kw_inputs=None,
-        data_class=DataWrapper,
-        post_process_func=None,
-        post_process_out_name=None,
-        post_process_kw_inputs=None,
-        pre_process_func=None,
+        sim_func: Callable[..., Any],
+        struc_name: str,
+        sys_name: str,
+        info_name: str,
+        bias_name: str,
+        kw_inputs: OptionalKwsAny = None,
+        data_kw_inputs: OptionalKwsAny = None,
+        data_class: type[DataWrapper] = DataWrapper,
+        post_process_func: Callable[..., Any] | None = None,
+        post_process_out_name: str | None = None,
+        post_process_kw_inputs: OptionalKwsAny = None,
+        pre_process_func: Callable[..., Any] | None = None,
     ) -> None:
         if post_process_kw_inputs is None:
             post_process_kw_inputs = {}
@@ -356,9 +378,9 @@ class SimWrapper:
         self.sys_file = sys_name  # Name of system file for setting up, say, OpenMM
         self.info_name = info_name  # Name of simulation info file produced
         self.bias_name = bias_name  # Name of simulation bias file produced
-        self.kw_inputs = (
-            kw_inputs  # Dictionary of other key-word args for the simulation
-        )
+        self.kw_inputs = dict(
+            kw_inputs
+        )  # Dictionary of other key-word args for the simulation
         self.kw_inputs["info_name"] = (
             self.info_name
         )  # Restricts naming convention for sim_func
@@ -373,7 +395,13 @@ class SimWrapper:
 
         self.pre_func = pre_process_func  # Pre-processing function (predict extra args)
 
-    def run_sim(self, sim_dir, alpha, n_repeats=1, **extra_kwargs):
+    def run_sim(
+        self,
+        sim_dir: str | PathLike[Any],
+        alpha: float,
+        n_repeats: int = 1,
+        **extra_kwargs: Any,
+    ) -> DataWrapper:
         """
         Runs simulation(s) and returns an object of type self.data_class pointing to
         right files. By default only one, but will run n_repeats in parallel if specified.
@@ -457,7 +485,7 @@ class SimWrapper:
 # TODO(wpk): replace l with v
 
 
-def make_matern_expr(p):
+def make_matern_expr(p: int):
     """
     Creates a sympy expression for the Matern kernel of order p.
 
@@ -494,7 +522,9 @@ def make_matern_expr(p):
     return var * full_expr.subs(d, distance), kern_params
 
 
-def make_rbf_expr(n_dims=1):
+def make_rbf_expr(
+    n_dims: int = 1,
+) -> tuple[Expr, dict[str, list[float | dict[str, Softplus]]]]:
     """
     Creates a sympy expression for an RBF kernel.
 
@@ -532,7 +562,7 @@ def make_rbf_expr(n_dims=1):
     return rbf_kern_expr, kern_params
 
 
-def make_rbf_expr_old():
+def make_rbf_expr_old() -> tuple[Expr, dict[str, list[Any]]]:
     """
     Creates a sympy expression for an RBF kernel.
 
@@ -554,7 +584,7 @@ def make_rbf_expr_old():
     return rbf_kern_expr, kern_params
 
 
-def make_poly_expr(p):
+def make_poly_expr(p: int) -> tuple[Expr, dict[str, list[Any]]]:
     """
     Creates a sympy expression for a polynomial kernel.
 
@@ -603,7 +633,7 @@ class RBFDerivKernel(DerivativeKernel):
     Use it most often, so convenient to have.
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         kern_expr, kern_params = make_rbf_expr()
         super().__init__(kern_expr, 1, kernel_params=kern_params, **kwargs)
 
@@ -633,7 +663,7 @@ class ChangeInnerOuterRBFDerivKernel(DerivativeKernel):
     ~thermoextrap.gpr_active.gp_models.DerivativeKernel
     """
 
-    def __init__(self, c1=-7.0, c2=-2.0, **kwargs) -> None:
+    def __init__(self, c1: float = -7.0, c2: float = -2.0, **kwargs: Any) -> None:
         x1 = sp.symbols("x1", real=True)
         x2 = sp.symbols("x2", real=True)
 
@@ -675,13 +705,13 @@ class ChangeInnerOuterRBFDerivKernel(DerivativeKernel):
 
 
 def create_base_GP_model(
-    gpr_data,
-    d_order_ref=0,
-    shared_kernel=True,
-    kernel=RBFDerivKernel,
-    mean_func=None,
-    likelihood_kwargs=None,
-):
+    gpr_data: tuple[NDArray[Any], NDArray[Any], NDArray[Any]],
+    d_order_ref: int = 0,
+    shared_kernel: bool = True,
+    kernel: type[RBFDerivKernel] | RBFDerivKernel = RBFDerivKernel,
+    mean_func: MeanFunction | None = None,
+    likelihood_kwargs: OptionalKwsAny = None,
+) -> HeteroscedasticGPR:
     """
     Creates just the base GP model without any training,just sets up sympy and
     GPflow. kernel can either be a kernel object, in which case it is assumed
@@ -797,7 +827,9 @@ def create_base_GP_model(
     )
 
 
-def train_GPR(gpr, record_loss=False, start_params=None):
+def train_GPR(
+    gpr: Any, record_loss: bool = False, start_params: OptionalKwsAny = None
+) -> OptimizeResult | None:
     """
     Trains a given gpr model for n_opt steps.
     Actually uses scipy wrapper in gpflow, which seems faster.
@@ -867,7 +899,12 @@ def train_GPR(gpr, record_loss=False, start_params=None):
     return None
 
 
-def create_GPR(state_list, log_scale=False, start_params=None, base_kwargs=None):
+def create_GPR(
+    state_list: Sequence[ExtrapModel[xr.DataArray]],
+    log_scale: bool = False,
+    start_params: OptionalKwsAny = None,
+    base_kwargs: OptionalKwsAny = None,
+) -> HeteroscedasticGPR:
     """
     Generates and trains a GPR model based on a list of ExtrapModel objects or a
     StateCollection object from thermoextrap. If a list of another type of
@@ -965,10 +1002,14 @@ def create_GPR(state_list, log_scale=False, start_params=None, base_kwargs=None)
 # (preferably around 95%)
 # Here only implement the simplest (and default) transformation, the identity transform
 # (which also computes std given variance and upper and lower confidence interval values)
-def identityTransform(x, y, y_var):  # noqa: ARG001
+def identityTransform(
+    x: _ArrayT,  # noqa: ARG001
+    y: _ArrayT,
+    y_var: _ArrayT,
+) -> tuple[_ArrayT, _ArrayT, list[_ArrayT]]:
     y_std = np.sqrt(y_var)
     conf_int = [y - 2.0 * y_std, y + 2.0 * y_std]
-    return y, y_std, conf_int
+    return y, y_std, conf_int  # type: ignore[no-any-return]
 
 
 # The following functions will be useful in both update function and stopping criteria classes
@@ -982,11 +1023,13 @@ class UpdateStopABC:
 
     def __init__(
         self,
-        d_order_pred=0,
-        transform_func=identityTransform,
-        log_scale=False,
-        avoid_repeats=False,
-        rng: np.random.Generator | None = None,
+        d_order_pred: int = 0,
+        transform_func: Callable[
+            [_ArrayT, _ArrayT, _ArrayT], tuple[_ArrayT, _ArrayT, list[_ArrayT]]
+        ] = identityTransform,
+        log_scale: bool = False,
+        avoid_repeats: bool = False,
+        rng: OptionalRng = None,
     ) -> None:
         """
         Parameters
@@ -1012,7 +1055,9 @@ class UpdateStopABC:
 
         self.rng = validate_rng(rng)
 
-    def create_alpha_grid(self, alpha_list):
+    def create_alpha_grid(
+        self, alpha_list: ArrayLike
+    ) -> tuple[NDArray[Any], NDArray[Any]]:
         """
         Given a list of alpha values used in the GP model, creates a grid of values
         to evaluate the GP model at. This grid, alpha_grid is returned along with values
@@ -1044,7 +1089,9 @@ class UpdateStopABC:
             alpha_select = alpha_select[1:-1]
         return alpha_grid, alpha_select
 
-    def get_transformed_GP_output(self, gpr, x_vals):
+    def get_transformed_GP_output(
+        self, gpr: HeteroscedasticGPR, x_vals: NDArray[Any]
+    ) -> tuple[NDArray[Any], NDArray[Any], list[NDArray[Any]]]:
         """Returns output of GP and transforms it, evaluating GP using predict_f at alpha values."""
         # Could use predict_y instead
         # But cannot unless have model for noise at new points, so just work with predict_f
@@ -1057,14 +1104,15 @@ class UpdateStopABC:
         gpr_pred = gpr.predict_f(
             np.concatenate([x_vals, self.d_order_pred * np.ones_like(x_vals)], axis=1)
         )
+
         gpr_mu, gpr_std, gpr_conf_int = self.transform_func(
-            x_vals,
+            x_vals,  # pyright: ignore[reportArgumentType]
             gpr_pred[0].numpy(),
             gpr_pred[1].numpy(),
         )
         # gpr_mu = self.transform_func(x_vals, gpr_pred[0].numpy())
         # gpr_std = self.transform_func(x_vals, np.sqrt(gpr_pred[1].numpy()))
-        return gpr_mu, gpr_std, gpr_conf_int
+        return gpr_mu, gpr_std, gpr_conf_int  # pyright: ignore[reportReturnType]
 
 
 class UpdateFuncBase(UpdateStopABC):
@@ -2109,7 +2157,7 @@ def active_learning(  # noqa: C901, PLR0912, PLR0915
     Returns
     -------
     data_list : list of :class:`DataWrapper`
-        List of DataWrapper objects describing how to load data (can be used to build states and create_GPR to generate GP model)
+        list of DataWrapper objects describing how to load data (can be used to build states and create_GPR to generate GP model)
     train_history : dict
         Dictionary of information about results at each training
         iteration, like GP predictions, losses, parameters, etc.

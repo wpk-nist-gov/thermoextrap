@@ -22,7 +22,7 @@ if TYPE_CHECKING:
         OptionalKwsAny,
         SingleDim,
         StackPolicy,
-        SupportsModelProtocol,
+        SupportsModel,
     )
     from .core.typing_compat import Self
 
@@ -468,7 +468,7 @@ class StackedDerivatives:
     def from_states(
         cls,
         states: StateCollection[Any, xr.DataArray]
-        | Sequence[SupportsModelProtocol[xr.DataArray]],
+        | Sequence[SupportsModel[xr.DataArray]],
         x_dims: str | Sequence[str],
         resample: bool = True,
         resample_kws: OptionalKwsAny = None,
@@ -544,8 +544,8 @@ class StackedDerivatives:
 
 
 # class GPRData(
-#     StateCollection[SupportsModelProtocolT, xr.DataArray],
-#     Generic[SupportsModelProtocolT],
+#     StateCollection[SupportsModelT, xr.DataArray],
+#     Generic[SupportsModelT],
 # ):
 #     """
 #     Statecollection for GPFlow analysis.

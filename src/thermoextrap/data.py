@@ -53,7 +53,7 @@ if TYPE_CHECKING:
         MultDims,
         OptionalKwsAny,
         SingleDim,
-        SupportsDataProtocol,
+        SupportsData,
         XArrayObj,
     )
     from .core.typing_compat import Self, TypeVar
@@ -180,12 +180,12 @@ class DataCallbackABC(
     """
 
     @abstractmethod
-    def check(self, data: SupportsDataProtocol[Any]) -> None:
+    def check(self, data: SupportsData[Any]) -> None:
         """Perform any consistency checks between self and data."""
 
     @abstractmethod
     def deriv_args(
-        self, data: SupportsDataProtocol[Any], *, deriv_args: DataDerivArgs
+        self, data: SupportsData[Any], *, deriv_args: DataDerivArgs
     ) -> DataDerivArgs:
         """
         Adjust derivs args from data class.
@@ -198,7 +198,7 @@ class DataCallbackABC(
     # of forcing usage.
     def resample(
         self,
-        data: SupportsDataProtocol[Any],
+        data: SupportsData[Any],
         *,
         meta_kws: OptionalKwsAny,
         sampler: cmomy.IndexSampler[Any],
@@ -212,7 +212,7 @@ class DataCallbackABC(
         raise NotImplementedError
 
     def reduce(
-        self, data: SupportsDataProtocol[Any], *, meta_kws: OptionalKwsAny, **kws: Any
+        self, data: SupportsData[Any], *, meta_kws: OptionalKwsAny, **kws: Any
     ) -> Self:
         """Reduce along dimension."""
         raise NotImplementedError
@@ -229,12 +229,12 @@ class DataCallback(DataCallbackABC):
     Implemented to pass things through unchanged.  Will be used for default construction
     """
 
-    def check(self, data: SupportsDataProtocol[Any]) -> None:
+    def check(self, data: SupportsData[Any]) -> None:
         pass
 
     def deriv_args(  # noqa: PLR6301
         self,
-        data: SupportsDataProtocol[Any],  # noqa: ARG002
+        data: SupportsData[Any],  # noqa: ARG002
         *,
         deriv_args: DataDerivArgs,
     ) -> DataDerivArgs:
@@ -242,7 +242,7 @@ class DataCallback(DataCallbackABC):
 
     def resample(
         self,
-        data: SupportsDataProtocol[Any],  # noqa: ARG002
+        data: SupportsData[Any],  # noqa: ARG002
         *,
         meta_kws: OptionalKwsAny,  # noqa: ARG002
         sampler: cmomy.IndexSampler[Any],  # noqa: ARG002
@@ -252,7 +252,7 @@ class DataCallback(DataCallbackABC):
 
     def reduce(
         self,
-        data: SupportsDataProtocol[Any],  # noqa: ARG002
+        data: SupportsData[Any],  # noqa: ARG002
         *,
         meta_kws: OptionalKwsAny,  # noqa: ARG002
         **kws: Any,  # noqa: ARG002

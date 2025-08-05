@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 from cmomy.core.validate import is_xarray
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from typing import Any
 
     import attrs
+    from numpy.typing import ArrayLike, NDArray
+
+    from .typing import SupportsModel
 
 
 # * Validate
@@ -24,6 +29,26 @@ def validate_positive_integer(value: Any, name: str = "value") -> int:
 
     msg = f"{name} must be an integer."
     raise TypeError(msg)
+
+
+def validate_alpha(
+    alpha: ArrayLike, states: Iterable[SupportsModel[Any]] | None
+) -> NDArray[Any]:
+    """
+    Validate alpha to array with optional bounds check
+
+    If pass ``states``, check that ``alpha`` values bounded by min/max
+    ``states[k].alpha0``.
+    """
+    alpha = np.asarray(alpha)
+    if states is not None:
+        alpha0 = [x.alpha0 for x in states]
+        lb, ub = min(alpha0), max(alpha0)
+        if np.any((alpha < lb) | (ub < alpha)):
+            msg = f"{alpha} outside of bounds [{lb}, {ub}]"
+            raise ValueError(msg)
+
+    return alpha
 
 
 # * Validators

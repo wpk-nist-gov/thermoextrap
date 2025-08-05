@@ -5,10 +5,10 @@ from typing import Any
 
 if sys.version_info >= (3, 10):
     from types import EllipsisType
-    from typing import TypeAlias, TypeGuard
+    from typing import Concatenate, TypeAlias, TypeGuard
 else:
     EllipsisType = Any
-    from typing_extensions import TypeAlias, TypeGuard
+    from typing_extensions import Concatenate, TypeAlias, TypeGuard
 
 
 if sys.version_info >= (3, 11):
@@ -24,6 +24,7 @@ else:  # pragma: no cover
 
 
 __all__ = [
+    "Concatenate",
     "EllipsisType",
     "Required",
     "Self",

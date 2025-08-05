@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
     from xarray.core.dataarray import DataArray
 
-    from .core.typing import DataT, SupportsDataProtocol
+    from .core.typing import DataT, SupportsData
 
 docfiller_shared = DOCFILLER_SHARED.levels_to_top(
     "cmomy", "xtrap", "beta", "volume"
@@ -139,7 +139,7 @@ def factory_extrapmodel(
 
 def factory_extrapmodel_data(
     volume: float,
-    data: SupportsDataProtocol[DataT],
+    data: SupportsData[DataT],
     order: int | None = 1,
     alpha_name: str = "volume",
 ) -> ExtrapModel[DataT]:

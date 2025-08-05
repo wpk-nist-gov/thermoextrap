@@ -21,7 +21,7 @@ from thermoextrap.data import DataValues
 from thermoextrap.models import Derivatives, ExtrapModel
 
 from .core.docstrings import DOCFILLER_SHARED
-from .core.typing import DataDerivArgs, DataT, OptionalKwsAny, SupportsDataProtocol
+from .core.typing import DataDerivArgs, DataT, OptionalKwsAny, SupportsData
 from .core.xrutils import xrwrap_xv
 from .data import DataCallbackABC
 
@@ -132,7 +132,7 @@ class VolumeDataCallback(DataCallbackABC, Generic[DataT]):
 
     _cache: dict[str, Any] = field(init=False, repr=False, factory=dict[str, "Any"])
 
-    def check(self, data: SupportsDataProtocol[Any]) -> None:
+    def check(self, data: SupportsData[Any]) -> None:
         pass
 
     @cached.meth
@@ -141,7 +141,7 @@ class VolumeDataCallback(DataCallbackABC, Generic[DataT]):
 
     def resample(
         self,
-        data: SupportsDataProtocol[Any],
+        data: SupportsData[Any],
         *,
         meta_kws: OptionalKwsAny,  # noqa: ARG002
         sampler: IndexSampler[Any],
@@ -154,7 +154,7 @@ class VolumeDataCallback(DataCallbackABC, Generic[DataT]):
         return self.new_like(dxdqv=self.dxdqv[sampler.indices])
 
     def deriv_args(
-        self, data: SupportsDataProtocol[Any], *, deriv_args: DataDerivArgs
+        self, data: SupportsData[Any], *, deriv_args: DataDerivArgs
     ) -> DataDerivArgs:
         if not isinstance(data, DataValues):
             msg = "resampling only possible with DataValues style."

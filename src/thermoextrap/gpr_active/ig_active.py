@@ -9,7 +9,7 @@ learning strategies.
 
 from __future__ import annotations
 
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 import numpy as np
 import xarray as xr
@@ -21,11 +21,19 @@ from thermoextrap.data import DataCentralMomentsVals
 
 from .active_utils import DataWrapper
 
+if TYPE_CHECKING:
+    from typing import Any
+
+    from numpy.typing import NDArray
+
+    from thermoextrap.core.typing import OptionalRng
+    from thermoextrap.models import ExtrapModel
+
 
 # Work with fixed ideal gas test set in thermoextrap
 # Define function to create ExtrapModel of ideal gas data
 # This will be handy later on
-def extrap_IG(beta, rng: np.random.Generator | None = None):
+def extrap_IG(beta: Any, rng: OptionalRng = None) -> ExtrapModel[xr.DataArray]:
     y_dat, u_dat = idealgas.generate_data((10000, 1000), beta, rng=validate_rng(rng))
     y_dat = xr.DataArray(y_dat[:, None], dims=["rec", "val"])
     u_dat = xr.DataArray(u_dat, dims=["rec"])
@@ -35,15 +43,15 @@ def extrap_IG(beta, rng: np.random.Generator | None = None):
     return xpan_beta.factory_extrapmodel(beta, data)
 
 
-def multiOutput_extrap_IG(beta, rng: np.random.Generator | None = None):
+def multiOutput_extrap_IG(
+    beta: Any, rng: OptionalRng = None
+) -> ExtrapModel[xr.DataArray]:
     # Use fixed random number
     positions = idealgas.x_sample((10000, 1000), beta, rng=validate_rng(rng))
     y = positions.mean(axis=-1)
     ysq = (positions**2).mean(axis=-1)
-    u_dat = positions.sum(axis=-1)
-    y_dat = np.vstack([y, ysq]).T
-    y_dat = xr.DataArray(y_dat, dims=["rec", "val"])
-    u_dat = xr.DataArray(u_dat, dims=["rec"])
+    y_dat = xr.DataArray(np.vstack([y, ysq]).T, dims=["rec", "val"])
+    u_dat = xr.DataArray(positions.sum(axis=-1), dims=["rec"])
     data = DataCentralMomentsVals.from_vals(
         order=3, rec_dim="rec", xv=y_dat, uv=u_dat, central=True
     )
@@ -54,7 +62,7 @@ def multiOutput_extrap_IG(beta, rng: np.random.Generator | None = None):
 class IG_DataWrapper(DataWrapper):  # noqa: N801
     """Data object for gpr with ideal gas."""
 
-    def __init__(self, beta, rng: np.random.Generator | None = None) -> None:
+    def __init__(self, beta: Any, rng: OptionalRng = None) -> None:
         self.beta = beta
         self.rng = validate_rng(rng)
 
@@ -67,19 +75,24 @@ class IG_DataWrapper(DataWrapper):  # noqa: N801
     def load_x_info(self) -> NoReturn:
         raise NotImplementedError
 
-    def get_data(self, n_conf=10000, n_part=1000):
+    def get_data(
+        self, n_conf: int = 10000, n_part: int = 1000
+    ) -> tuple[xr.DataArray, xr.DataArray, NDArray[Any]]:
         # Call thermoextrap.idealgas methods
         x, U = idealgas.generate_data((n_conf, n_part), self.beta, rng=self.rng)
         x = xr.DataArray(x[:, None], dims=["rec", "val"])
         U = xr.DataArray(U, dims=["rec"])
-        return U, x, np.ones_like(U.values)
+        return U, x, np.ones(U.shape, dtype=U.dtype)
 
-    def build_state(self, all_data=None, max_order=6):
+    def build_state(
+        self,
+        all_data: tuple[xr.DataArray, xr.DataArray, NDArray[Any]] | None = None,
+        max_order: int = 6,
+    ) -> ExtrapModel[xr.DataArray]:
         if all_data is None:
             all_data = self.get_data()
         U = all_data[0]
         x = all_data[1]
-        all_data[2]
         data = DataCentralMomentsVals.from_vals(
             order=max_order, rec_dim="rec", xv=x, uv=U, central=True
         )
@@ -89,11 +102,10 @@ class IG_DataWrapper(DataWrapper):  # noqa: N801
 class SimulateIG:
     """Simulation object for ideal gas."""
 
-    def __init__(self, sim_func=None) -> None:
+    def __init__(self, sim_func: None = None) -> None:
         self.sim_func = sim_func  # Will not perform any simulations
 
-    def run_sim(self, unused, beta, n_repeats=None):
+    def run_sim(self, unused: Any, beta: Any, n_repeats: Any = None) -> IG_DataWrapper:
         # All this does is creates an IG_DataWrapper object at the specified beta
         # (and returns it)
-        del unused
         return IG_DataWrapper(beta)

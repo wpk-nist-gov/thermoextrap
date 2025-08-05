@@ -11,7 +11,7 @@ import xarray as xr
 
 import thermoextrap as xtrap
 from thermoextrap.core.typing import (
-    SupportsModelProtocol,
+    SupportsModel,
 )
 
 if sys.version_info >= (3, 11):
@@ -20,11 +20,11 @@ else:
     from typing_extensions import assert_type
 
 if TYPE_CHECKING:
-    import sympy as sp
+    import sympy as sp  # pyright: ignore[reportMissingTypeStubs]
     from cmomy.core.typing_compat import TypeVar
 
     from thermoextrap.core.typing import (
-        SupportsModelProtocolT,
+        SupportsModelT,
     )
     from thermoextrap.models import StateCollection
 
@@ -310,13 +310,13 @@ if TYPE_CHECKING:
 
     from thermoextrap.core.typing import (
         DataT,
-        SupportsDataPerturbModel,
-        SupportsDataProtocol,
-        SupportsModelProtocol,
+        SupportsData,
+        SupportsDataXU,
+        SupportsModel,
     )
     from thermoextrap.models import ExtrapModel, InterpModel
 
-    def func_data(x: SupportsDataProtocol[DataT]) -> int:
+    def func_data(x: SupportsData[DataT]) -> int:
         return x.order
 
     def tester_data(
@@ -332,13 +332,13 @@ if TYPE_CHECKING:
         assert_type(func_data(d), int)
         assert_type(func_data(e), int)
 
-    def func_models(x: SupportsModelProtocol[DataT]) -> float:
+    def func_models(x: SupportsModel[DataT]) -> float:
         return x.alpha0
 
     def tester_protocol(a: xtrap.models.ExtrapModel) -> None:
         assert_type(func_models(a), float)
 
-    def func_dataperturbmodel(x: SupportsDataPerturbModel[DataT]) -> DataT:
+    def func_dataperturbmodel(x: SupportsDataXU[DataT]) -> DataT:
         return x.xv
 
     def tester_dataperturbmodel(
@@ -354,11 +354,11 @@ if TYPE_CHECKING:
         assert_type(func_dataperturbmodel(d), xr.Dataset)
 
     def func_statecollection(
-        # factory_state: Callable[..., SupportsModelProtocolDerivsT]
-        state: SupportsModelProtocolT,
-        state_collection: StateCollection[SupportsModelProtocolT, xr.DataArray],
+        # factory_state: Callable[..., SupportsModelDerivsT]
+        state: SupportsModelT,
+        state_collection: StateCollection[SupportsModelT, xr.DataArray],
         factory_state_collection: Callable[
-            ..., StateCollection[SupportsModelProtocolT, xr.DataArray]
+            ..., StateCollection[SupportsModelT, xr.DataArray]
         ],
     ) -> None:
         pass
@@ -393,3 +393,38 @@ if TYPE_CHECKING:
         func_supports(x_int, x_float, x_float)
         func_supports(x_np_int, x_np_float, x_np_float)
         func_supports(x_sp_int, x_sp_float, x_sp_float)
+
+    from collections.abc import Iterable, Sequence
+
+    from thermoextrap.core.typing_compat import Concatenate
+
+    def func_concat(
+        f: Callable[Concatenate[Sequence[int], ...], int], **kws: Any
+    ) -> int:
+        return f([1, 2, 3], **kws) + 2
+
+    def tester_concat() -> None:
+        def fa(x: Iterable[int]) -> int:
+            return sum(x)
+
+        func_concat(fa)
+
+        def fb(x: Sequence[int], y: int) -> int:
+            return sum(x) + y
+
+        func_concat(fb, y=2)
+
+        # def fc(x: list[int]) -> int:
+        #     return sum(x)
+
+        # func_concat(fc)
+
+    from os import PathLike
+    from pathlib import Path
+
+    def func_pathlike(x: str | PathLike[Any]) -> Path:
+        return Path(x)
+
+    def tester_pathlike() -> None:
+        func_pathlike("hello")
+        func_pathlike(Path("there"))

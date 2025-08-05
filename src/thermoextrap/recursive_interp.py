@@ -1,3 +1,5 @@
+# pyright: reportPossiblyUnboundVariable=false,reportUnknownMemberType=false, reportUnknownArgumentType=false
+
 """
 Recursive interpolation (:mod:`~thermoextrap.recursive_interp`)
 ===============================================================
@@ -29,6 +31,7 @@ if TYPE_CHECKING:
     import xarray as xr
     from numpy.typing import ArrayLike, NDArray
 
+    from .core.typing import OptionalRng
     from .data import DataValues
     from .models import Derivatives
 
@@ -62,12 +65,15 @@ class RecursiveInterp:
     @deprecate_kwarg("errTol", "tol")
     def __init__(
         self,
-        model_cls: type[InterpModel[ExtrapModel[xr.DataArray], xr.DataArray]],
+        model_cls: Callable[
+            [Sequence[ExtrapModel[xr.DataArray]]],
+            InterpModel[ExtrapModel[xr.DataArray], xr.DataArray],
+        ],
         derivatives: Derivatives,
         edge_beta: Sequence[SupportsFloat],
         max_order: SupportsIndex = 1,
         tol: SupportsFloat = 0.01,
-        rng: np.random.Generator | None = None,
+        rng: OptionalRng = None,
     ) -> None:
         self.model_cls = (
             model_cls  # The model CLASS used for interpolation, like InterpModel
@@ -339,7 +345,7 @@ class RecursiveInterp:
 
             if verbose:
                 # Check if need more data to extrapolate from (just report info on this)
-                beta_vals = np.linspace(beta1, beta2, num=50)
+                beta_vals = np.linspace(beta1, beta2, num=50)  # pyright: ignore[reportUnknownVariableType]
                 predict_vals = this_model.predict(beta_vals, order=self.max_order)
                 boot_err = (
                     this_model.resample(sampler={"nrep": 100})
@@ -379,7 +385,7 @@ class RecursiveInterp:
 
         # For each state point in beta, select a piecewise model to use
         beta = np.asarray(beta)
-        xv: xr.DataArray = self.state[0].data.xv  # type: ignore[attr-defined]
+        xv: xr.DataArray = self.states[0].data.xv  # type: ignore[union-attr]
         if "val" in xv.dims:
             predict_vals = np.zeros((len(beta), xv["val"].size))
         else:
@@ -529,7 +535,9 @@ class RecursiveInterp:
                 pax.plot(plotpoints, plotfull, color=pcolors[i], linestyle="-")
                 pax.plot(plotpoints, plotreg1, color=pcolors[i], linestyle=":")
                 pax.plot(plotpoints, plotreg2, color=pcolors[i], linestyle="--")
-                allploty = np.hstack((plotfull, plotreg1, plotreg2))
+                allploty = np.hstack(  # pyright: ignore[reportUnknownVariableType]
+                    (plotfull, plotreg1, plotreg2)
+                )
                 plotymin = min(np.min(allploty), plotymin)
                 plotymax = max(np.max(allploty), plotymax)
 
@@ -541,7 +549,7 @@ class RecursiveInterp:
             pfig.tight_layout()
             plt.show()
 
-        return all_pvals
+        return all_pvals  # pyright: ignore[reportUnknownVariableType]
 
     checkPolynomialConsistency = deprecate(  # noqa: N815
         "checkPolynomialConsistency", check_poly_consistency, "0.2.0"

@@ -3,9 +3,11 @@ Models for Gaussian process regression (:mod:`~thermoextrap.gpr_active.gp_models
 ----------------------------------------------------------------------------------
 """
 
+from __future__ import annotations
+
 import logging
 import warnings
-from typing import Any, Optional
+from typing import TYPE_CHECKING
 
 import gpflow
 import numpy as np
@@ -15,6 +17,13 @@ from gpflow import logdensities
 from scipy import optimize
 
 from thermoextrap.core.sputils import lambdify_with_defaults
+
+if TYPE_CHECKING:
+    from typing import Any
+
+    from numpy.typing import NDArray
+
+    from thermoextrap.core.typing import OptionalKwsAny
 
 logger = logging.getLogger(__name__)
 
@@ -365,8 +374,8 @@ class FullyHeteroscedasticGPR(
         self,
         data: gpflow.models.model.RegressionData,
         kernel: gpflow.kernels.Kernel,
-        mean_function: Optional[gpflow.mean_functions.MeanFunction] = None,
-        noise_kernel: Optional[gpflow.kernels.Kernel] = None,
+        mean_function: gpflow.mean_functions.MeanFunction | None = None,
+        noise_kernel: gpflow.kernels.Kernel | None = None,
     ) -> None:
         X_data, Y_data = data
         # This is really a conditional likelihood given the output of self.noise_gp
@@ -828,8 +837,8 @@ class HeteroscedasticGPR_analytical_scale(  # noqa: N801
         self,
         data: gpflow.models.model.RegressionData,
         kernel: gpflow.kernels.Kernel,
-        mean_function: Optional[gpflow.mean_functions.MeanFunction] = None,
-        scale_fac: Optional[float] = None,
+        mean_function: gpflow.mean_functions.MeanFunction | None = None,
+        scale_fac: float | None = None,
     ) -> None:
         # To make training behave better, can try scaling covariance matrices and data
         # Just remember to scale mean function and predictions throughout
@@ -1005,12 +1014,12 @@ class HeteroscedasticGPR(
 
     def __init__(
         self,
-        data: gpflow.models.model.RegressionData,
+        data: tuple[NDArray[Any], NDArray[Any], NDArray[Any]],
         kernel: gpflow.kernels.Kernel,
-        mean_function: Optional[gpflow.mean_functions.MeanFunction] = None,
-        scale_fac: Optional[float] = 1.0,
-        # x_scale_fac: Optional[float] = 1.0,
-        likelihood_kwargs: Optional[dict] = None,
+        mean_function: gpflow.mean_functions.MeanFunction | None = None,
+        scale_fac: float | None = 1.0,
+        # x_scale_fac: float | None = 1.0,
+        likelihood_kwargs: OptionalKwsAny = None,
     ) -> None:
         if likelihood_kwargs is None:
             likelihood_kwargs = {}

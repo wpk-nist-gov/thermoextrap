@@ -39,7 +39,7 @@ if TYPE_CHECKING:
         DataT,
         OptionalKwsAny,
         PostFunc,
-        SupportsDataProtocol,
+        SupportsData,
         SymDerivNames,
     )
     from .core.typing_compat import Self
@@ -677,7 +677,7 @@ def factory_derivatives(
 @docfiller_shared.decorate
 def factory_extrapmodel(
     beta: float,
-    data: SupportsDataProtocol[DataT],
+    data: SupportsData[DataT],
     *,
     name: str = "x_ave",
     n: int | None = None,
