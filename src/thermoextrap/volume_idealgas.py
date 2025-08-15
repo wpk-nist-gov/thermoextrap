@@ -39,8 +39,7 @@ class VolumeDerivFuncsIG:
 
     def __getitem__(self, order: SupportsIndex) -> Callable[..., Any]:
         # Check to make sure not going past first order
-        order = int(order)
-        if order > 1:
+        if (order := int(order)) > 1:
             raise ValueError(
                 "Volume derivatives cannot go past 1st order"
                 + " and received %i" % order

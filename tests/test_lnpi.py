@@ -17,6 +17,9 @@ def test_equations(central, order) -> None:
     f0 = xtrap.beta.factory_derivatives("u_ave", central=central)
     f1 = xtrap.lnpi.factory_derivatives(central=central)
 
+    assert f0.exprs is not None
+    assert f1.exprs is not None
+
     for i in range(2, order):
         assert f0.exprs[i] + f1.exprs[i + 1] == 0
 
@@ -128,7 +131,7 @@ def test_out_u(samples, out_u) -> None:
 
 @pytest.fixture
 def meta_lnpi(ref):
-    return xtrap.lnpi.lnPiDataCallback(
+    return xtrap.lnpi.lnPiDataCallback(  # pyright: ignore[reportCallIssue]
         ref["lnpi_data"], ref["mu"], dims_n=["n"], dims_comp="comp"
     )
 

@@ -159,9 +159,7 @@ def deprecate_kwarg(
     def _deprecate_kwarg(func: F) -> F:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            old_arg_value = kwargs.pop(old_arg_name, None)
-
-            if old_arg_value is not None:
+            if (old_arg_value := kwargs.pop(old_arg_name, None)) is not None:
                 if new_arg_name is None:
                     msg = (
                         f"the {old_arg_name!r} keyword is deprecated and "
@@ -204,9 +202,9 @@ def deprecate_kwarg(
     return _deprecate_kwarg
 
 
-def _format_argument_list(allow_args: list[str]) -> str:
+def _format_argument_list(allowed_args: list[str]) -> str:
     """
-    Convert the allow_args argument (either string or integer) of
+    Convert the allowed_args argument (either string or integer) of
     `deprecate_nonkeyword_arguments` function to a string describing
     it to be inserted into warning message.
 
@@ -230,15 +228,15 @@ def _format_argument_list(allow_args: list[str]) -> str:
     `format_argument_list(['a', 'b', 'c'])` ->
         "except for the arguments 'a', 'b' and 'c'"
     """
-    if "self" in allow_args:
-        allow_args.remove("self")
-    if not allow_args:
+    if "self" in allowed_args:
+        allowed_args.remove("self")
+    if not allowed_args:
         return ""
-    if len(allow_args) == 1:
-        return f" except for the argument '{allow_args[0]}'"
+    if len(allowed_args) == 1:
+        return f" except for the argument '{allowed_args[0]}'"
 
-    last = allow_args[-1]
-    args = ", ".join(["'" + x + "'" for x in allow_args[:-1]])
+    last = allowed_args[-1]
+    args = ", ".join(["'" + x + "'" for x in allowed_args[:-1]])
     return f" except for the arguments {args} and '{last}'"
 
 
@@ -278,15 +276,16 @@ def deprecate_nonkeyword_arguments(
     def decorate(func: F) -> F:
         old_sig = inspect.signature(func)
 
-        if allowed_args is not None:
-            allow_args = allowed_args
-        else:
-            allow_args = [
+        allow_args = (
+            [
                 p.name
                 for p in old_sig.parameters.values()
                 if p.kind in {p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD}
                 and p.default is p.empty
             ]
+            if allowed_args is None
+            else allowed_args
+        )
 
         new_params = [
             p.replace(kind=p.KEYWORD_ONLY)

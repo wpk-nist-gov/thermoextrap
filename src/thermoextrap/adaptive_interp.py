@@ -11,6 +11,7 @@ See :ref:`examples/usage/basic/temperature_interp:adaptive interpolation` for ex
 
 from __future__ import annotations
 
+import logging
 from itertools import chain, islice
 from typing import TYPE_CHECKING, Any, Generic, NotRequired, TypedDict
 
@@ -44,6 +45,9 @@ if TYPE_CHECKING:
         StateCollection[SupportsModelDerivsDataArrayT, DataT],
     ]
 
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+
 
 def window(seq: Iterable[_T], n: int = 2) -> Iterator[tuple[_T, ...]]:
     """
@@ -70,6 +74,8 @@ def relative_fluctuations(da: DataT, dim: str) -> tuple[DataT, DataT]:
 
 
 class _InfoDict(TypedDict, Generic[DataT], total=True):
+    """Info dictionary."""
+
     alpha0: list[float]
     err: DataT
     ave: DataT
@@ -180,8 +186,6 @@ def train_iterative(
         dimension to calculate statistics along.
     maxiter : int, default=10
         number of iterations
-    states_avail : list, optional
-        Not implemented yet
     state_kws : dict, optional
         extra arguments to `factory_state`
     statecollection_kws : dict, optional
@@ -331,8 +335,6 @@ def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
         dimension to calculate statistics along.
     maxiter : int, default=10
         number of iterations
-    states_avail : list, optional
-        Not implemented yet
     state_kws : dict, optional
         extra arguments to `factory_state`
     statecollection_kws : dict, optional
@@ -501,8 +503,6 @@ def check_polynomial_consistency(
         `model = factory_statecollection(states, **statecollection_kws)`
     reduce_dim : str, default="rep"
         dimension to reduce along
-    order : int, optional
-        order passed to `model.predict`
     statecollection_kws : dict, optional
         extra arguments to `factory_statecollection`
 
@@ -542,9 +542,8 @@ def check_polynomial_consistency(
         keys12 = keys[1], keys[2]
         keys02 = keys[0], keys[2]
 
-        for key0, key1 in [(keys01, keys12), (keys01, keys02), (keys12, keys02)]:
-            key = key0, key1
-            if key not in ps:
+        for key0, key1 in ((keys01, keys12), (keys01, keys02), (keys12, keys02)):
+            if (key := key0, key1) not in ps:
                 z: xr.DataArray = (ave[key0] - ave[key1]) / np.sqrt(  # pyright: ignore[reportUnknownVariableType]
                     var[key0] + var[key1]  # pyright: ignore[reportUnknownArgumentType]
                 )
@@ -580,9 +579,6 @@ def factory_state_idealgas(
 
     Parameters
     ----------
-    seed_from_beta : bool, default=True
-        If `True`, then set rng seed based on beta value.
-        For testing purposes.  Only applies if `rng = None`.
     rng: :class:`numpy.random.Generator`, optional
 
     See Also
@@ -643,8 +639,10 @@ def callback_plot_progress(
         raise ValueError(msg)
 
     if verbose:
-        print("depth:", depth)
-        print("alphas:", model.alpha0)
+        logger.setLevel(logging.INFO)
+
+    logger.info("depth: %s", depth)
+    logger.info("alphas: %s", model.alpha0)
 
     if ax is None:
         _, ax = plt.subplots()  # pyright: ignore[reportUnknownMemberType]
@@ -655,21 +653,17 @@ def callback_plot_progress(
     # absolute:
     idealgas.x_ave(pred.beta).plot(ls=":", color="k", ax=ax)
 
-    alpha_new = info_dict.get("alpha_new")
-    if alpha_new is not None:
-        if verbose:
-            print("alpha_new:", alpha_new)
+    if (alpha_new := info_dict.get("alpha_new")) is not None:
+        logger.info("alpha_new: %s", alpha_new)
         ax.axvline(x=alpha_new, ls=":")
     plt.show()  # pyright: ignore[reportUnknownMemberType]
 
     # demo of coding in stop criteria
     if maxdepth_stop is not None:
-        stop = depth > maxdepth_stop
-        if stop and verbose:
-            print("reached maxdepth_stop in callback")
-    else:
-        stop = False
-    return stop
+        if stop := depth > maxdepth_stop:
+            logger.info("reached maxdepth_stop in callback")
+        return stop
+    return False
 
 
 # def plot_polynomial_consistency(alphas, states, factory_statecollection):

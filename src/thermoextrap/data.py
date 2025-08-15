@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Generic, cast
 
 import attrs
 import cmomy
+import numpy as np
 import xarray as xr
 from attrs import field
 from attrs import validators as attv
@@ -51,6 +52,7 @@ if TYPE_CHECKING:
     from .core.typing import (
         DataDerivArgs,
         MultDims,
+        NDArrayAny,
         OptionalKwsAny,
         SingleDim,
         SupportsData,
@@ -391,7 +393,7 @@ class DataValuesBase(AbstractData, Generic[DataT]):
         sampler = cmomy.factory_sampler(sampler, data=self.xv, dim=self.rec_dim)
         indices = sampler.indices
         if not isinstance(indices, xr.DataArray):
-            indices = xr.DataArray(indices, dims=(rep_dim, self.rec_dim))
+            indices = xr.DataArray(indices, dims=(rep_dim, self.rec_dim))  # pylint: disable=redefined-variable-type
 
         # assert indices.sizes[self.rec_dim] == len(self)
         if indices.sizes[self.rec_dim] != len(self):
@@ -967,7 +969,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         """
         if dim is MISSING and axis is MISSING:
             dim = self.rec_dim
-        kws = dict(dim=dim, axis=axis, **kwargs)
+        kws = {"dim": dim, "axis": axis, **kwargs}
         return self.new_like(
             dxduave=self.dxduave.reduce(**kws),  # pyright: ignore[reportArgumentType]
             meta=self.meta.reduce(data=self, meta_kws=meta_kws, **kws),
@@ -1012,14 +1014,14 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
             parallel=parallel,
         )
 
-        kws = dict(
-            sampler=sampler,
-            dim=dim,
-            axis=axis,
-            rep_dim=rep_dim,
-            parallel=parallel,
+        kws = {
+            "sampler": sampler,
+            "dim": dim,
+            "axis": axis,
+            "rep_dim": rep_dim,
+            "parallel": parallel,
             **kwargs,
-        )
+        }
 
         dxdu_new = (
             self.dxduave.resample_and_reduce(**kws)  # pyright: ignore[reportArgumentType]
@@ -1078,14 +1080,15 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         from_data
 
         """
-        if x_is_u:
-            data = cmomy.convert.moments_type(
+        data = (
+            cmomy.convert.moments_type(
                 raw, mom_ndim=1, mom_dims=umom_dim, to="central", **kwargs
             )
-        else:
-            data = cmomy.convert.moments_type(
+            if x_is_u
+            else cmomy.convert.moments_type(
                 raw, mom_ndim=2, mom_dims=(xmom_dim, umom_dim), to="central", **kwargs
             )
+        )
 
         return cls.from_data(
             data,
@@ -1110,7 +1113,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         rec_dim: SingleDim = "rec",
         deriv_dim: SingleDim | None = None,
         central: bool = False,
-        weight: XArrayObj | None = None,
+        weight: NDArrayAny | XArrayObj | None = None,
         axis: AxisReduce | MissingType = MISSING,
         dim: DimsReduce | MissingType = MISSING,
         meta: DataCallbackABC | None = None,
@@ -1235,14 +1238,13 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         """
         _raise_if_not_xarray(data)
 
-        if x_is_u:
-            dxduave = cmomy.wrap(
+        dxduave = (
+            cmomy.wrap(
                 data, mom_ndim=1, mom_dims=umom_dim, **kwargs
             ).moments_to_comoments(mom_dims_out=(xmom_dim, umom_dim), mom=(1, -1))
-        else:
-            dxduave = cmomy.wrap(
-                data, mom_ndim=2, mom_dims=(xmom_dim, umom_dim), **kwargs
-            )
+            if x_is_u
+            else cmomy.wrap(data, mom_ndim=2, mom_dims=(xmom_dim, umom_dim), **kwargs)
+        )
 
         return cls(
             dxduave=dxduave,
@@ -1263,7 +1265,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         uv: xr.DataArray,
         order: int,
         sampler: Sampler,
-        weight: XArrayObj | None = None,
+        weight: NDArrayAny | XArrayObj | None = None,
         axis: AxisReduce | MissingType = MISSING,
         dim: DimsReduce | MissingType = MISSING,
         xmom_dim: SingleDim = "xmom",
@@ -1370,7 +1372,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         cls,
         u: DataT,
         xu: DataT | None,
-        weight: DataT | None = None,
+        weight: NDArrayAny | DataT | None = None,
         rec_dim: SingleDim = "rec",
         xmom_dim: SingleDim = "xmom",
         umom_dim: SingleDim = "umom",
@@ -1388,7 +1390,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
             u[n] = <u**n>.
         xu : array_like
             xu[n] = <x * u**n>.
-        w : array-like, optional
+        weight : array-like, optional
             sample weights
         {rec_dim}
         {xmom_dim}
@@ -1496,7 +1498,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
                         **{umom_dim: lambda x: range(x.sizes[umom_dim])}  # type: ignore[arg-type]
                     )
                 )
-                for s in [slice(1, None), slice(None, -1)]
+                for s in (slice(1, None), slice(None, -1))
             )
 
         if (xave is None or x_is_u) and uave is not None:
@@ -1549,18 +1551,22 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
 
 
 def _convert_dxduave(
-    dxduave: cmomy.CentralMomentsData[Any] | None, self_: DataCentralMomentsVals[Any]
+    dxduave: cmomy.CentralMomentsData[Any] | None,
+    self_: attrs.AttrsInstance,
 ) -> cmomy.CentralMomentsData[Any]:
     if dxduave is not None:
         return dxduave
 
-    order = self_._order  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
-    if order is None:
+    if not isinstance(self_, DataCentralMomentsVals):
+        msg = "Converter only works with `DataCentralMomentsVals`"
+        raise TypeError(msg)
+
+    if (order := self_._order) is None:  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001  # pylint: disable=protected-access
         msg = "Must pass order if calculating dxduave"
         raise ValueError(msg)
 
     return cmomy.wrap_reduce_vals(  # type: ignore[no-any-return]
-        self_.xv,
+        self_.xv,  # pyright: ignore[reportUnknownMemberType,reportUnknownArgumentType]
         self_.uv,
         weight=self_.weight,
         dim=self_.rec_dim,
@@ -1597,9 +1603,11 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         alias="order",
     )
     #: Stored weights
-    weight: XArrayObj | None = field(
+    weight: NDArrayAny | XArrayObj | None = field(
         kw_only=True,
-        validator=attv.optional(attv.instance_of((xr.DataArray, xr.Dataset))),
+        validator=attv.optional(
+            attv.instance_of((np.ndarray, xr.DataArray, xr.Dataset))
+        ),
         default=None,
     )
     #: Optional parameters to :func:`cmomy.wrap_reduce_vals`
@@ -1611,7 +1619,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
     #: :class:`cmomy.CentralMomentsData` object
     dxduave: cmomy.CentralMomentsData[DataT] = field(
         kw_only=True,
-        converter=attrs.Converter(_convert_dxduave, takes_self=True),  # type: ignore[misc, call-overload]
+        converter=attrs.Converter(_convert_dxduave, takes_self=True),  # type: ignore[misc]
         validator=attv.instance_of(cmomy.CentralMomentsData),
         default=None,
     )
@@ -1623,7 +1631,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         xv: DataT,
         uv: xr.DataArray,
         order: int,
-        weight: XArrayObj | None = None,
+        weight: NDArrayAny | XArrayObj | None = None,
         rec_dim: SingleDim = "rec",
         umom_dim: SingleDim = "umom",
         xmom_dim: SingleDim = "xmom",

@@ -14,6 +14,7 @@ from typing import (
     Any,
     Generic,
     SupportsIndex,
+    cast,
     overload,
 )
 
@@ -275,10 +276,19 @@ class SymDerivBase:
 
         if isinstance(post_func, str):
             if post_func == "minus_log":
-                post_func = lambda f: -sp.log(f)
+
+                def post_func_log(f: Expr) -> Expr:
+                    return -sp.log(f)
+
+                post_func = post_func_log
             elif post_func.startswith("pow_"):
                 i = int(post_func.split("_")[-1])
-                post_func = lambda f: pow(f, i)
+
+                def post_func_pow(f: Expr) -> Expr:
+                    return sp.Pow(f, i)
+
+                post_func = post_func_pow
+
             else:
                 msg = "post_func must be callable or in {minus_log, pow_1, pow_2, ...}"
                 raise ValueError(msg)
@@ -346,8 +356,7 @@ class SymMinusLog:
 
     @cached.meth
     def __getitem__(self, order: SupportsIndex, /) -> Expr:
-        order = int(order)
-        if order == 0:
+        if (order := int(order)) == 0:
             return -sp.log(self.X[0])
 
         expr: Expr = sp.Number(0)
@@ -443,8 +452,6 @@ class Derivatives(MyAttrsMixin):
         order : int, optional
             If pass `data` and `order` is `None`, then `order=data.order`
             Otherwise, must mass order
-        args : tuple
-            arguments passed to ``self.funcs[i](*args)``
         minus_log : bool, default=False
             If `True`, apply transform for `Y = -log(<X>)`
         order_dim : str, default='order'
@@ -564,7 +571,7 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
 
     #: Data object
     data: SupportsData[DataT] = field(
-        validator=attv.instance_of(SupportsData)  # type: ignore[type-abstract]
+        validator=attv.instance_of(SupportsData),  # type: ignore[type-abstract]
     )
 
     #: Derivatives object
@@ -779,7 +786,7 @@ class StateCollection(
     def alpha0(self) -> list[float]:
         return [m.alpha0 for m in self]
 
-    def predict(self, alpha: ArrayLike, **kwargs: Any) -> DataT:
+    def predict(self, alpha: ArrayLike, **kwargs: Any) -> DataT:  # pylint: disable=no-self-use
         """
         Prediction routine.
 
@@ -788,7 +795,7 @@ class StateCollection(
         msg = "To be implemented by subclass"
         raise NotImplementedError(msg)
 
-    def coefs(self, order: int | None = None, **kwargs: Any) -> DataT:
+    def coefs(self, order: int | None = None, **kwargs: Any) -> DataT:  # pylint: disable=no-self-use
         """
         Coefficients.
 
@@ -836,9 +843,9 @@ class StateCollection(
     def map_concat(
         self,
         func: Callable[..., DataT],
+        *args: Any,
         concat_dim: Any = None,
         concat_kws: OptionalKwsAny = None,
-        *args: Any,
         **kwargs: Any,
     ) -> DataT:
         """
@@ -886,7 +893,11 @@ class StateCollection(
 
         if sort:
             if key is None:
-                key = lambda x: x.alpha0  # pyright: ignore[reportUnknownLambdaType]
+
+                def key_func(x: Any) -> Any:
+                    return x.alpha0
+
+                key = key_func
             new_states = sorted(new_states, key=key, **kws)
         return type(self)(new_states, **self.kws)
 
@@ -1034,7 +1045,7 @@ class InterpModel(StateCollection[SupportsModelDerivsT, DataT]):
     """Interpolation model."""
 
     @cached.meth
-    def coefs(
+    def coefs(  # pylint: disable=arguments-differ
         self,
         /,
         order: int | None = None,
@@ -1084,19 +1095,17 @@ class InterpModel(StateCollection[SupportsModelDerivsT, DataT]):
             .unstack()
         )
 
-        coefs: DataT = xr.concat(  # type: ignore[type-var,assignment]
-            (  # pyright: ignore[reportArgumentType]
-                m.derivs(order, norm=False, minus_log=minus_log, order_dim="order")
-                for m in self.states
+        coefs = cast(
+            "DataT",
+            xr.concat(  # type: ignore[type-var]
+                (  # pyright: ignore[reportArgumentType]
+                    m.derivs(order, norm=False, minus_log=minus_log, order_dim="order")
+                    for m in self.states
+                ),
+                dim="state",
             ),
-            dim="state",
         )
-        if isinstance(coefs, xr.Dataset):
-            coefs = coefs.map(lambda x: xr.dot(mat_inv, x))  # pyright: ignore[reportUnknownLambdaType]
-        else:
-            coefs = xr.dot(mat_inv, coefs)
-
-        return coefs
+        return xr_dot(mat_inv, coefs)
 
     def predict(
         self,
@@ -1226,12 +1235,12 @@ class PerturbModel(MyAttrsMixin, Generic[DataT]):
 
         dalpha_uv = (-1.0) * dalpha * uv
         dalpha_uv_diff = dalpha_uv - dalpha_uv.max(rec_dim)
-        expvals = np.exp(dalpha_uv_diff)
+        expvals = cast("xr.DataArray", np.exp(dalpha_uv_diff))
 
         num = xr_dot(expvals, xv, dim=rec_dim) / len(xv[rec_dim])
-        den = expvals.mean(rec_dim)  # type: ignore[arg-type]
+        den = expvals.mean(rec_dim)
 
-        return num / den  # type: ignore[no-any-return]
+        return num / den
 
     def resample(self, sampler: Sampler, **kws: Any) -> Self:
         return self.__class__(
@@ -1246,7 +1255,7 @@ class PerturbModel(MyAttrsMixin, Generic[DataT]):
 class MBARModel(StateCollection[Any, xr.DataArray]):
     """Sadly, this doesn't work as beautifully."""
 
-    def __attrs_pre_init__(self) -> None:
+    def __attrs_pre_init__(self) -> None:  # pylint: disable=bad-dunder-name,no-self-use
         if not module_available("pymbar"):
             msg = "need pymbar to use this"
             raise ImportError(msg)
@@ -1263,7 +1272,7 @@ class MBARModel(StateCollection[Any, xr.DataArray]):
         alpha0 = xrwrap_alpha([m.alpha0 for m in self], name=alpha_name)
 
         # make sure uv, xv in correct orde
-        rec_dim = self[0].data.rec_dim
+        rec_dim = self[0].data.rec_dim  # pylint: disable=no-member
         xv = xv.transpose(state_dim, rec_dim, ...)
         uv = uv.transpose(state_dim, rec_dim, ...)
 

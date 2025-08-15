@@ -1,6 +1,8 @@
 """Classes/routines to deal with thermodynamic extrapolation."""
+# pylint: disable=duplicate-code
 
-# TODO(wpk): move data, idealgas, models to top level.
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -70,10 +72,6 @@ else:
         },
     )
 
-
-# updated versioning scheme
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _version
 
 try:
     __version__ = _version("thermoextrap")

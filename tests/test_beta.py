@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 
 import cmomy
@@ -263,7 +265,10 @@ def test_extrapmodel_weighted_multi(fixture, rng: np.random.Generator) -> None:
         xtrap.beta.factory_extrapmodel(
             beta=xem.alpha0,
             data=xtrap.factory_data_values(
-                order=fixture.order, uv=xem.data.uv, xv=xem.data.xv, central=True
+                order=fixture.order,
+                uv=xem.data.uv,  # type: ignore[attr-defined]
+                xv=xem.data.xv,  # type: ignore[attr-defined]
+                central=True,
             ),
         )
         for xem in xems_r
@@ -273,7 +278,10 @@ def test_extrapmodel_weighted_multi(fixture, rng: np.random.Generator) -> None:
         xtrap.beta.factory_extrapmodel(
             beta=xem.alpha0,
             data=xtrap.DataCentralMomentsVals.from_vals(
-                order=fixture.order, uv=xem.data.uv, xv=xem.data.xv, central=True
+                order=fixture.order,
+                uv=xem.data.uv,  # type: ignore[attr-defined]
+                xv=xem.data.xv,  # type: ignore[attr-defined]
+                central=True,
             ),
         )
         for xem in xems_r
@@ -302,7 +310,7 @@ def test_extrapmodel_weighted_multi(fixture, rng: np.random.Generator) -> None:
     nrep = 20
     sampler = []
     for xem in xems_c:
-        ndat = xem.data.uv.shape[0]
+        ndat = xem.data.uv.shape[0]  # type: ignore[attr-defined]
         sampler.append(cmomy.factory_sampler(ndat=ndat, nrep=nrep, rng=rng))
 
     a = xemw_c.resample(sampler=sampler)
@@ -357,7 +365,10 @@ def test_interpmodel(fixture, rng: np.random.Generator) -> None:
         xtrap.beta.factory_extrapmodel(
             beta=xem.alpha0,
             data=xtrap.factory_data_values(
-                order=fixture.order, uv=xem.data.uv, xv=xem.data.xv, central=True
+                order=fixture.order,
+                uv=xem.data.uv,  # type: ignore[attr-defined]
+                xv=xem.data.xv,  # type: ignore[attr-defined]
+                central=True,
             ),
         )
         for xem in xems_r
@@ -367,7 +378,10 @@ def test_interpmodel(fixture, rng: np.random.Generator) -> None:
         xtrap.beta.factory_extrapmodel(
             beta=xem.alpha0,
             data=xtrap.DataCentralMomentsVals.from_vals(
-                order=fixture.order, uv=xem.data.uv, xv=xem.data.xv, central=True
+                order=fixture.order,
+                uv=xem.data.uv,  # type: ignore[attr-defined]
+                xv=xem.data.xv,  # type: ignore[attr-defined]
+                central=True,
             ),
         )
         for xem in xems_r
@@ -384,7 +398,7 @@ def test_interpmodel(fixture, rng: np.random.Generator) -> None:
     nrep = 20
     samplers = []
     for xem in xems_c:
-        ndat = xem.data.uv.shape[0]
+        ndat = xem.data.uv.shape[0]  # type: ignore[attr-defined]
         samplers.append(
             cmomy.factory_sampler(
                 ndat=ndat,
@@ -483,12 +497,12 @@ from sympy import bell
 
 
 class LogAvgExtrapModel(legacy.ExtrapModel):
-    def calcDerivVals(self, refB, x, energy):  # noqa: N802, ARG002, N803
+    def calcDerivVals(self, refB, x, energy):  # noqa: N802, ARG002, N803  # pyright: ignore[reportIncompatibleMethodOverride]
         if x.shape[0] != energy.shape[0]:
             msg = f"First observable dimension {x.shape[0]} and size of potential energy array {energy.shape[0]} do not match!"
             raise ValueError(msg)
 
-        avg_ufunc, avg_xufunc = legacy.buildAvgFuncs(x, energy, self.maxOrder)
+        avg_ufunc, avg_xufunc = legacy.buildAvgFuncs(x, energy, self.maxOrder)  # type: ignore[attr-defined]
 
         deriv_vals = np.zeros((self.maxOrder + 1, x.shape[1]))
         for o in range(self.maxOrder + 1):
@@ -528,13 +542,13 @@ def test_extrapmodel_minuslog_slow(fixture) -> None:
     # test coefs
     xem = xtrap.beta.factory_extrapmodel(beta0, fixture.rdata, post_func="minus_log")
     b = xem.derivatives.derivs(xem.data, norm=False, minus_log=False)
-    np.testing.assert_allclose(a, b)
+    np.testing.assert_allclose(a, b)  # pyright: ignore[reportCallIssue,reportArgumentType]
     np.testing.assert_allclose(em.predict(betas), xem.predict(betas))
 
     # or passing minus_log to predict
     xem = xtrap.beta.factory_extrapmodel(beta0, fixture.rdata, post_func=None)
     b = xem.derivatives.derivs(xem.data, norm=False, minus_log=True)
-    np.testing.assert_allclose(a, b)
+    np.testing.assert_allclose(a, b)  # pyright: ignore[reportCallIssue,reportArgumentType]
     np.testing.assert_allclose(em.predict(betas), xem.predict(betas, minus_log=True))
 
 
@@ -625,7 +639,7 @@ class ExtrapModelDependent(legacy.ExtrapModel):
     # And given data, calculate numerical values of derivatives up to maximum order
     # Will be very helpful when generalize to different extrapolation techniques
     # (and interpolation)
-    def calcDerivVals(self, refB, x, energy):  # noqa: N802, ARG002, N803
+    def calcDerivVals(self, refB, x, energy):  # noqa: N802, ARG002, N803  # pyright: ignore[reportIncompatibleMethodOverride]
         """
         Calculates specific derivative values at B with data x and energy up to max order.
         Returns these derivatives.
@@ -731,7 +745,6 @@ def test_extrapmodel_alphadep_ig() -> None:
     dat = xtrap.DataCentralMomentsVals.from_vals(
         order=max_order, xv=xdata, uv=udata, deriv_dim="deriv", central=True
     )
-    return
 
     # Create extrapolation model to test against analytical
     ex = xtrap.beta.factory_extrapmodel(ref_beta, dat, xalpha=True)
@@ -842,7 +855,7 @@ def test_extrapmodel_alphadep_minuslog_slow(fixture, rng: np.random.Generator) -
         ),
     )
     b = xem.derivatives.derivs(xem.data, minus_log=False, norm=False)
-    np.testing.assert_allclose(a, b)
+    np.testing.assert_allclose(a, b)  # pyright: ignore[reportCallIssue,reportArgumentType]
 
     # test prediction
     np.testing.assert_allclose(em.predict(betas), xem.predict(betas))
@@ -856,7 +869,7 @@ def test_extrapmodel_alphadep_minuslog_slow(fixture, rng: np.random.Generator) -
         ),
     )
     b = xem.derivatives.derivs(xem.data, minus_log=True, norm=False)
-    np.testing.assert_allclose(a, b)
+    np.testing.assert_allclose(a, b)  # pyright: ignore[reportCallIssue,reportArgumentType]
     # test prediction
     np.testing.assert_allclose(em.predict(betas), xem.predict(betas, minus_log=True))
 

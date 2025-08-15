@@ -2,6 +2,10 @@
 
 """Tests for active learning based on those GP models with derivatives."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import gpflow
 import numpy as np
 import pytest
@@ -11,8 +15,22 @@ from scipy import linalg
 from thermoextrap import idealgas
 from thermoextrap.gpr_active import active_utils, gp_models, ig_active
 
+if TYPE_CHECKING:
+    from cmomy.core.typing import Sampler
+    from numpy.random import Generator
+
 # For now, not testing DataWrapper or SimWrapper objects
 # These will likely change in future iterations and be highly dependent on individual problems
+
+
+@pytest.fixture
+def rng() -> Generator:
+    return np.random.default_rng(42)
+
+
+@pytest.fixture
+def sampler(rng: Generator) -> Sampler:
+    return {"nrep": 100, "rng": rng}
 
 
 # First test some simple utility functions, starting with sympy expressions for RBF
@@ -48,12 +66,14 @@ def test_rbf_expr() -> None:
 
 # Next test function for building GP inputs from thermoextrap ExtrapModel objects
 # (representing thermodynamic states)
-def test_make_gp_input() -> None:
+def test_make_gp_input(rng: Generator, sampler: Sampler) -> None:
     beta = 5.6
-    state = ig_active.extrap_IG(beta, rng=np.random.default_rng(42))
+    state = ig_active.extrap_IG(beta, rng=rng)
 
     # Test without logarithm on x
-    check_x, check_y, check_cov = active_utils.input_GP_from_state(state)
+    check_x, check_y, check_cov = active_utils.input_GP_from_state(
+        state, sampler=sampler
+    )
     # Check shapes
     assert check_x.shape == (state.order + 1, 2)
     assert check_y.shape == (state.order + 1, 1)
@@ -74,7 +94,9 @@ def test_make_gp_input() -> None:
         return sp.lambdify([logbeta_sym, idealgas.vol_sym], deriv, modules="numpy")
 
     check_x_log, check_y_log, check_cov_log = active_utils.input_GP_from_state(
-        state, log_scale=True
+        state,
+        log_scale=True,
+        sampler=sampler,
     )
     np.testing.assert_equal(np.log10(check_x[:, 0]), check_x_log[:, 0])
     assert check_x_log.shape == (state.order + 1, 2)
@@ -104,9 +126,10 @@ def test_make_gp_input() -> None:
             modules="numpy",
         )
 
-    state_mult = ig_active.multiOutput_extrap_IG(beta, rng=np.random.default_rng(42))
+    state_mult = ig_active.multiOutput_extrap_IG(beta, rng=rng)
     check_x_mult, check_y_mult, check_cov_mult = active_utils.input_GP_from_state(
-        state_mult
+        state_mult,
+        sampler=sampler,
     )
     assert check_x_mult.shape == (state.order + 1, 2)
     assert check_y_mult.shape == (state.order + 1, 2)
@@ -123,14 +146,14 @@ def test_make_gp_input() -> None:
 
 
 # Next want to test creation of a GP model
-def test_base_gp_creation() -> None:
+def test_base_gp_creation(rng: Generator, sampler: Sampler) -> None:
     # Need data to work with
     raw_x_data = []
     raw_y_data = []
     raw_cov_data = []
     for beta in [1.0, 5.6, 9.0]:
-        s = ig_active.extrap_IG(beta, rng=np.random.default_rng(42))
-        this_x, this_y, this_cov = active_utils.input_GP_from_state(s)
+        s = ig_active.extrap_IG(beta, rng=rng)
+        this_x, this_y, this_cov = active_utils.input_GP_from_state(s, sampler=sampler)
         raw_x_data.append(this_x)
         raw_y_data.append(this_y)
         raw_cov_data.append(this_cov)
@@ -207,7 +230,7 @@ def test_base_gp_creation() -> None:
     # (note default kernel is SharedIndependent, so referencing kernel.kernel)
     assert (
         sp.simplify(
-            check_gp.kernel.kernel.kernel_expr - active_utils.make_rbf_expr()[0]
+            check_gp.kernel.kernel.kernel_expr - active_utils.make_rbf_expr()[0]  # type: ignore[attr-defined]
         )
         == 0
     )
@@ -219,7 +242,7 @@ def test_base_gp_creation() -> None:
     assert isinstance(check_gp_sep.kernel, gpflow.kernels.SeparateIndependent)
     assert (
         sp.simplify(
-            check_gp_sep.kernel.kernels[0].kernel_expr - active_utils.make_rbf_expr()[0]
+            check_gp_sep.kernel.kernels[0].kernel_expr - active_utils.make_rbf_expr()[0]  # type: ignore[attr-defined]
         )
         == 0
     )
@@ -234,29 +257,31 @@ def test_base_gp_creation() -> None:
     # Warning should be printed, so should come up with some way to check for that...
     k_rbf = active_utils.RBFDerivKernel()
     # Changing parameter values to check if passed faithfully
-    k_rbf.l_0.assign(0.5)
-    k_rbf.var.assign(5.0)
+    k_rbf.l_0.assign(0.5)  # type: ignore[attr-defined]
+    k_rbf.var.assign(5.0)  # type: ignore[attr-defined]
     check_kernel = active_utils.create_base_GP_model(
         data_input_1p, d_order_ref=0, shared_kernel=False, kernel=k_rbf
     )
     assert isinstance(check_kernel.kernel, gpflow.kernels.SharedIndependent)
     assert check_kernel.kernel.kernel == k_rbf
-    assert check_kernel.kernel.kernel.l_0.numpy() == 0.5
-    assert check_kernel.kernel.kernel.var.numpy() == 5.0
+    assert check_kernel.kernel.kernel.l_0.numpy() == 0.5  # type: ignore[attr-defined]
+    assert check_kernel.kernel.kernel.var.numpy() == 5.0  # type: ignore[attr-defined]
 
 
 # Simple test for checking training of GP model
 # Test is a bit slow, though
 @pytest.mark.slow
-def test_train_gp() -> None:
+def test_train_gp(sampler: Sampler) -> None:
     # Will compare training results to a reference
     # Need data to work with
     raw_x_data = []
     raw_y_data = []
     raw_cov_data = []
     for beta in [1.0, 5.6, 9.0]:
-        s = ig_active.extrap_IG(beta, rng=np.random.default_rng(42))
-        this_x, this_y, this_cov = active_utils.input_GP_from_state(s)
+        s = ig_active.extrap_IG(
+            beta, rng=np.random.default_rng(42)
+        )  # NOTE: need this to produce results below...
+        this_x, this_y, this_cov = active_utils.input_GP_from_state(s, sampler=sampler)
         raw_x_data.append(this_x)
         raw_y_data.append(this_y)
         raw_cov_data.append(this_cov)
@@ -289,29 +314,25 @@ def test_train_gp() -> None:
 # Simple test for creating a GP model from list of states
 # Also a bit slow
 @pytest.mark.slow
-def test_create_gp_from_states() -> None:
+def test_create_gp_from_states(rng: Generator, sampler: Sampler) -> None:
     # Need data to work with
-    states = [
-        ig_active.extrap_IG(beta, rng=np.random.default_rng(42))
-        for beta in [1.0, 5.6, 9.0]
-    ]
+    states = [ig_active.extrap_IG(beta, rng=rng) for beta in [1.0, 5.6, 9.0]]
 
     n_gp_points = np.sum([s.order + 1 for s in states])
 
-    gp = active_utils.create_GPR(states)
+    gp = active_utils.create_GPR(states, sampler=sampler)
     assert gp.data[0].shape == (n_gp_points, 2)
     assert gp.data[1].shape == (n_gp_points, 1)
-    assert gp.likelihood.cov.shape == (gp.data[1].shape[1], n_gp_points, n_gp_points)
+    assert gp.likelihood.cov.shape == (gp.data[1].shape[1], n_gp_points, n_gp_points)  # type: ignore[attr-defined]
 
     # Also test with multidimensional data
     states_mult = [
-        ig_active.multiOutput_extrap_IG(beta, rng=np.random.default_rng(42))
-        for beta in [1.0, 5.6, 9.0]
+        ig_active.multiOutput_extrap_IG(beta, rng=rng) for beta in [1.0, 5.6, 9.0]
     ]
-    gp_mult = active_utils.create_GPR(states_mult)
+    gp_mult = active_utils.create_GPR(states_mult, sampler=sampler)
     assert gp_mult.data[0].shape == (n_gp_points, 2)
     assert gp_mult.data[1].shape == (n_gp_points, 2)
-    assert gp_mult.likelihood.cov.shape == (
+    assert gp_mult.likelihood.cov.shape == (  # type: ignore[attr-defined]
         gp_mult.data[1].shape[1],
         n_gp_points,
         n_gp_points,
@@ -320,14 +341,12 @@ def test_create_gp_from_states() -> None:
 
 # Testing update and stopping function classes
 @pytest.mark.slow
-def test_update_stop_abc() -> None:
+def test_update_stop_abc(rng: Generator, sampler: Sampler) -> None:
     # Need data to work with
     beta_list = [1.0, 5.6, 9.0]
-    states = [
-        ig_active.extrap_IG(beta, rng=np.random.default_rng(42)) for beta in beta_list
-    ]
+    states = [ig_active.extrap_IG(beta, rng=rng) for beta in beta_list]
     # And trained GP
-    gp = active_utils.create_GPR(states)
+    gp = active_utils.create_GPR(states, sampler=sampler)
 
     # Start by checking with default inputs
     check_default = active_utils.UpdateStopABC()
@@ -391,14 +410,12 @@ def test_update_stop_abc() -> None:
 # Rather than check all of these (hard for random...)
 # just check to make sure satisfy correct input/output structure
 @pytest.mark.slow
-def test_update_classes() -> None:
+def test_update_classes(rng: Generator, sampler: Sampler) -> None:
     # Need data to work with
     beta_list = [1.0, 5.6, 9.0]
-    states = [
-        ig_active.extrap_IG(beta, rng=np.random.default_rng(42)) for beta in beta_list
-    ]
+    states = [ig_active.extrap_IG(beta, rng=rng) for beta in beta_list]
     # And trained GP
-    gp = active_utils.create_GPR(states)
+    gp = active_utils.create_GPR(states, sampler=sampler)
 
     # Start with base, which should throw an error
     check_base = active_utils.UpdateFuncBase()
@@ -433,15 +450,12 @@ def test_update_classes() -> None:
 
 
 @pytest.mark.slow
-def test_update_classes_multioutput() -> None:
+def test_update_classes_multioutput(rng: Generator, sampler: Sampler) -> None:
     # Need data to work with
     beta_list = [1.0, 5.6, 9.0]
-    states = [
-        ig_active.multiOutput_extrap_IG(beta, rng=np.random.default_rng(42))
-        for beta in beta_list
-    ]
+    states = [ig_active.multiOutput_extrap_IG(beta, rng=rng) for beta in beta_list]
     # And trained GP
-    gp = active_utils.create_GPR(states)
+    gp = active_utils.create_GPR(states, sampler=sampler)
 
     # Random update function
     check_rand = active_utils.UpdateRandom()
@@ -476,7 +490,7 @@ def test_update_classes_multioutput() -> None:
 # Same for metric classes
 # just check mechanics for taking inputs and generic features of outputs
 @pytest.mark.slow
-def test_metrics() -> None:
+def test_metrics(rng: Generator, sampler: Sampler) -> None:
     # Need to create inputs to work with
     # Expects "history" which is a list of array-likes
     # where index zero is GP means over time and index one is vars
@@ -489,8 +503,8 @@ def test_metrics() -> None:
     assert check_base.tol == tol
     # Use to test _check_history function for all inheriting classes
     np.testing.assert_raises(ValueError, check_base._check_history, None)
-    np.testing.assert_raises(ValueError, check_base._check_history, x)
-    assert check_base._check_history(hist) is None
+    np.testing.assert_raises(ValueError, check_base._check_history, x)  # type: ignore[call-overload]
+    check_base._check_history(hist)
     # And generic call and calc_metric both work
     np.testing.assert_raises(NotImplementedError, check_base, hist, x, None)
     np.testing.assert_raises(NotImplementedError, check_base.calc_metric, hist, x, None)
@@ -524,22 +538,21 @@ def test_metrics() -> None:
 
     # For special ErrorStability class, actually need a GP model
     beta_list = [1.0, 2.3, 5.6, 9.0]
-    states = [
-        ig_active.extrap_IG(beta, rng=np.random.default_rng(42)) for beta in beta_list
-    ]
+    states = [ig_active.extrap_IG(beta, rng=rng) for beta in beta_list]
     # And trained GP
-    gp_2 = active_utils.create_GPR([states[0], states[-1]])
-    gp_3 = active_utils.create_GPR([states[0], states[2], states[-1]])
-    gp_4 = active_utils.create_GPR(states)
+    gp_2 = active_utils.create_GPR([states[0], states[-1]], sampler=sampler)
+    gp_3 = active_utils.create_GPR([states[0], states[2], states[-1]], sampler=sampler)
+    gp_4 = active_utils.create_GPR(states, sampler=sampler)
 
     check_errorstability = active_utils.ErrorStability(0.05)
     # Check that returns 1 for just 2 points
     assert check_errorstability(hist, x, gp_2) == 1
     # Check that sets normalization once provide more points
     assert check_errorstability.r1 is None
+
     out_errorstability = check_errorstability(hist, x, gp_3)
     assert isinstance(check_errorstability.r1, float)
-    assert isinstance(out_errorstability, float)
+    assert isinstance(out_errorstability, float)  # type: ignore[unreachable]
     assert out_errorstability == 1.0
     # Check with 4 points
     out_errorstability_4 = check_errorstability(hist, x, gp_4)
@@ -556,15 +569,13 @@ def test_metrics() -> None:
 
 # Test class for implementing stopping criteria
 @pytest.mark.slow
-def test_stop_criteria() -> None:
+def test_stop_criteria(rng: Generator, sampler: Sampler) -> None:
     # Need data to work with
     beta_list = [1.0, 5.6, 9.0]
-    states = [
-        ig_active.extrap_IG(beta, rng=np.random.default_rng(42)) for beta in beta_list
-    ]
+    states = [ig_active.extrap_IG(beta, rng=rng) for beta in beta_list]
     # And trained GP
-    gp_prev = active_utils.create_GPR([states[0], states[-1]])
-    gp = active_utils.create_GPR(states)
+    gp_prev = active_utils.create_GPR([states[0], states[-1]], sampler=sampler)
+    gp = active_utils.create_GPR(states, sampler=sampler)
 
     tol = 1e-03
     m_var = active_utils.MaxVar(tol)
@@ -577,10 +588,10 @@ def test_stop_criteria() -> None:
     assert check_stop_1m.history is None
     out_1m_bool, out_1m_info = check_stop_1m(gp_prev, beta_list)
     assert check_stop_1m.history is not None
-    assert len(check_stop_1m.history) == 2
+    assert len(check_stop_1m.history) == 2  # type: ignore[unreachable]
     assert check_stop_1m.history[0].shape == (1, 1000, 1)
     assert check_stop_1m.history[1].shape == (1, 1000, 1)
-    assert out_1m_bool.dtype == bool
+    assert isinstance(out_1m_bool, bool)
     assert isinstance(out_1m_info, dict)
     assert len(out_1m_info.keys()) == 2  # Also have key for the tolerance
     # Call again and check if updated correctly
@@ -588,7 +599,7 @@ def test_stop_criteria() -> None:
     assert len(check_stop_1m.history) == 2
     assert check_stop_1m.history[0].shape == (2, 1000, 1)
     assert check_stop_1m.history[1].shape == (2, 1000, 1)
-    assert out_1m_bool.dtype == bool
+    assert isinstance(out_1m_bool, bool)
     assert isinstance(out_1m_info, dict)
     assert len(out_1m_info.keys()) == 2
 
@@ -600,14 +611,14 @@ def test_stop_criteria() -> None:
     assert len(check_stop_2m.history) == 2
     assert check_stop_2m.history[0].shape == (1, 1000, 1)
     assert check_stop_2m.history[1].shape == (1, 1000, 1)
-    assert out_2m_bool.dtype == bool
+    assert isinstance(out_2m_bool, bool)
     assert isinstance(out_2m_info, dict)
     assert len(out_2m_info.keys()) == 4
     out_2m_bool, out_2m_info = check_stop_2m(gp, beta_list)
     assert len(check_stop_2m.history) == 2
     assert check_stop_2m.history[0].shape == (2, 1000, 1)
     assert check_stop_2m.history[1].shape == (2, 1000, 1)
-    assert out_2m_bool.dtype == bool
+    assert isinstance(out_2m_bool, bool)
     assert isinstance(out_2m_info, dict)
     assert len(out_2m_info.keys()) == 4
 

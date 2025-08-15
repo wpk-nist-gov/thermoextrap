@@ -188,7 +188,7 @@ def x_cdf(x: FloatOrArray, beta: FloatOrArray, vol: FloatOrArray = 1.0) -> Float
 
 @docfiller_shared
 def x_sample(
-    shape: Sequence[int],
+    shape: int | Sequence[int],
     beta: FloatOrArray,
     vol: FloatOrArray = 1.0,
     rng: OptionalRng = None,

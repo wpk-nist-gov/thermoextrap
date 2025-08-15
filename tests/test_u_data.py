@@ -10,6 +10,7 @@ import thermoextrap as xtrap
 from thermoextrap.core.xrutils import xrwrap_uv, xrwrap_xv
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from typing import Any
 
     import numpy.typing as npt
@@ -84,6 +85,7 @@ def xv_fixture(request, data):
 def data_other(request, data, xv_fixture, order, central):
     style = request.param
 
+    factory: Callable[..., Any]
     if style == "factory":
         factory = xtrap.factory_data_values
     elif style == "cmom":
@@ -141,6 +143,7 @@ def test_em_other(em_x_out, em_other_out) -> None:
 def data_x_is_u(request, data, order, central):
     style = request.param
 
+    factory: Callable[..., Any]
     if style == "factory":
         factory = xtrap.factory_data_values
     elif style == "cmom":

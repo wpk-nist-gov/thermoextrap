@@ -83,7 +83,7 @@ dev = [
     { include-group = "mypy" },
     { include-group = "notebook" },
     { include-group = "nox" },
-    { include-group = "pytest-accept" },
+    # { include-group = "pytest-accept" },
     { include-group = "test" },
     { include-group = "test-notebook" },
     { include-group = "typecheck" },
@@ -139,6 +139,7 @@ typecheck = [
     "pandas-stubs",
     "scipy-stubs; python_version>='3.10'",
     "thermoextrap[mbar,gpr]",
+    "types-tensorflow",
     { include-group = "pylint" },
     { include-group = "pytest" },
 ]
@@ -292,21 +293,25 @@ ignore_missing_imports = true
 module = [
     "sympy.*",
     "pymbar.*",
+    "tensorflow_probability.*",
 ]
 
 [[tool.mypy.overrides]]
 strict = false
 allow_untyped_defs = true
+allow_incomplete_defs = true
 allow_untyped_calls = true
+# check_untyped_defs = true
+module = [
+    "tests.*",
+    # "tests.legacy.*",
+]
+
+[[tool.mypy.overrides]]
+check_untyped_defs = false
 module = [
     "tests.legacy.*",
 ]
-
-# [[tool.mypy.overrides]]
-# ignore_errors = true
-# module = [
-#     "tests.legacy.*",
-# ]
 
 [tool.pyright]
 include = [
@@ -326,22 +331,27 @@ exclude = [
 strict = [
     "noxfile.py",
     "tools/*.py",
-    "src/thermoextrap/__init__.py",
-    "src/thermoextrap/data.py",
-    "src/thermoextrap/idealgas.py",
-    "src/thermoextrap/models.py",
-    "src/thermoextrap/beta.py",
-    "src/thermoextrap/lnpy.py",
-    "src/thermoextrap/volume.py",
-    "src/thermoextrap/volume_idealgas.py",
-    "src/thermoextrap/adaptive_interp.py",
-    "src/thermoextrap/recursive_interp.py",
+    # "src/thermoextrap/__init__.py",
+    # "src/thermoextrap/data.py",
+    # "src/thermoextrap/idealgas.py",
+    # "src/thermoextrap/models.py",
+    # "src/thermoextrap/beta.py",
+    # "src/thermoextrap/lnpy.py",
+    # "src/thermoextrap/volume.py",
+    # "src/thermoextrap/volume_idealgas.py",
+    # "src/thermoextrap/adaptive_interp.py",
+    # "src/thermoextrap/recursive_interp.py",
     # "src/thermoextrap/stack.py",
+    "src/thermoextrap/*.py",
     "src/thermoextrap/core/*.py",
+    "src/thermoextrap/gpr_active/ig_active.py",
+    # "src/thermoextrap/gpr_active/active_utils.py",
+    # "src/thermoextrap/gpr_active/gp_models.py",
+    "src/thermoextrap/gpr_active/sine_active.py",
     "tests/test_typing.py",
 ]
 pythonVersion = "3.11"
-typeCheckingMode = "basic"
+typeCheckingMode = "standard"
 # enable subset of "strict"
 reportDuplicateImport = true
 reportInvalidStubStatement = true
@@ -473,6 +483,7 @@ extend-exclude = [ "spelling_wordlist.txt" ]
 extend-ignore-identifiers-re = [
     "struc_.*",
     ".*equil.*",
+    "NDArray.*",
 ]
 
 [tool.typos.default.extend-identifiers]

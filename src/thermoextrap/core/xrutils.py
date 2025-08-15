@@ -99,8 +99,8 @@ def xrwrap_xv(
     if strict is None:
         strict = False
 
-    if deriv_dim is None:
-        if dims is None:
+    if dims is None:
+        if deriv_dim is None:
             rec_val = [rec_dim, *val_dims]
             rep_val = [rep_dim, rec_dim, *val_dims]
 
@@ -109,15 +109,14 @@ def xrwrap_xv(
                 len(rec_val): [rec_dim, *val_dims],
                 len(rep_val): [rep_dim, rec_dim, *val_dims],
             }
-
-    elif dims is None:
-        rec_val = [rec_dim, deriv_dim, *val_dims]
-        rep_val = [rep_dim, rec_dim, deriv_dim, *val_dims]
-        dims = {
-            2: [rec_dim, deriv_dim],
-            len(rec_val): [rec_dim, deriv_dim, *val_dims],
-            len(rep_val): [rep_dim, rec_dim, deriv_dim, *val_dims],
-        }
+        else:
+            rec_val = [rec_dim, deriv_dim, *val_dims]
+            rep_val = [rep_dim, rec_dim, deriv_dim, *val_dims]
+            dims = {
+                2: [rec_dim, deriv_dim],
+                len(rec_val): [rec_dim, deriv_dim, *val_dims],
+                len(rep_val): [rep_dim, rec_dim, deriv_dim, *val_dims],
+            }
     return _check_xr(xv, dims=dims, name=name, strict=strict)
 
 

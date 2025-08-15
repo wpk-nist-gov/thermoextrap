@@ -1,3 +1,5 @@
+# pyright: reportMissingTypeStubs=false
+# pylint: disable=duplicate-code
 r"""
 Inverse temperature expansion of macrostate distribution (:mod:`~thermoextrap.lnpi`)
 ====================================================================================
@@ -29,7 +31,7 @@ from . import beta as beta_xpan
 from .core._attrs_utils import convert_dims_to_tuple
 from .core.docstrings import DOCFILLER_SHARED
 from .core.sputils import get_default_indexed, get_default_symbol
-from .core.typing import DataDerivArgs, DataT, OptionalKwsAny, SupportsData
+from .core.typing import DataT
 from .data import DataCallbackABC
 from .models import Derivatives, ExtrapModel, SymFuncBase
 
@@ -39,10 +41,11 @@ if TYPE_CHECKING:
 
     from cmomy import IndexSampler
     from sympy.core.expr import Expr
+    from sympy.core.numbers import Number
     from sympy.core.symbol import Symbol
     from sympy.tensor.indexed import IndexedBase
 
-    from .core.typing import OptionalKwsAny, PostFunc
+    from .core.typing import DataDerivArgs, OptionalKwsAny, PostFunc, SupportsData
     from .core.typing_compat import Self
 
 docfiller_shared = DOCFILLER_SHARED.levels_to_top("cmomy", "xtrap", "beta").decorate
@@ -93,7 +96,7 @@ class lnPi_func_central(SymFuncBase):
     def deriv_args(cls) -> tuple[Symbol, IndexedBase, Symbol, Symbol]:
         return (*beta_xpan.u_func_central.deriv_args(), cls.lnPi0, cls.mudotN)
 
-    def fdiff(self, argindex: int = 1) -> Expr:
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
         (beta,) = self.args
         return self.mudotN - beta_xpan.u_func_central.tcall(beta)
 
@@ -122,7 +125,7 @@ class lnPi_func_raw(SymFuncBase):
     def deriv_args(cls) -> tuple[IndexedBase, Symbol, Symbol]:
         return (*beta_xpan.u_func.deriv_args(), cls.lnPi0, cls.mudotN)
 
-    def fdiff(self, argindex: int = 1) -> Expr:
+    def fdiff(self, argindex: int | Number = 1) -> Expr:
         (beta,) = self.args
         return self.mudotN - beta_xpan.u_func.tcall(beta, n=1)
 
@@ -190,7 +193,24 @@ def factory_derivatives(
     )
 
 
-@attrs.define
+def _convert_ncoords(
+    ncoords: xr.DataArray | None, self_: attrs.AttrsInstance
+) -> xr.DataArray:
+    if ncoords is not None:
+        return ncoords
+
+    if not isinstance(self_, lnPiDataCallback):
+        msg = "Converter only works with `lnPiDataCallback`"
+        raise TypeError(msg)
+
+    ncoords_ = np.meshgrid(
+        *tuple(self_.lnPi0[x].to_numpy() for x in self_.dims_n),  # pyright: ignore[reportUnknownArgumentType,reportUnknownMemberType]
+        indexing="ij",
+    )
+    return xr.DataArray(np.array(ncoords_), dims=(self_.dims_comp, *self_.dims_n))
+
+
+@attrs.frozen
 class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
     """
     Class to handle metadata callbacks for lnPi data.
@@ -224,23 +244,19 @@ class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
     #: Dimensions for component
     dims_comp: Hashable = field()
     #: Particle number coordinates
-    ncoords: xr.DataArray = field(validator=attv.instance_of(xr.DataArray))
+    ncoords: xr.DataArray = field(
+        converter=attrs.Converter(_convert_ncoords, takes_self=True),  # type: ignore[misc]
+        validator=attv.instance_of(xr.DataArray),
+        default=None,
+    )
     #: Flag to allow/disallow resampling of ``lnPi0``.
     allow_resample: bool = field(default=False)
 
-    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
+    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict[str, "Any"])
     # TODO(wpk): using dims_n, dims_comp naming because this is what is used in lnPi module
 
     def check(self, data: SupportsData[Any]) -> None:
         pass
-
-    @ncoords.default
-    def _set_default_ncoords(self) -> xr.DataArray:
-        # create grid
-        ncoords = np.meshgrid(
-            *tuple(self.lnPi0[x].to_numpy() for x in self.dims_n), indexing="ij"
-        )
-        return xr.DataArray(np.array(ncoords), dims=(self.dims_comp, *self.dims_n))
 
     @property
     def lnPi0_ave(self) -> DataT:
@@ -251,7 +267,7 @@ class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
         """Dot product of `self.mu` and `self.ncoords`, reduces along `self.dims_comp`."""
         from .core.compat import xr_dot
 
-        return xr_dot(self.mu, self.ncoords, dim=self.dims_comp)  # type: ignore[no-any-return]
+        return xr_dot(self.mu, self.ncoords, dim=self.dims_comp)
 
     def resample(
         self,
@@ -287,9 +303,9 @@ class lnPiDataCallback(DataCallbackABC, Generic[DataT]):
             mom_dims="_mom",
         )
         # resample and reduce
-        dc = dc.resample_and_reduce(**kws)
+        dc = dc.resample_and_reduce(sampler=sampler, **kws)
         # return new object
-        return self.new_like(lnPi0=dc.obj.sel(_mom=1, drop=True))
+        return self.new_like(lnPi0=dc.obj.sel(_mom=1, drop=True))  # pyright: ignore[reportUnknownMemberType]
 
     def deriv_args(
         self, data: SupportsData[Any], *, deriv_args: DataDerivArgs

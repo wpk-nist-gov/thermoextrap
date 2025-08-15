@@ -5,6 +5,7 @@ Volume extrapolation (:mod:`~thermoextrap.volume`)
 Note: This only handles volume expansion to first order.
 Also, Only DataValues like objects are supported.
 """
+# pylint: disable=duplicate-code
 
 from __future__ import annotations
 
@@ -59,8 +60,7 @@ class VolumeDerivFuncs:
 
     def __getitem__(self, order: SupportsIndex) -> Callable[..., Any]:
         # Check to make sure not going past first order
-        order = int(order)
-        if order > 1:
+        if (order := int(order)) > 1:
             raise ValueError(
                 "Volume derivatives cannot go past 1st order"
                 + " and received %i" % order
@@ -89,14 +89,12 @@ class VolumeDerivFuncs:
             is the virial.
             """
             # Zeroth order derivative
-            if order == 0:
-                deriv_val = x_beta_virial[0]
-            # First order derivative
-            else:
-                deriv_val = (
-                    -x_beta_virial[0] * beta_virial[1] + x_beta_virial[1] + dxdq
-                ) / (volume * ndim)
-            return deriv_val
+            return (
+                x_beta_virial[0]
+                if order == 0
+                else (-x_beta_virial[0] * beta_virial[1] + x_beta_virial[1] + dxdq)
+                / (volume * ndim)
+            )
 
         return func
 

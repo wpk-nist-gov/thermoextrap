@@ -1,14 +1,19 @@
 """Typing compatibility."""
 
 import sys
-from typing import Any
 
 if sys.version_info >= (3, 10):
     from types import EllipsisType
     from typing import Concatenate, TypeAlias, TypeGuard
 else:
-    EllipsisType = Any
+    from typing import TYPE_CHECKING
+
     from typing_extensions import Concatenate, TypeAlias, TypeGuard
+
+    if TYPE_CHECKING:
+        import builtins
+
+    EllipsisType: TypeAlias = "builtins.ellipsis"
 
 
 if sys.version_info >= (3, 11):

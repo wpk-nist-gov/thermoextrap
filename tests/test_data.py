@@ -62,7 +62,7 @@ def test_xdata_from_ave_raw(fixture) -> None:
     b = xtrap.DataCentralMoments.from_ave_raw(
         u=a.u,
         xu=a.xu,
-        weight=len(a.uv),
+        weight=len(a.uv),  # pyright: ignore[reportArgumentType]
     )
     fixture.xr_test_raw(b)
 

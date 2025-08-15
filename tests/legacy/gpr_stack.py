@@ -60,6 +60,8 @@ class DerivativeKernel(gpflow.kernels.Kernel):
 
         super().__init__(active_dims=active_dims, **kwargs)
 
+        self._cache = {}
+
         # Get the sympy expression for the kernel
         self.kernel_expr = kernel_expr
         # Now need to mine it a little bit to get the adjustable parameters and input variables
@@ -104,7 +106,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
 
     # Define ARD behavior (if ever want multiple dimensions with different lengthscales)
     @property
-    def ard(self) -> bool:
+    def ard(self):
         """
         Whether ARD behavior is active, following gpflow.kernels.Stationary
         """
@@ -296,6 +298,7 @@ class GPRModel:
         self.data = data
         self.kernel_expr = kernel_expr
         self.kernel_params = kernel_params
+        self._cache = {}
 
     @cached.meth
     def kern(self, out_dim):

@@ -43,11 +43,11 @@ dependencies:
   - scipy
   - scipy-stubs
   - sympy
+  - types-tensorflow
   - xarray>=2024.7.0
   - pip
   - pip:
       - gpflow>=2.6.0
       - pymbar[jax]>=4.0
-      - pytest-accept
       - tensorflow-probability[tf]~=0.24.0
       - tensorflow>=2.13

@@ -63,6 +63,9 @@ def test_x_ave(data, central, post_func) -> None:
         name="u_ave", central=central, post_func=post_func
     )
 
+    assert f0.exprs is not None
+    assert f1.exprs is not None
+
     for i in range(n + 1):
         assert f0.exprs[i].subs(subs) - f1.exprs[i] == 0
 
@@ -74,6 +77,9 @@ def test_central_dx(data) -> None:
         f0 = xtrap.beta.factory_derivatives(name="dxdun_ave", n=m, central=True)
         f1 = xtrap.beta.factory_derivatives(name="dun_ave", n=m + 1, central=True)
 
+        assert f0.exprs is not None
+        assert f1.exprs is not None
+
         for i in range(n + 1):
             assert f0.exprs[i].subs(subs) - f1.exprs[i] == 0
 
@@ -84,6 +90,9 @@ def test_raw_un(data) -> None:
     for m in range(1, n):
         f0 = xtrap.beta.factory_derivatives(name="xun_ave", n=m, central=False)
         f1 = xtrap.beta.factory_derivatives(name="un_ave", n=m + 1, central=False)
+
+        assert f0.exprs is not None
+        assert f1.exprs is not None
 
         for i in range(n + 1):
             assert f0.exprs[i].subs(subs) - f1.exprs[i] == 0

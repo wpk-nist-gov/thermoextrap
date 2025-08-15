@@ -1,5 +1,6 @@
 # pyright: reportMissingTypeStubs=false, reportIncompatibleMethodOverride=false
 # ruff: noqa: ARG003  # bunch of unused arguments
+# pylint: disable=duplicate-code
 
 """
 Inverse temperature (beta) extrapolation (:mod:`~thermoextrap.beta`)
@@ -359,7 +360,7 @@ class SymDerivBeta(SymDerivBase):
             central = False
         beta = beta or get_default_symbol("beta")
 
-        if central:
+        if central:  # pylint: disable=consider-ternary-expression
             func = x_func_central(beta, 0) if xalpha else x_func_central(beta)
         else:
             func = xu_func(beta, 0, 0) if xalpha else xu_func(beta, 0)
@@ -555,10 +556,11 @@ class SymDerivBeta(SymDerivBase):
             msg = f"{n=} must be >= 0"
             raise ValueError(msg)
 
-        if xalpha:
-            func = xu_func(beta, n, validate_positive_integer(d, "d"))
-        else:
-            func = xu_func(beta, n)
+        func = (
+            xu_func(beta, n, validate_positive_integer(d, "d"))
+            if xalpha
+            else xu_func(beta, n)
+        )
 
         return cls(func=func, expand=expand, post_func=post_func, beta=beta)
 
@@ -604,9 +606,7 @@ class SymDerivBeta(SymDerivBase):
         """
         beta = beta or get_default_symbol("beta")
 
-        func = getattr(cls, name, None)
-
-        if func is None:
+        if (func := getattr(cls, name, None)) is None:
             msg = f"{name} not found"
             raise ValueError(msg)
 
@@ -704,8 +704,8 @@ def factory_extrapmodel(
     {central}
     {post_func}
     {alpha_name}
-    kws : dict
-        extra arguments to `factory_data_values`
+    derivatives_kws : dict
+        extra arguments to `factory_derivatives`
 
     Returns
     -------

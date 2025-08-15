@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from .models import Derivatives
 
 
+logging.basicConfig()
 logger = logging.getLogger(__name__)
 
 
@@ -203,7 +204,7 @@ class RecursiveInterp:
         check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)  # type: ignore[arg-type]
         check_val = rel_err[check_ind]
 
-        logger.info("Maximum bootstrapped error within interval: %s", check_val)
+        logger.info("Maximum bootstrapped error within interval: %f", check_val)
 
         # Check if bootstrapped uncertainty in estimate is small enough
         # If so, we're done
@@ -281,7 +282,6 @@ class RecursiveInterp:
             self.states.append(extrap1)
             if beta2 == self.edge_beta[-1]:
                 self.states.append(extrap2)
-            return
 
     recursiveTrain = deprecate("recursiveTrain", recursive_train, "0.2.0")  # noqa: N815
 
@@ -313,8 +313,7 @@ class RecursiveInterp:
             logger.info("Interpolating from points %f and %f", beta1, beta2)
 
             # Check if already have ExtrapModel with data for beta1
-            state_tmp = self.states[i]
-            if state_tmp is None:
+            if (state_tmp := self.states[i]) is None:
                 data1 = self.get_data(beta1)
                 extrap1 = ExtrapModel(
                     alpha0=beta1,
@@ -327,8 +326,7 @@ class RecursiveInterp:
                 extrap1 = state_tmp
 
             # And for beta2
-            state_tmp = self.states[i + 1]
-            if state_tmp is None:
+            if (state_tmp := self.states[i + 1]) is None:
                 data2 = self.get_data(beta2)
                 extrap2 = ExtrapModel(
                     alpha0=beta2,
@@ -386,10 +384,9 @@ class RecursiveInterp:
         # For each state point in beta, select a piecewise model to use
         beta = np.asarray(beta)
         xv: xr.DataArray = self.states[0].data.xv  # type: ignore[union-attr]
-        if "val" in xv.dims:
-            predict_vals = np.zeros((len(beta), xv["val"].size))
-        else:
-            predict_vals = np.zeros(len(beta))
+        predict_vals = np.zeros(
+            (len(beta), xv["val"].size) if "val" in xv.dims else len(beta)
+        )
 
         for i, beta_val in enumerate(beta):
             # Check if out of lower bound
@@ -468,7 +465,7 @@ class RecursiveInterp:
 
         # Before loop, set up plot if wanted
         if do_plot:
-            pcolors = plt.cm.cividis(np.linspace(0.0, 1.0, len(edge_sets)))  # type: ignore[attr-defined]
+            pcolors = plt.cm.cividis(np.linspace(0.0, 1.0, len(edge_sets)))  # type: ignore[attr-defined]  # pylint: disable=no-member
             pfig, pax = plt.subplots()
             plotymin = 1e10
             plotymax = -1e10

@@ -9,7 +9,7 @@ learning strategies.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING
 
 import numpy as np
 import xarray as xr
@@ -18,8 +18,6 @@ from cmomy.random import validate_rng
 from thermoextrap import beta as xpan_beta
 from thermoextrap import idealgas
 from thermoextrap.data import DataCentralMomentsVals
-
-from .active_utils import DataWrapper
 
 if TYPE_CHECKING:
     from typing import Any
@@ -59,30 +57,21 @@ def multiOutput_extrap_IG(
 
 
 # To help test active learning, build DataWrapper and SimWrapper objects for ideal gas
-class IG_DataWrapper(DataWrapper):  # noqa: N801
+class IG_DataWrapper:  # noqa: N801
     """Data object for gpr with ideal gas."""
 
     def __init__(self, beta: Any, rng: OptionalRng = None) -> None:
         self.beta = beta
         self.rng = validate_rng(rng)
 
-    def load_U_info(self) -> NoReturn:
-        raise NotImplementedError
-
-    def load_CV_info(self) -> NoReturn:
-        raise NotImplementedError
-
-    def load_x_info(self) -> NoReturn:
-        raise NotImplementedError
-
     def get_data(
         self, n_conf: int = 10000, n_part: int = 1000
     ) -> tuple[xr.DataArray, xr.DataArray, NDArray[Any]]:
         # Call thermoextrap.idealgas methods
-        x, U = idealgas.generate_data((n_conf, n_part), self.beta, rng=self.rng)
+        x, u_ = idealgas.generate_data((n_conf, n_part), self.beta, rng=self.rng)
         x = xr.DataArray(x[:, None], dims=["rec", "val"])
-        U = xr.DataArray(U, dims=["rec"])
-        return U, x, np.ones(U.shape, dtype=U.dtype)
+        u = xr.DataArray(u_, dims=["rec"])
+        return u, x, np.ones(u.shape, dtype=u.dtype)  # pyright: ignore[reportUnknownVariableType,reportUnknownMemberType,reportUnknownArgumentType]
 
     def build_state(
         self,
@@ -91,10 +80,10 @@ class IG_DataWrapper(DataWrapper):  # noqa: N801
     ) -> ExtrapModel[xr.DataArray]:
         if all_data is None:
             all_data = self.get_data()
-        U = all_data[0]
+        u = all_data[0]
         x = all_data[1]
         data = DataCentralMomentsVals.from_vals(
-            order=max_order, rec_dim="rec", xv=x, uv=U, central=True
+            order=max_order, rec_dim="rec", xv=x, uv=u, central=True
         )
         return xpan_beta.factory_extrapmodel(self.beta, data)
 
@@ -105,7 +94,7 @@ class SimulateIG:
     def __init__(self, sim_func: None = None) -> None:
         self.sim_func = sim_func  # Will not perform any simulations
 
-    def run_sim(self, unused: Any, beta: Any, n_repeats: Any = None) -> IG_DataWrapper:
+    def run_sim(self, unused: Any, beta: Any, n_repeats: Any = None) -> IG_DataWrapper:  # pylint: disable=no-self-use
         # All this does is creates an IG_DataWrapper object at the specified beta
         # (and returns it)
         return IG_DataWrapper(beta)

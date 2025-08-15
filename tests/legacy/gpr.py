@@ -2,7 +2,7 @@
 Routines GPR interpolation models
 """
 
-
+from typing import Any
 import gpflow
 import numpy as np
 import sympy as sp
@@ -104,7 +104,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
 
     # Define ARD behavior (if ever want multiple dimensions with different lengthscales)
     @property
-    def ard(self) -> bool:
+    def ard(self):
         """
         Whether ARD behavior is active, following gpflow.kernels.Stationary
         """
@@ -262,7 +262,7 @@ class combined_loss:
 
 
 # Now can construct a model class inheriting from StateCollection
-class GPRModel(StateCollection):
+class GPRModel(StateCollection[Any]):
     def _collect_data(self, order=None, order_dim="order", n_resample=100):
         if order is None:
             order = self.order

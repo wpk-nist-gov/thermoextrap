@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import cmomy
 import numpy as np
 import pandas as pd
@@ -7,9 +11,14 @@ import xarray as xr
 import thermoextrap as xtrap
 from thermoextrap import stack
 
+if TYPE_CHECKING:
+    from typing import Any
+
+    from thermoextrap.models import StateCollection
+
 
 @pytest.fixture
-def states():
+def states() -> StateCollection[Any, xr.DataArray]:
     shape = (3, 2, 4)
     dims = ["rec", "pair", "position"]
     coords = {"position": np.linspace(0, 2, shape[-1])}
@@ -51,8 +60,8 @@ def test_derivs_concat(states) -> None:
     xr.testing.assert_allclose(a, b)
 
 
-def test_stack(states) -> None:
-    y_unstack = stack.states_derivs_concat(states).pipe(stack.to_mean_var, "rep")
+def test_stack(states: StateCollection[Any, xr.DataArray]) -> None:
+    y_unstack = stack.states_derivs_concat(states).pipe(stack.to_mean_var, "rep")  # type: ignore[call-overload]
     y_data = stack.stack_dataarray(
         y_unstack, x_dims=["beta", "order"], stats_dim="stats"
     )

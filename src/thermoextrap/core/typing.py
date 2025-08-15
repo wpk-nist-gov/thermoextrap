@@ -1,8 +1,8 @@
-# ruff: noqa: D102
 """
 Typing aliases (:mod:`thermoextrap.core.typing`)
 ================================================
 """
+# pylint: disable=consider-alternative-union-syntax
 
 from __future__ import annotations
 
@@ -30,10 +30,12 @@ from typing import (
 import numpy as np
 import xarray as xr
 from cmomy import IndexSampler
+from numpy.typing import NDArray
 
 from .typing_compat import Self, TypeAlias, TypeVar
 
 if TYPE_CHECKING:
+    import tensorflow as tf  # pyright: ignore[reportMissingTypeStubs]
     from cmomy.core.typing import Sampler
     from numpy.typing import ArrayLike
     from sympy.core.expr import Expr  # pyright: ignore[reportMissingTypeStubs]
@@ -45,6 +47,10 @@ DataT_ = TypeVar("DataT_", xr.DataArray, xr.Dataset, default=xr.DataArray)
 T_co = TypeVar("T_co", covariant=True)
 _T = TypeVar("_T")
 
+NDArrayOrDataArrayT = TypeVar(
+    "NDArrayOrDataArrayT", bound=Union[NDArray[Any], xr.DataArray]
+)
+
 # * Alias
 XArrayObj: TypeAlias = Union[xr.DataArray, xr.Dataset]
 OptionalKws: TypeAlias = Union[Mapping[str, _T], None]
@@ -53,6 +59,9 @@ SingleDim: TypeAlias = str
 MultDims: TypeAlias = Union[str, Sequence[Hashable]]
 PostFunc: TypeAlias = Union[str, Callable[["Expr"], "Expr"], None]
 OptionalRng: TypeAlias = np.random.Generator | None
+NDArrayAny: TypeAlias = NDArray[Any]
+
+TensorType: TypeAlias = Union[NDArrayAny, "tf.Tensor"]
 
 # DataDerivArgs: TypeAlias = "tuple[XArrayObj | DataSelector[xr.DataArray] | DataSelector[xr.Dataset], ...]"   # more specific, but not needed.
 DataDerivArgs: TypeAlias = "tuple[Any, ...]"
@@ -70,6 +79,14 @@ ApplyReduceFuncs: TypeAlias = Union[
 
 
 # * Protocols
+class SupportsIdentityTransform(Protocol):
+    """Callable for identity transform."""
+
+    def __call__(
+        self, x: NDArrayOrDataArrayT, y: NDArrayOrDataArrayT, y_var: ArrayLike
+    ) -> tuple[NDArrayOrDataArrayT, NDArrayOrDataArrayT, list[NDArrayOrDataArrayT]]: ...
+
+
 @runtime_checkable
 class SupportsGetItem(Protocol[T_co]):
     """Protocol for thing that container that supports __getitem__"""
@@ -122,6 +139,8 @@ class SupportsDataXU(Protocol[T_co]):
 class SupportsModel(Protocol[T_co]):
     """Protocol for single model."""
 
+    @property
+    def data(self) -> SupportsData[T_co]: ...
     @property
     def alpha0(self) -> float: ...
     @property

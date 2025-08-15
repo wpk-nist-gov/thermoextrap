@@ -1,8 +1,9 @@
+# pyright: reportUnknownMemberType=false
 """A set of routines to stack data for gpflow analysis."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as pd
@@ -62,7 +63,7 @@ def stack_dataarray(  # noqa: C901
         stacked DataArray
     """
     dims = da.dims
-    for name in [xstack_dim, ystack_dim]:
+    for name in (xstack_dim, ystack_dim):
         if name in dims:
             msg = f"{xstack_dim} conflicts with existing {dims}"
             raise ValueError(msg)
@@ -101,7 +102,7 @@ def stack_dataarray(  # noqa: C901
 
 def multiindex_to_array(idx: pd.MultiIndex) -> NDArray[Any]:
     """Turn xarray multiindex to numpy array."""
-    return np.array(list(idx.values))
+    return np.array(idx.tolist())
 
 
 def apply_reduction(
@@ -139,13 +140,14 @@ def apply_reduction(
     if isinstance(funcs, str) or callable(funcs):
         funcs = [funcs]
 
-    out: list[xr.DataArray] = []
-    for func in funcs:
-        if callable(func):
-            y = func(da, dim=dim, **kws)
-        else:
-            y = getattr(da, func)(dim=dim, **kws)
-        out.append(y)
+    out: list[xr.DataArray] = [
+        (
+            func(da, dim=dim, **kws)
+            if callable(func)
+            else getattr(da, func)(dim=dim, **kws)
+        )
+        for func in funcs
+    ]
 
     if len(out) == 1:
         return out[0]
@@ -301,7 +303,7 @@ class StackedDerivatives:
         return self.x_dims[0]
 
     @cached.meth
-    def _stacked(self, order: int) -> xr.DataArray:
+    def _stacked(self, order: int | None) -> xr.DataArray:
         da = self.da
         if order is not None:
             # select orders up to and including order
@@ -327,11 +329,11 @@ class StackedDerivatives:
     ) -> tuple[NDArray[Any], list[NDArray[Any]]]:
         """Get X and Y data for gpflow analysis."""
         stacked = self.stacked(order=order)
-        xdata = multiindex_to_array(stacked.indexes[self.xstack_dim])
+        xdata = multiindex_to_array(stacked.indexes[self.xstack_dim])  # pyright: ignore[reportUnknownArgumentType]
 
-        ydata = [g.to_numpy() for _, g in stacked.groupby(self.ystack_dim)]
+        ydata = [g.to_numpy() for _, g in stacked.groupby(self.ystack_dim)]  # pyright: ignore[reportUnknownVariableType]
 
-        return xdata, ydata
+        return xdata, ydata  # pyright: ignore[reportUnknownVariableType]
 
     def xindexer_from_arrays(self, **kwargs: Any) -> pd.Index:
         """
@@ -467,7 +469,7 @@ class StackedDerivatives:
     @classmethod
     def from_states(
         cls,
-        states: StateCollection[Any, xr.DataArray]
+        states: StateCollection[SupportsModel[xr.DataArray], xr.DataArray]
         | Sequence[SupportsModel[xr.DataArray]],
         x_dims: str | Sequence[str],
         resample: bool = True,
@@ -508,13 +510,15 @@ class StackedDerivatives:
         --------
         `StackedDerivatives.from_derivs`
         """
-        if not isinstance(states, StateCollection):
-            states = StateCollection(states)
+        states = cast(
+            "StateCollection[SupportsModel[xr.DataArray], xr.DataArray]",
+            states if isinstance(states, StateCollection) else StateCollection(states),
+        )
 
         if resample:
             if resample_kws is None:
                 resample_kws = {}
-            states = states.resample(**resample_kws)
+            states = states.resample(**resample_kws)  # pyright: ignore[reportUnknownVariableType]
 
         if map_kws is None:
             map_kws = {}

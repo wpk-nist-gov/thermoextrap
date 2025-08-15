@@ -102,17 +102,17 @@ class FixtureData:
 
     @cached.prop
     def u_xu_funcs(self):
-        ufunc, xufunc = legacy.buildAvgFuncs(self.x, self.u, self.order)
+        ufunc, xufunc = legacy.buildAvgFuncs(self.x, self.u, self.order)  # type: ignore[attr-defined]
         return ufunc, xufunc
 
     @cached.prop
     def derivs_list(self):
-        fs = [legacy.symDerivAvgX(i) for i in range(self.order + 1)]
+        fs = [legacy.symDerivAvgX(i) for i in range(self.order + 1)]  # type: ignore[attr-defined]
         ufunc, xufunc = self.u_xu_funcs
 
         return [fs[i](ufunc, xufunc) for i in range(self.order + 1)]
 
-    def xr_test_raw(self, b, a=None) -> None:
+    def xr_test_raw(self, b, a: Any = None) -> None:
         if a is None:
             a = self.rdata
 
@@ -123,7 +123,7 @@ class FixtureData:
             self.xr_test(a.u_selector[i], b.u_selector[i].sel(val=0))
             self.xr_test(a.xu_selector[i], b.xu_selector[i])
 
-    def xr_test_central(self, b, a=None) -> None:
+    def xr_test_central(self, b, a: Any = None) -> None:
         if a is None:
             a = self.cdata
 

@@ -418,8 +418,9 @@ def test_sympy_mean_func() -> None:
 
     # Create some x data
     x_vals = np.linspace(-10.0, 10.0, 10)
-    x_check = [np.vstack([x_vals, d_o * np.ones_like(x_vals)]).T for d_o in range(3)]
-    x_check = np.vstack(x_check)
+    x_check = np.vstack(
+        [np.vstack([x_vals, d_o * np.ones_like(x_vals)]).T for d_o in range(3)]
+    )
 
     # And some y data
     m_check = 0.26
@@ -437,8 +438,8 @@ def test_sympy_mean_func() -> None:
     # Check that expression matches input
     assert sp.simplify(check_sym.expr - sig_expr) == 0
     # Check that found optimal parameters
-    np.testing.assert_allclose(check_sym.m, m_check, rtol=1e-06)
-    np.testing.assert_allclose(check_sym.b, b_check, rtol=1e-06)
+    np.testing.assert_allclose(check_sym.m, m_check, rtol=1e-06)  # type: ignore[attr-defined]
+    np.testing.assert_allclose(check_sym.b, b_check, rtol=1e-06)  # type: ignore[attr-defined]
     # And check values and derivatives
     output = check_sym(x_check)
     np.testing.assert_allclose(
@@ -447,11 +448,12 @@ def test_sympy_mean_func() -> None:
         rtol=1e-04,
     )
     np.testing.assert_allclose(
-        output[10:20].numpy(), check_sym.m * (output[:10] - output[:10] ** 2).numpy()
+        output[10:20].numpy(),
+        check_sym.m * (output[:10] - output[:10] ** 2).numpy(),  # type: ignore[attr-defined]
     )
     np.testing.assert_allclose(
         output[20:].numpy(),
-        (check_sym.m**2)
+        (check_sym.m**2)  # type: ignore[attr-defined]
         * (output[:10] - 3.0 * output[:10] ** 2 + 2.0 * output[:10] ** 3),
     )
 
@@ -565,12 +567,12 @@ def test_gp() -> None:  # noqa: PLR0915
     ref_like = HetGaussianDeriv(
         cov_data,
         1,
-        **like_kwargs,
+        **like_kwargs,  # type: ignore[arg-type]
     )
-    np.testing.assert_allclose(ref_like.cov, check_1d.likelihood.cov)
+    np.testing.assert_allclose(ref_like.cov, check_1d.likelihood.cov)  # type: ignore[attr-defined]
     np.testing.assert_allclose(
         ref_like.build_scaled_cov_mat(x_data),
-        check_1d.likelihood.build_scaled_cov_mat(x_data),
+        check_1d.likelihood.build_scaled_cov_mat(x_data),  # type: ignore[attr-defined]
     )
 
     # Since working with 1D data, scaling should not change the trained model
@@ -612,13 +614,13 @@ def test_gp() -> None:  # noqa: PLR0915
 
     # Comparing parameters
     np.testing.assert_allclose(
-        check_base.kernel.kernel.l_0.numpy(),
-        check_scale.kernel.kernel.l_0.numpy(),
+        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]
+        check_scale.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]
         rtol=1e-03,
     )
     np.testing.assert_allclose(
-        check_base.kernel.kernel.var.numpy(),
-        check_scale.kernel.kernel.var.numpy() * (check_scale.scale_fac**2),
+        check_base.kernel.kernel.var.numpy(),  # type: ignore[attr-defined]
+        check_scale.kernel.kernel.var.numpy() * (check_scale.scale_fac**2),  # type: ignore[attr-defined]
         rtol=1e-03,
     )
     # np.testing.assert_allclose(
@@ -731,13 +733,13 @@ def test_gp() -> None:  # noqa: PLR0915
     np.testing.assert_allclose(pred_base[0], pred_sep_ind[0][:, :1], rtol=1e-03)
     np.testing.assert_allclose(pred_base[1], pred_sep_ind[1][:, :1], rtol=1e-03)
     np.testing.assert_allclose(
-        check_base.kernel.kernel.l_0.numpy(),
-        check_sep_ind.kernel.kernels[0].l_0.numpy(),
+        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]
+        check_sep_ind.kernel.kernels[0].l_0.numpy(),  # type: ignore[attr-defined]
         rtol=1e-03,
     )
     np.testing.assert_allclose(
-        check_base.kernel.kernel.var.numpy(),
-        check_sep_ind.kernel.kernels[0].var.numpy(),
+        check_base.kernel.kernel.var.numpy(),  # type: ignore[attr-defined]
+        check_sep_ind.kernel.kernels[0].var.numpy(),  # type: ignore[attr-defined]
         rtol=1e-03,
     )
 
@@ -747,12 +749,13 @@ def test_gp() -> None:  # noqa: PLR0915
     pred_tf = check_sep_ind.predict_f(x_data, full_cov=True)[1]
 
     # Assert correct shapes
-    assert pred_ff.shape == (x_data.shape[0], 2)
-    assert pred_tf.shape == (2, x_data.shape[0], x_data.shape[0])
+    assert tuple(pred_ff.shape) == (x_data.shape[0], 2)
+    assert tuple(pred_tf.shape) == (2, x_data.shape[0], x_data.shape[0])
 
     # And assert that diagonal of full_cov=True matches full_cov=False
     np.testing.assert_allclose(
-        pred_ff.numpy(), np.vstack([np.diag(v) for v in pred_tf]).T
+        pred_ff.numpy(),
+        np.vstack([np.diag(v) for v in pred_tf]).T,  # type: ignore[attr-defined]
     )
 
     # Check proper handling of mean functions
@@ -768,7 +771,7 @@ def test_gp() -> None:  # noqa: PLR0915
         likelihood_kwargs={"p": 0.0, "transform_p": None},
     )
 
-    check_meanf.kernel.kernel.l_0.assign(1e-06)
+    check_meanf.kernel.kernel.l_0.assign(1e-06)  # type: ignore[attr-defined]
     np.testing.assert_allclose(y_data, check_meanf.predict_f(x_data)[0], atol=1e-01)
 
     train_GPR(check_meanf)
@@ -778,7 +781,7 @@ def test_gp() -> None:  # noqa: PLR0915
     np.testing.assert_allclose(pred_base[0], pred_meanf[0], atol=1e-01)
     np.testing.assert_allclose(pred_base[1], pred_meanf[1], atol=1e-01)
     np.testing.assert_allclose(
-        check_base.kernel.kernel.l_0.numpy(),
-        check_meanf.kernel.kernel.l_0.numpy(),
+        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]
+        check_meanf.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]
         atol=2e-01,
     )
