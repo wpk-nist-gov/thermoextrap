@@ -2166,6 +2166,7 @@ def active_learning(  # noqa: C901, PLR0912
     num_state_repeats: int = 1,
     save_history: bool = False,
     use_predictions: bool = False,
+    sampler: Sampler = 100,
 ) -> tuple[list[SupportsDataWrapper], dict[str, Any]]:
     """
     Continues adding new points with active learning by running simulations until the
@@ -2267,6 +2268,7 @@ def active_learning(  # noqa: C901, PLR0912
             state_list,
             log_scale=log_scale,
             base_kwargs=gp_base_kwargs,
+            sampler=sampler,
             start_params=None if i == 0 else train_history["params"][-1],
         )
         logger.info("Current GP info:")

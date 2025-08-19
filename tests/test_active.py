@@ -662,7 +662,7 @@ import logging
 
 
 @pytest.mark.slow
-def test_active_learning(caplog) -> None:
+def test_active_learning(caplog, sampler: Sampler) -> None:
     # Starting beta values
     init_states = [1.0, 9.6]
     sims = ig_active.SimulateIG()
@@ -684,13 +684,14 @@ def test_active_learning(caplog) -> None:
             updates,
             stop_criteria=stops,
             max_iter=4,
+            sampler=sampler,
         )
 
     assert "Reached maximum iterations" in caplog.text
 
 
 @pytest.mark.slow
-def test_active_learning_2(caplog) -> None:
+def test_active_learning_2(caplog, sampler: Sampler) -> None:
     # Starting beta values
     init_states = [1.0, 9.6]
     sims = ig_active.SimulateIG()
@@ -710,6 +711,7 @@ def test_active_learning_2(caplog) -> None:
             init_states,
             sims,
             updates,
+            sampler=sampler,
             stop_criteria=stops_early,
             max_iter=4,
         )
