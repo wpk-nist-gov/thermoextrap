@@ -39,7 +39,7 @@ def load_data():
         d = json.load(f)
 
     ref, samples = d["ref"], d["samples"]
-    for x in [ref, *samples]:
+    for x in (ref, *samples):
         # cleanup data
         x["lnpi_data"] = np.array(x.pop("lnPi"))
         x["energy"] = np.array(x.pop("energy"))
@@ -58,8 +58,10 @@ def prepare_data(lnpi_data, energy, mu, temp, order, beta):
 
     # have to include mom = 0
     a = np.ones_like(lnpi_data)
-    energy = np.concatenate((a[:, None], energy), axis=-1)
-    energy = xr.DataArray(energy, dims=["n", "umom"])
+    energy = xr.DataArray(
+        np.concatenate((a[:, None], energy), axis=-1),
+        dims=["n", "umom"],
+    )
 
     return {
         "lnpi_data": lnpi_data,

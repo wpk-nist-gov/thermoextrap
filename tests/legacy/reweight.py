@@ -1,12 +1,13 @@
 """Provides reweighting techniques in same format as extrapolation/interpolation.
 This includes perturbation and a wrapper on MBAR.
 """
+# pylint: disable=redefined-variable-type,duplicate-code
 
 import numpy as np
 
-from .interp import InterpModel
 
 from cmomy.random import validate_rng
+from .interp import InterpModel
 
 
 class PerturbModel:
@@ -80,9 +81,9 @@ class PerturbModel:
             from pymbar import mbar
             mbarObj = mbar.MBAR(np.array([refB * U]), [U.shape[0]])
             predictVals = np.zeros((len(B), x.shape[1]))
-            for i in range(len(B)):
+            for i, b in enumerate(B):
                 predictVals[i, :] = mbarObj.compute_multiple_expectations(
-                    x.T, B[i] * U
+                    x.T, b * U
                 )["mu"]
 
         else:
@@ -217,8 +218,8 @@ class MBARModel(InterpModel):
         predictVals = np.zeros((len(B), self.x.shape[2]))
         x = np.reshape(self.x, (self.x.shape[0] * self.x.shape[1], self.x.shape[2]))
 
-        for i in range(len(B)):
-            predictVals[i, :] = params.compute_multiple_expectations(x.T, B[i] * allU)[
+        for i, b in enumerate(B):
+            predictVals[i, :] = params.compute_multiple_expectations(x.T, b * allU)[
                 "mu"
             ]
 

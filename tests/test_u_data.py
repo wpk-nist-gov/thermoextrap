@@ -47,7 +47,7 @@ def order(request):
     return request.param
 
 
-class DataNamedTuple(NamedTuple):
+class DataNamedTuple(NamedTuple):  # pylint: disable=missing-class-docstring
     x: npt.NDArray[Any]
     u: npt.NDArray[Any]
     n: int

@@ -2,6 +2,8 @@
 
 """Tests for GP models with derivatives and active learning based on those models."""
 
+# pylint: disable=missing-class-docstring,protected-access
+
 import copy
 
 import gpflow
@@ -127,7 +129,7 @@ def test_deriv_kernel_manual_1d() -> None:
 
     # Want to work with a few points to check...
     # (0, 0), (1, 1), (1, 0), (0, 1), and (-1, 0)
-    for x_pair in [(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 1.0), (-1.0, 0.0)]:
+    for x_pair in ((0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 1.0), (-1.0, 0.0)):
         ref = rbf_check(x_pair[0], x_pair[1])
         this_x1 = np.vstack([x_pair[0] * np.ones(3), np.arange(3)]).T
         this_x2 = np.vstack([x_pair[1] * np.ones(3), np.arange(3)]).T
@@ -179,13 +181,13 @@ def test_deriv_kernel_manual_multi_d() -> None:
     # Helpful to put together all combos of derivatives for each set of points
     d_combos = np.array([(i, j) for i in range(3) for j in range(3)])
 
-    for x_pair in [
-        [np.array([0.0, 0.0]), np.array([0.0, 0.0])],
-        [np.array([1.0, 1.0]), np.array([1.0, 1.0])],
-        [np.array([0.0, 0.0]), np.array([0.0, 1.0])],
-        [np.array([1.0, 0.0]), np.array([0.0, 0.0])],
-        [np.array([0.0, 0.0]), np.array([-1.0, -1.0])],
-    ]:
+    for x_pair in (
+        (np.array([0.0, 0.0]), np.array([0.0, 0.0])),
+        (np.array([1.0, 1.0]), np.array([1.0, 1.0])),
+        (np.array([0.0, 0.0]), np.array([0.0, 1.0])),
+        (np.array([1.0, 0.0]), np.array([0.0, 0.0])),
+        (np.array([0.0, 0.0]), np.array([-1.0, -1.0])),
+    ):
         ref = rbf_check(x_pair[0], x_pair[1])
         this_x1 = np.hstack([np.tile(x_pair[0], (9, 1)), d_combos])
         this_x2 = np.hstack([np.tile(x_pair[1], (9, 1)), d_combos])
@@ -438,6 +440,7 @@ def test_sympy_mean_func() -> None:
     # Check that expression matches input
     assert sp.simplify(check_sym.expr - sig_expr) == 0
     # Check that found optimal parameters
+    # pylint: disable=no-member
     np.testing.assert_allclose(check_sym.m, m_check, rtol=1e-06)  # type: ignore[attr-defined]
     np.testing.assert_allclose(check_sym.b, b_check, rtol=1e-06)  # type: ignore[attr-defined]
     # And check values and derivatives

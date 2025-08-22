@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 n_list = [6]
 
 
-class DataNamedTuple(NamedTuple):
+class DataNamedTuple(NamedTuple):  # pylint: disable=missing-class-docstring
     n: int
     u: Symbol
     x1: IndexedBase

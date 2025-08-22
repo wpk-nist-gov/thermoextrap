@@ -10,9 +10,6 @@ import numpy as np
 import xarray as xr
 
 import thermoextrap as xtrap
-from thermoextrap.core.typing import (
-    SupportsModel,
-)
 
 if sys.version_info >= (3, 11):
     from typing import assert_type
@@ -24,6 +21,7 @@ if TYPE_CHECKING:
     from cmomy.core.typing_compat import TypeVar
 
     from thermoextrap.core.typing import (
+        SupportsModel,
         SupportsModelT,
     )
     from thermoextrap.models import StateCollection
@@ -312,7 +310,6 @@ if TYPE_CHECKING:
         DataT,
         SupportsData,
         SupportsDataXU,
-        SupportsModel,
     )
     from thermoextrap.models import ExtrapModel, InterpModel
 

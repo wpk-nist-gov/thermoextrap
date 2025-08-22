@@ -2,6 +2,8 @@
 Routines GPR interpolation models
 """
 
+# pylint: disable=redefined-variable-type,missing-class-docstring,arguments-differ,duplicate-code
+
 from typing import Any
 import gpflow
 import numpy as np
@@ -51,8 +53,10 @@ class DerivativeKernel(gpflow.kernels.Kernel):
     """
 
     def __init__(
-        self, kernel_expr, obs_dims, kernel_params={}, active_dims=None, **kwargs
+        self, kernel_expr, obs_dims, kernel_params=None, active_dims=None, **kwargs
     ):
+        if kernel_params is None:
+            kernel_params = {}
         if active_dims is not None:
             print("active_dims set to: ", active_dims)
             print("This is not implemented in this kernel, so setting to 'None'")
@@ -83,7 +87,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         # Make sure that parameters here match those in kernel_params, if it's provided
         if bool(kernel_params):
             if (
-                list([s.name for s in self.param_syms]).sort()
+                [s.name for s in self.param_syms].sort()
                 != list(kernel_params.keys()).sort()
             ):
                 raise ValueError(
@@ -108,7 +112,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         """
         Whether ARD behavior is active, following gpflow.kernels.Stationary
         """
-        return self.lengthscales.shape.ndims > 0
+        return self.lengthscales.shape.ndims > 0  # pylint: disable=no-member
 
     def K(self, X, X2=None):
         if X2 is None:
@@ -339,7 +343,7 @@ class GPRModel(StateCollection[Any]):
 
         # Run optimization
         natgrad = gpflow.optimizers.NaturalGradient(gamma=1.0)
-        adam = tf.optimizers.Adam(
+        adam = tf.optimizers.Adam(  # pylint: disable=no-member
             learning_rate=0.5
         )  # Can be VERY aggressive with learning
         for _ in range(opt_steps):
@@ -354,8 +358,11 @@ class GPRModel(StateCollection[Any]):
         # And even though trains, convergence is slow, so requires more steps
         # Again not sure why
 
-    def __init__(self, states, kernel_expr, kernel_params={}, **kwargs):
+    def __init__(self, states, kernel_expr, kernel_params=None, **kwargs):
         super().__init__(states, **kwargs)
+
+        if kernel_params is None:
+            kernel_params = {}
 
         # Collect data for training and defining output dimensionality
         x_in, y_in = self._collect_data()

@@ -13,7 +13,7 @@ from thermoextrap.core.xrutils import xrwrap_uv, xrwrap_xv
 from . import legacy
 
 
-class FixtureData:
+class FixtureData:  # pylint: disable=missing-class-docstring
     def __init__(self, n, nv, order=5, uoff=0.0, xoff=0.0, seed=0) -> None:
         self.order = order
 
@@ -108,7 +108,7 @@ class FixtureData:
     @cached.prop
     def derivs_list(self):
         fs = [legacy.symDerivAvgX(i) for i in range(self.order + 1)]  # type: ignore[attr-defined]
-        ufunc, xufunc = self.u_xu_funcs
+        ufunc, xufunc = self.u_xu_funcs  # pylint: disable=unpacking-non-sequence
 
         return [fs[i](ufunc, xufunc) for i in range(self.order + 1)]
 

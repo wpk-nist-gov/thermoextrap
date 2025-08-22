@@ -1,6 +1,7 @@
 """Holds recursive interpolation class.
 This includes the recursive training algorithm and consistency checks.
 """
+# pylint: disable=too-many-try-statements,duplicate-code
 
 import numpy as np
 from scipy.stats import norm
@@ -212,7 +213,6 @@ class RecursiveInterp:
             if self.edgeB[-1] == B2:
                 self.xData.append(xData2)
                 self.uData.append(uData2)
-            return
 
     def sequentialTrain(self, Btrain, verbose=False):
         """Trains sequentially without recursion. List of state point values is provided and
@@ -283,14 +283,14 @@ class RecursiveInterp:
                 bootErr = self.model.bootstrap(Bvals, order=self.maxOrder)
                 # Be careful to catch /0.0
                 relErr = np.zeros(bootErr.shape)
-                for i in range(bootErr.shape[0]):
-                    for j in range(bootErr.shape[1]):
-                        if abs(predictVals[i, j]) == 0.0:
+                for ii in range(bootErr.shape[0]):
+                    for jj in range(bootErr.shape[1]):
+                        if abs(predictVals[ii, jj]) == 0.0:
                             # If value is exactly zero, either really unlucky
                             # Or inherently no error because it IS zero - assume this
-                            relErr[i, j] = 0.0
+                            relErr[ii, jj] = 0.0
                         else:
-                            relErr[i, j] = bootErr[i, j] / abs(predictVals[i, j])
+                            relErr[ii, jj] = bootErr[ii, jj] / abs(predictVals[ii, jj])
 
                 # Checking maximum over both tested interior state points AND observable values
                 # (if observable is a vector, use element with maximum error
@@ -337,12 +337,11 @@ class RecursiveInterp:
                 raise IndexError("Interpolation point above range")
 
             # And get correct index for interpolating polynomial
-            paramInd = np.where(self.edgeB <= beta)[0][-1]
 
             # Don't want to train model (already done!) but need to manually specify
             # both the parameters AND the reference state points
             # For the latter, must set manually
-            if paramInd == len(self.edgeB) - 1:
+            if (paramInd := np.where(self.edgeB <= beta)[0][-1]) == len(self.edgeB) - 1:
                 self.model.refB = np.array(
                     [self.edgeB[paramInd - 1], self.edgeB[paramInd]]
                 )
@@ -399,7 +398,7 @@ class RecursiveInterp:
 
         # Before loop, set up plot if wanted
         if doPlot:
-            pColors = plt.cm.cividis(np.arange(len(edgeSets)) / float(len(edgeSets)))
+            pColors = plt.cm.cividis(np.arange(len(edgeSets)) / float(len(edgeSets)))  # pylint: disable=no-member
             pFig, pAx = plt.subplots()
             plotYmin = 1e10
             plotYmax = -1e10

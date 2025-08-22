@@ -6,10 +6,12 @@ import cmomy
 import numpy as np
 import pytest
 import xarray as xr
+from sympy import bell
 
 import thermoextrap as xtrap
 
 from . import legacy
+from .legacy.utilities import buildAvgFuncsDependent, symDerivAvgXdependent
 
 
 @pytest.fixture(scope="module")
@@ -66,13 +68,13 @@ def test_extrapmodel(fixture) -> None:
     betas = [0.3, 0.4]
     xem0 = xtrap.beta.factory_extrapmodel(beta=fixture.beta0, data=fixture.rdata)
 
-    for _data in [
+    for _data in (
         fixture.cdata,
         fixture.xdata,
         fixture.xrdata,
         fixture.xdata_val,
         fixture.xrdata_val,
-    ]:
+    ):
         xem1 = xtrap.beta.factory_extrapmodel(beta=fixture.beta0, data=fixture.cdata)
         fixture.xr_test(xem0.predict(betas, order=3), xem1.predict(betas, order=3))
 
@@ -142,13 +144,13 @@ def test_extrapmodel_resample(fixture, rng: np.random.Generator) -> None:
     xem0 = xtrap.beta.factory_extrapmodel(beta=fixture.beta0, data=fixture.rdata)
     a = xem0.resample(sampler=sampler).predict(betas, order=3)
 
-    for _data in [
+    for _data in (
         fixture.cdata,
         fixture.xdata,
         fixture.xrdata,
         fixture.xdata_val,
         fixture.xrdata_val,
-    ]:
+    ):
         xem1 = xtrap.beta.factory_extrapmodel(beta=fixture.beta0, data=fixture.cdata)
         b = xem1.resample(sampler=sampler).predict(betas, order=3)
         fixture.xr_test(a, b)
@@ -491,13 +493,11 @@ def test_mbar(fixture) -> None:
     np.testing.assert_allclose(emi.predict(betas), xemi.predict(betas))
 
 
-from sympy import bell
-
 # Test log
 
 
-class LogAvgExtrapModel(legacy.ExtrapModel):
-    def calcDerivVals(self, refB, x, energy):  # noqa: N802, ARG002, N803  # pyright: ignore[reportIncompatibleMethodOverride]
+class LogAvgExtrapModel(legacy.ExtrapModel):  # pylint: disable=missing-class-docstring
+    def calcDerivVals(self, refB, x, energy):  # noqa: N802, ARG002, N803  # pyright: ignore[reportIncompatibleMethodOverride]   # pylint: disable=arguments-renamed
         if x.shape[0] != energy.shape[0]:
             msg = f"First observable dimension {x.shape[0]} and size of potential energy array {energy.shape[0]} do not match!"
             raise ValueError(msg)
@@ -559,13 +559,13 @@ def test_extrapmodel_minuslog_slow2(fixture) -> None:
 
     xem0 = xtrap.beta.factory_extrapmodel(beta0, fixture.rdata, post_func="minus_log")
 
-    for _data in [
+    for _data in (
         fixture.cdata,
         fixture.xdata,
         fixture.xrdata,
         fixture.xdata_val,
         fixture.xrdata_val,
-    ]:
+    ):
         xem1 = xtrap.beta.factory_extrapmodel(
             beta=fixture.beta0, data=fixture.cdata, post_func="minus_log"
         )
@@ -625,7 +625,6 @@ def test_extrapmodel_minuslog_ig() -> None:
 
 # depend on alpha/betas
 # Need to import from utilities
-from .legacy.utilities import buildAvgFuncsDependent, symDerivAvgXdependent
 
 
 class ExtrapModelDependent(legacy.ExtrapModel):
@@ -639,7 +638,7 @@ class ExtrapModelDependent(legacy.ExtrapModel):
     # And given data, calculate numerical values of derivatives up to maximum order
     # Will be very helpful when generalize to different extrapolation techniques
     # (and interpolation)
-    def calcDerivVals(self, refB, x, energy):  # noqa: N802, ARG002, N803  # pyright: ignore[reportIncompatibleMethodOverride]
+    def calcDerivVals(self, refB, x, energy):  # noqa: N802, ARG002, N803  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=arguments-renamed
         """
         Calculates specific derivative values at B with data x and energy up to max order.
         Returns these derivatives.

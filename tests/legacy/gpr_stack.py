@@ -1,7 +1,7 @@
 """
 Routines GPR interpolation models
 """
-
+# pylint: disable=redefined-variable-type,arguments-differ,duplicate-code
 
 import gpflow
 import numpy as np
@@ -51,8 +51,10 @@ class DerivativeKernel(gpflow.kernels.Kernel):
     """
 
     def __init__(
-        self, kernel_expr, obs_dims, kernel_params={}, active_dims=None, **kwargs
+        self, kernel_expr, obs_dims, kernel_params=None, active_dims=None, **kwargs
     ):
+        if kernel_params is None:
+            kernel_params = {}
         if active_dims is not None:
             print("active_dims set to: ", active_dims)
             print("This is not implemented in this kernel, so setting to 'None'")
@@ -85,7 +87,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         # Make sure that parameters here match those in kernel_params, if it's provided
         if bool(kernel_params):
             if (
-                list([s.name for s in self.param_syms]).sort()
+                [s.name for s in self.param_syms].sort()
                 != list(kernel_params.keys()).sort()
             ):
                 raise ValueError(
@@ -110,7 +112,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         """
         Whether ARD behavior is active, following gpflow.kernels.Stationary
         """
-        return self.lengthscales.shape.ndims > 0
+        return self.lengthscales.shape.ndims > 0  # pylint: disable=no-member
 
     def K(self, X, X2=None):
         if X2 is None:
@@ -119,6 +121,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         x1, d1 = self._split_x_into_locs_and_deriv_info(X)
         x2, d2 = self._split_x_into_locs_and_deriv_info(X2)
 
+        # pylint: disable=attribute-defined-outside-init
         self.x1, self.d1 = x1, d1
         self.x2, self.d2 = x2, d2
 
@@ -237,7 +240,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
 
 # A custom GPFlow likelihood with heteroscedastic Gaussian noise
 # Comes from GPFlow tutorial on this subject
-class HeteroscedasticGaussian(gpflow.likelihoods.Likelihood):
+class HeteroscedasticGaussian(gpflow.likelihoods.Likelihood):   # pylint: disable=missing-class-docstring
     def __init__(self, **kwargs):
         # this likelihood expects a single latent function F, and two columns in
         # the data matrix Y:
@@ -294,10 +297,10 @@ class GPRModel:
     kernel_params : dict
     """
 
-    def __init__(self, data, kernel_expr, kernel_params={}):
+    def __init__(self, data, kernel_expr, kernel_params=None):
         self.data = data
         self.kernel_expr = kernel_expr
-        self.kernel_params = kernel_params
+        self.kernel_params = {} if kernel_params is None else kernel_params
         self._cache = {}
 
     @cached.meth
@@ -312,7 +315,7 @@ class GPRModel:
         ]
 
     @cached.meth
-    def het_gauss(self, out_dim):
+    def het_gauss(self, out_dim):  # pylint: disable=no-self-use
         return [HeteroscedasticGaussian() for _ in range(out_dim)]
 
     @cached.meth
@@ -345,7 +348,7 @@ class GPRModel:
             variational_params.append((g.q_mu, g.q_sqrt))
             trainable_params.append(g.trainable_variables)
         natgrad = gpflow.optimizers.NaturalGradient(gamma=1.0)
-        adam = tf.optimizers.Adam(
+        adam = tf.optimizers.Adam(  # pylint: disable=no-member
             learning_rate=0.5
         )  # Can be VERY aggressive with learning
 
@@ -404,7 +407,7 @@ class GPRModel:
         )
 
         coords = {xstack_dim: xindex}
-        for name in [ystack_dim, stats_dim]:
+        for name in (ystack_dim, stats_dim):
             if name in template.indexes:
                 coords[name] = template.indexes[name]
 
@@ -427,7 +430,8 @@ def factory_gprmodel(data, **kws):
 
     Parameters
     ----------
-    states : StateCollection of ExtrapModel objects
+    data : object
+        Data object.
     **kws : additional keyword arguments to pass to the model
 
     Returns

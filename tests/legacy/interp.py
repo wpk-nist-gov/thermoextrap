@@ -1,12 +1,13 @@
 """Interpolation class."""
+# pylint: disable=redefined-variable-type,arguments-renamed,duplicate-code
 from __future__ import annotations
 
 import math
 import numpy as np
 from scipy.special import factorial
 
-from .extrap import ExtrapModel
 from cmomy.random import validate_rng
+from .extrap import ExtrapModel
 
 
 class ExtrapWeightedModel(ExtrapModel):
@@ -315,7 +316,6 @@ class VolumeExtrapWeightedModel(ExtrapWeightedModel):
             )
             print("Setting order to 1st order.")
             self.maxOrder = 1
-        return None
 
     # And given data, calculate numerical values of derivatives up to maximum order
     # Will be very helpful when generalize to different extrapolation techniques
@@ -363,7 +363,6 @@ class VolumeInterpModel(InterpModel):
             )
             print("Setting order to 1st order.")
             self.maxOrder = 1
-        return None
 
     # And given data, calculate numerical values of derivatives up to maximum order
     # Will be very helpful when generalize to different extrapolation techniques

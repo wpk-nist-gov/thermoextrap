@@ -1,5 +1,6 @@
 # Should house old scripts for extrapolation/interpolation that do not use classes
 # Really just for legacy and potentially testing
+# pylint: disable=redefined-variable-type,duplicate-code
 
 """Legacy (deprecated) code kept only for testing and reference purposes.
 SHOULD NOT BE USED.
@@ -141,7 +142,7 @@ def interpPolyMultiPoint(B, refB, x, U, order):
     for i, beta in enumerate(refB):
         # Just need derivatives, which is essentially same cost as computing extrapolation
         # But don't care about what point we extrapolate to or the value we get
-        thisext, thisderivs = extrapWithSamples(
+        _, thisderivs = extrapWithSamples(
             np.average(refB), beta, x[i], U[i], order
         )
 
@@ -206,8 +207,8 @@ def perturbWithSamples(B, refB, x, U, useMBAR=False):
         from pymbar import mbar
         mbarObj = mbar.MBAR(np.array([refB * U]), [U.shape[0]])
         outval = np.zeros((len(B), x.shape[1]))
-        for i in range(len(B)):
-            outval[i, :] = mbarObj.compute_multiple_expectations(x.T, B[i] * U)["mu"]
+        for i, b_ in enumerate(B):
+            outval[i, :] = mbarObj.compute_multiple_expectations(x.T, b_ * U)["mu"]
 
     else:
         # Compute what goes in the exponent and subtract out the maximum

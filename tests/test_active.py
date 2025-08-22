@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import gpflow
@@ -151,7 +152,7 @@ def test_base_gp_creation(rng: Generator, sampler: Sampler) -> None:
     raw_x_data = []
     raw_y_data = []
     raw_cov_data = []
-    for beta in [1.0, 5.6, 9.0]:
+    for beta in (1.0, 5.6, 9.0):
         s = ig_active.extrap_IG(beta, rng=rng)
         this_x, this_y, this_cov = active_utils.input_GP_from_state(s, sampler=sampler)
         raw_x_data.append(this_x)
@@ -257,6 +258,7 @@ def test_base_gp_creation(rng: Generator, sampler: Sampler) -> None:
     # Warning should be printed, so should come up with some way to check for that...
     k_rbf = active_utils.RBFDerivKernel()
     # Changing parameter values to check if passed faithfully
+    # pylint: disable=no-member
     k_rbf.l_0.assign(0.5)  # type: ignore[attr-defined]
     k_rbf.var.assign(5.0)  # type: ignore[attr-defined]
     check_kernel = active_utils.create_base_GP_model(
@@ -277,7 +279,7 @@ def test_train_gp(sampler: Sampler) -> None:
     raw_x_data = []
     raw_y_data = []
     raw_cov_data = []
-    for beta in [1.0, 5.6, 9.0]:
+    for beta in (1.0, 5.6, 9.0):
         s = ig_active.extrap_IG(
             beta, rng=np.random.default_rng(42)
         )  # NOTE: need this to produce results below...
@@ -307,7 +309,7 @@ def test_train_gp(sampler: Sampler) -> None:
     # Also test training from a different starting point
     # Not checking for specific behavior here, just seeing if runs
     output = active_utils.train_GPR(
-        gp, record_loss=False, start_params=[ref_params[ind] for ind in [0, 1, 3]]
+        gp, record_loss=False, start_params=[ref_params[ind] for ind in (0, 1, 3)]
     )
 
 
@@ -316,7 +318,7 @@ def test_train_gp(sampler: Sampler) -> None:
 @pytest.mark.slow
 def test_create_gp_from_states(rng: Generator, sampler: Sampler) -> None:
     # Need data to work with
-    states = [ig_active.extrap_IG(beta, rng=rng) for beta in [1.0, 5.6, 9.0]]
+    states = [ig_active.extrap_IG(beta, rng=rng) for beta in (1.0, 5.6, 9.0)]
 
     n_gp_points = np.sum([s.order + 1 for s in states])
 
@@ -327,7 +329,7 @@ def test_create_gp_from_states(rng: Generator, sampler: Sampler) -> None:
 
     # Also test with multidimensional data
     states_mult = [
-        ig_active.multiOutput_extrap_IG(beta, rng=rng) for beta in [1.0, 5.6, 9.0]
+        ig_active.multiOutput_extrap_IG(beta, rng=rng) for beta in (1.0, 5.6, 9.0)
     ]
     gp_mult = active_utils.create_GPR(states_mult, sampler=sampler)
     assert gp_mult.data[0].shape == (n_gp_points, 2)
@@ -502,6 +504,7 @@ def test_metrics(rng: Generator, sampler: Sampler) -> None:
     check_base = active_utils.MetricBase("Base", tol)
     assert check_base.tol == tol
     # Use to test _check_history function for all inheriting classes
+    # pylint: disable=protected-access
     np.testing.assert_raises(ValueError, check_base._check_history, None)
     np.testing.assert_raises(ValueError, check_base._check_history, x)  # type: ignore[call-overload]
     check_base._check_history(hist)
@@ -647,7 +650,6 @@ def test_stop_criteria(rng: Generator, sampler: Sampler) -> None:
 # Just need to carefully check where calling np.random throughout all code
 # import io
 # from contextlib import redirect_stdout
-import logging
 
 # def test_thing_1(caplog) -> None:
 #     with caplog.at_level(logging.INFO):

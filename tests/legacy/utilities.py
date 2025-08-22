@@ -65,6 +65,7 @@ def symDerivAvgX(order):
     # First define some consistent symbols
     b = sym.symbols("b")  # Beta or inverse temperature
 
+    # pylint: disable=not-callable
     f = sym.Function("f")(
         b
     )  # Functions representing the numerator and denominator of an average
@@ -187,6 +188,7 @@ def symDerivAvgXdependent(order):
     b = sym.symbols("b")  # Beta or inverse temperature
     k = sym.symbols("k")
 
+    # pylint: disable=not-callable
     f = sym.Function("f")(
         b
     )  # Functions representing the numerator and denominator of an average

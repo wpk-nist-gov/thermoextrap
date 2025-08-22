@@ -26,7 +26,7 @@ def states() -> StateCollection[Any, xr.DataArray]:
     rng = cmomy.random.default_rng()
 
     xems = []
-    for beta in [0.1, 10.0]:
+    for beta in (0.1, 10.0):
         x = xr.DataArray(rng.random(shape), dims=dims, coords=coords)
         u = xr.DataArray(rng.random(shape[0]), dims=dims[0])
         data = xtrap.DataCentralMomentsVals.from_vals(x, u, order=3, central=True)

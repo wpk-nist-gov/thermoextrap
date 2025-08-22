@@ -1,5 +1,6 @@
 """Main extrapolation classes
 """
+# pylint: disable=redefined-variable-type,arguments-renamed,duplicate-code
 import math
 
 import numpy as np

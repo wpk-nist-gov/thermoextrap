@@ -32,7 +32,7 @@ class VolumeExtrapModelIG(ExtrapModel):
     # Will be very helpful when generalize to different extrapolation techniques
     # (and interpolation)
     @staticmethod
-    def calcDerivVals(refL, x, W):  # noqa: N802, N803  # pyright: ignore[reportIncompatibleMethodOverride]
+    def calcDerivVals(refL, x, W):  # noqa: N802, N803  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=arguments-differ
         """
         Calculates specific derivative values at B with data x and U up to max order.
         Returns these derivatives. Only go to first order for volume extrapolation. And
