@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from itertools import chain, islice
-from typing import TYPE_CHECKING, Any, Generic, NotRequired, TypedDict
+from typing import TYPE_CHECKING, Generic, TypedDict
 
 import numpy as np
 import xarray as xr
@@ -22,6 +22,7 @@ from .core.typing import DataT
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+    from typing import Any
 
     from numpy.typing import ArrayLike, NDArray
 
@@ -31,7 +32,7 @@ if TYPE_CHECKING:
         SupportsModelDerivs,
         SupportsModelDerivsDataArrayT,
     )
-    from .core.typing_compat import Concatenate, TypeAlias, TypeVar
+    from .core.typing_compat import Concatenate, NotRequired, TypeAlias, TypeVar
     from .models import ExtrapModel, StateCollection
 
     _T = TypeVar("_T")
@@ -630,7 +631,7 @@ def callback_plot_progress(
         purposes
     ax : :class:`matplotlib.axes.Axes`, optional
     """
-    import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt  # pyright: ignore[reportMissingImports]
 
     from . import idealgas
 
@@ -645,7 +646,7 @@ def callback_plot_progress(
     logger.info("alphas: %s", model.alpha0)
 
     if ax is None:
-        _, ax = plt.subplots()  # pyright: ignore[reportUnknownMemberType]
+        _, ax = plt.subplots()  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
 
     pred = info_dict["ave"]
     pred.plot(ax=ax)  # type: ignore[call-arg]
@@ -655,7 +656,7 @@ def callback_plot_progress(
 
     if (alpha_new := info_dict.get("alpha_new")) is not None:
         logger.info("alpha_new: %s", alpha_new)
-        ax.axvline(x=alpha_new, ls=":")
+        ax.axvline(x=alpha_new, ls=":")  # pyright: ignore[reportUnknownMemberType]
     plt.show()  # pyright: ignore[reportUnknownMemberType]
 
     # demo of coding in stop criteria

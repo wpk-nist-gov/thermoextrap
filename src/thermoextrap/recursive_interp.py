@@ -150,7 +150,7 @@ class RecursiveInterp:
         specific state points and you do not wish to generate more.
         """
         if do_plot:
-            import matplotlib.pyplot as plt
+            import matplotlib.pyplot as plt  # pyright: ignore[reportMissingImports]
 
         if recurse_depth > recurse_max:
             msg = "Maximum recursion depth reached."
@@ -437,7 +437,7 @@ class RecursiveInterp:
         from scipy import stats
 
         if do_plot:
-            import matplotlib.pyplot as plt
+            import matplotlib.pyplot as plt  # pyright: ignore[reportMissingImports]
 
         if self.model_cls != InterpModel:
             msg = "Incorrect class provided. Can only check polynomial consistency with a polynomial interpolation model class."
@@ -465,8 +465,8 @@ class RecursiveInterp:
 
         # Before loop, set up plot if wanted
         if do_plot:
-            pcolors = plt.cm.cividis(np.linspace(0.0, 1.0, len(edge_sets)))  # type: ignore[attr-defined]  # pylint: disable=no-member
-            pfig, pax = plt.subplots()
+            pcolors = plt.cm.cividis(np.linspace(0.0, 1.0, len(edge_sets)))  # type: ignore[attr-defined,unused-ignore] # pylint: disable=no-member
+            pfig, pax = plt.subplots()  # pyright: ignore[reportUnknownVariableType]
             plotymin = 1e10
             plotymax = -1e10
 

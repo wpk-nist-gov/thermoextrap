@@ -58,7 +58,7 @@ OptionalKwsAny: TypeAlias = OptionalKws[Any]
 SingleDim: TypeAlias = str
 MultDims: TypeAlias = Union[str, Sequence[Hashable]]
 PostFunc: TypeAlias = Union[str, Callable[["Expr"], "Expr"], None]
-OptionalRng: TypeAlias = np.random.Generator | None
+OptionalRng: TypeAlias = Union[np.random.Generator, None]
 NDArrayAny: TypeAlias = NDArray[Any]
 
 TensorType: TypeAlias = Union[NDArrayAny, "tf.Tensor"]
@@ -74,7 +74,9 @@ SymDerivNames = Literal[
 
 StackPolicy = Literal["infer", "raise"]
 ApplyReduceFuncs: TypeAlias = Union[
-    str, Callable[..., Any], Iterable[str | Callable[..., Any]]
+    str,
+    Callable[..., Any],
+    Iterable[Union[str, Callable[..., Any]]],
 ]
 
 

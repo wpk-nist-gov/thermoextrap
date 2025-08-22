@@ -335,7 +335,7 @@ class StackedDerivatives:
 
         return xdata, ydata  # pyright: ignore[reportUnknownVariableType]
 
-    def xindexer_from_arrays(self, **kwargs: Any) -> pd.Index:
+    def xindexer_from_arrays(self, **kwargs: Any) -> pd.Index[Any]:
         """
         Create indexer for indexing into gpflow trained object by name.
 
@@ -347,7 +347,7 @@ class StackedDerivatives:
         """
         return self.xindexer_from_dataframe(pd.DataFrame(kwargs))
 
-    def xindexer_from_dataframe(self, df: pd.DataFrame) -> pd.Index:
+    def xindexer_from_dataframe(self, df: pd.DataFrame) -> pd.Index[Any]:
         """
         Create indexer from frame.
 

@@ -17,9 +17,9 @@ else:
 
 
 if sys.version_info >= (3, 11):
-    from typing import Required, Self, Unpack
+    from typing import NotRequired, Required, Self, Unpack
 else:
-    from typing_extensions import Required, Self, Unpack
+    from typing_extensions import NotRequired, Required, Self, Unpack
 
 
 if sys.version_info >= (3, 13):
@@ -31,6 +31,7 @@ else:  # pragma: no cover
 __all__ = [
     "Concatenate",
     "EllipsisType",
+    "NotRequired",
     "Required",
     "Self",
     "TypeAlias",

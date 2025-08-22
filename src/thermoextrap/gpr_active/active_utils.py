@@ -1175,7 +1175,7 @@ class UpdateFuncBase(UpdateStopABC):
         Plots output used to select new update point.
         err is expected to be length 2 list with upper and lower confidence intervals.
         """
-        import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt  # pyright: ignore[reportMissingImports]
 
         fig, ax = plt.subplots()
         if self.compare_func is not None:

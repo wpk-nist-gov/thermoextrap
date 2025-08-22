@@ -9,11 +9,11 @@ import numpy as np
 import xarray as xr
 from cmomy.core.validate import (
     is_dataarray,
-    is_dataset,
+    is_xarray_typevar,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Hashable, Sequence
+    from collections.abc import Hashable, Sequence  # noqa: F401
 
     from cmomy.core.typing import DataT
     from numpy.typing import ArrayLike
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from thermoextrap.core.typing import MultDims, SingleDim
     from thermoextrap.core.typing_compat import TypeAlias
 
-    DimsMapping: TypeAlias = Sequence[Hashable] | Mapping[int, MultDims]
+    DimsMapping: TypeAlias = "Sequence[Hashable] | Mapping[int, MultDims]"
 
 
 ###############################################################################
@@ -34,11 +34,8 @@ def _check_xr(
     name: str | None = None,
     strict: bool = False,
 ) -> xr.DataArray | DataT:
-    if is_dataset(x):
-        return x  # type: ignore[return-value]
-
-    if is_dataarray(x):
-        if strict:
+    if is_xarray_typevar(x):
+        if is_dataarray(x) and strict:  # type: ignore[redundant-expr]
             if isinstance(dims, Mapping):
                 dims = dims[x.ndim]
             for d in dims:

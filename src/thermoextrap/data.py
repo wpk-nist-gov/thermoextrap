@@ -23,7 +23,7 @@ import xarray as xr
 from attrs import field
 from attrs import validators as attv
 from cmomy.core.missing import MISSING
-from cmomy.core.validate import is_dataarray, is_xarray
+from cmomy.core.validate import is_dataarray, is_dataset, is_xarray
 from module_utilities import cached
 
 from .core._attrs_utils import (
@@ -1113,7 +1113,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         rec_dim: SingleDim = "rec",
         deriv_dim: SingleDim | None = None,
         central: bool = False,
-        weight: NDArrayAny | XArrayObj | None = None,
+        weight: NDArrayAny | xr.DataArray | DataT | None = None,
         axis: AxisReduce | MissingType = MISSING,
         dim: DimsReduce | MissingType = MISSING,
         meta: DataCallbackABC | None = None,
@@ -1155,16 +1155,22 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         if axis is MISSING and dim is MISSING:
             axis = 0
 
+        dxduave: cmomy.CentralMomentsData[DataT]
         if x_is_u:
+            if not is_dataarray(xv):
+                msg = f"{type(xv)=} must be DataArray if x_is_ug"
+                raise TypeError(msg)
+
             dxduave = cmomy.wrap_reduce_vals(
-                uv,
-                weight=weight,
+                cast("DataT", uv),  # type: ignore[redundant-cast]
+                weight=cast("NDArrayAny | DataT", weight),
                 axis=axis,
                 dim=dim,
                 mom=order + 1,
                 mom_dims=umom_dim,
                 **kwargs,
             ).moments_to_comoments(mom_dims_out=(xmom_dim, umom_dim), mom=(1, order))
+
         else:
             _raise_if_not_xarray(xv)
             dxduave = cmomy.wrap_reduce_vals(
@@ -1179,7 +1185,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
             )
 
         return cls(
-            dxduave=dxduave,  # pyright: ignore[reportArgumentType]
+            dxduave=dxduave,
             xmom_dim=xmom_dim,
             umom_dim=umom_dim,
             rec_dim=rec_dim,
@@ -1265,7 +1271,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         uv: xr.DataArray,
         order: int,
         sampler: Sampler,
-        weight: NDArrayAny | XArrayObj | None = None,
+        weight: NDArrayAny | xr.DataArray | DataT | None = None,
         axis: AxisReduce | MissingType = MISSING,
         dim: DimsReduce | MissingType = MISSING,
         xmom_dim: SingleDim = "xmom",
@@ -1372,7 +1378,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         cls,
         u: DataT,
         xu: DataT | None,
-        weight: NDArrayAny | DataT | None = None,
+        weight: NDArrayAny | xr.DataArray | DataT | None = None,
         rec_dim: SingleDim = "rec",
         xmom_dim: SingleDim = "xmom",
         umom_dim: SingleDim = "umom",
@@ -1551,15 +1557,11 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
 
 
 def _convert_dxduave(
-    dxduave: cmomy.CentralMomentsData[Any] | None,
-    self_: attrs.AttrsInstance,
-) -> cmomy.CentralMomentsData[Any]:
+    dxduave: cmomy.CentralMomentsData[DataT] | None,
+    self_: DataCentralMomentsVals[DataT],
+) -> cmomy.CentralMomentsData[DataT]:
     if dxduave is not None:
         return dxduave
-
-    if not isinstance(self_, DataCentralMomentsVals):
-        msg = "Converter only works with `DataCentralMomentsVals`"
-        raise TypeError(msg)
 
     if (order := self_._order) is None:  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001  # pylint: disable=protected-access
         msg = "Must pass order if calculating dxduave"
@@ -1568,12 +1570,27 @@ def _convert_dxduave(
     return cmomy.wrap_reduce_vals(  # type: ignore[no-any-return]
         self_.xv,  # pyright: ignore[reportUnknownMemberType,reportUnknownArgumentType]
         self_.uv,
-        weight=self_.weight,
+        weight=self_.weight,  # pyright: ignore[reportUnknownMemberType,reportUnknownArgumentType]
         dim=self_.rec_dim,
         mom=(1, order),
         mom_dims=(self_.xmom_dim, self_.umom_dim),
         **self_.from_vals_kws,
     )
+
+
+def _validate_weight(
+    instance: DataCentralMomentsVals[Any],
+    attribute: Any,  # noqa: ARG001
+    value: object,
+) -> None:
+    if value is None or isinstance(value, (np.ndarray, xr.DataArray)):
+        return
+
+    if is_dataset(instance.xv) and is_dataset(value):
+        return
+
+    msg = "weight can be None, ndarray, DataArray, or Dataset (if xv is also a Dataset)"
+    raise TypeError(msg)
 
 
 @attrs.frozen
@@ -1603,11 +1620,9 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         alias="order",
     )
     #: Stored weights
-    weight: NDArrayAny | XArrayObj | None = field(
+    weight: NDArrayAny | xr.DataArray | DataT | None = field(
         kw_only=True,
-        validator=attv.optional(
-            attv.instance_of((np.ndarray, xr.DataArray, xr.Dataset))
-        ),
+        validator=_validate_weight,
         default=None,
     )
     #: Optional parameters to :func:`cmomy.wrap_reduce_vals`
@@ -1619,7 +1634,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
     #: :class:`cmomy.CentralMomentsData` object
     dxduave: cmomy.CentralMomentsData[DataT] = field(
         kw_only=True,
-        converter=attrs.Converter(_convert_dxduave, takes_self=True),  # type: ignore[misc]
+        converter=attrs.Converter(_convert_dxduave, takes_self=True),  # type: ignore[misc,call-overload]
         validator=attv.instance_of(cmomy.CentralMomentsData),
         default=None,
     )
@@ -1631,7 +1646,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         xv: DataT,
         uv: xr.DataArray,
         order: int,
-        weight: NDArrayAny | XArrayObj | None = None,
+        weight: NDArrayAny | xr.DataArray | DataT | None = None,
         rec_dim: SingleDim = "rec",
         umom_dim: SingleDim = "umom",
         xmom_dim: SingleDim = "xmom",
