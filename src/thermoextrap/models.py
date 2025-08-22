@@ -71,20 +71,7 @@ if TYPE_CHECKING:
 docfiller_shared = DOCFILLER_SHARED.levels_to_top("cmomy", "xtrap")
 
 
-__all__ = [
-    "Derivatives",
-    "ExtrapModel",
-    "ExtrapWeightedModel",
-    "InterpModel",
-    "InterpModelPiecewise",
-    "MBARModel",
-    "PerturbModel",
-    "StateCollection",
-]
-
 # * Utils ---------------------------------------------------------------------
-
-
 def _validate_supports_getitem(
     instance: Any,  # noqa: ARG001
     attribute: attrs.Attribute[Any],  # noqa: ARG001
@@ -133,7 +120,7 @@ class SymFuncBase(sp.Function):  # type: ignore[misc,name-defined]
                 a.doit(deep=deep, **hints)
 
     def doit(self, deep: bool = False, **hints: Any) -> Expr:
-        """Generic ``doit`` method (See :func:`sympy.doit`)."""
+        """Generic ``doit`` method (See :meth:`~sympy.core.basic.Basic.doit`)."""
         raise NotImplementedError
 
     @classmethod
@@ -218,7 +205,7 @@ class Lambdify:
     args : sequence of Symbol
         array of symbols which will be in args of the resulting function
     lambdify_kws : dict
-        Extra arguments to :func:`~sympy.utilities.lambidfy.lambdify`.
+        Extra arguments to :func:`~sympy.utilities.lambdify.lambdify`.
         Note that by default we set ``cse = True``, ``dummify = True`` by default.
 
     See Also
@@ -314,7 +301,7 @@ class SymDerivBase:
         simplify: bool = False,
         expand: bool = False,
     ) -> _GetItemSympyOperations:
-        """Indexer for Derivatives with :func:`sympy.doit` applied"""
+        """Indexer for Derivatives with :meth:`~sympy.core.basic.Basic.doit` applied"""
         return _GetItemSympyOperations(
             funcs=self,
             simplify=simplify,
@@ -371,6 +358,7 @@ class SymMinusLog:
 
 @lru_cache(5)
 def factory_minus_log() -> Lambdify:
+    """Create lambdified version of :class:`SymMinusLog`"""
     s = SymMinusLog()
     return Lambdify(s, (s.X,))
 
@@ -905,12 +893,13 @@ class StateCollection(
 def xr_weights_minkowski(
     deltas: xr.DataArray, m: int = 20, dim: str = "state"
 ) -> xr.DataArray:
+    """Minkowski weights DataArray."""
     deltas_m = deltas**m
     return 1.0 - deltas_m / deltas_m.sum(dim)
 
 
 @attrs.define
-class _PiecewiseStateCollection(StateCollection[SupportsModelT, DataT]):
+class PiecewiseStateCollection(StateCollection[SupportsModelT, DataT]):
     """Provide methods for Piecewise state collection."""
 
     def _indices_between_alpha(self, alpha: float) -> NDArray[np.int64]:
@@ -943,7 +932,7 @@ class _PiecewiseStateCollection(StateCollection[SupportsModelT, DataT]):
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
 class ExtrapWeightedModel(
-    _PiecewiseStateCollection[ExtrapModel[DataT], DataT], Generic[DataT]
+    PiecewiseStateCollection[ExtrapModel[DataT], DataT], Generic[DataT]
 ):
     """
     Weighted extrapolation model.
@@ -1134,7 +1123,7 @@ class InterpModel(StateCollection[SupportsModelDerivsT, DataT]):
 
 
 @docfiller_shared.inherit(StateCollection)
-class InterpModelPiecewise(_PiecewiseStateCollection[SupportsModelDerivsT, DataT]):
+class InterpModelPiecewise(PiecewiseStateCollection[SupportsModelDerivsT, DataT]):
     """Apposed to the multiple model InterpModel, perform a piecewise interpolation."""
 
     # @cached.meth

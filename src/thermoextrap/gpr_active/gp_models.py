@@ -1015,7 +1015,7 @@ class HeteroscedasticGPR(
     mean_function : callable, optional
         Mean function to be used (probably should be one that
         handles inputs including the derivative order)
-    scale_fac : ArrayLike, default=1.0
+    scale_fac : array-like, default=1.0
         scaling factor on the output data; can apply to each dimension
         separately if an array; helpful to ensure all output dimensions have
         similar variance

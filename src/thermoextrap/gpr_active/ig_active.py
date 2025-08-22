@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 # Define function to create ExtrapModel of ideal gas data
 # This will be handy later on
 def extrap_IG(beta: Any, rng: OptionalRng = None) -> ExtrapModel[xr.DataArray]:
+    """Create :class:`~.models.ExtrapModel`"""
     y_dat, u_dat = idealgas.generate_data((10000, 1000), beta, rng=validate_rng(rng))
     y_dat = xr.DataArray(y_dat[:, None], dims=["rec", "val"])
     u_dat = xr.DataArray(u_dat, dims=["rec"])
@@ -44,6 +45,7 @@ def extrap_IG(beta: Any, rng: OptionalRng = None) -> ExtrapModel[xr.DataArray]:
 def multiOutput_extrap_IG(
     beta: Any, rng: OptionalRng = None
 ) -> ExtrapModel[xr.DataArray]:
+    """Create :class:`~.models.ExtrapModel`"""
     # Use fixed random number
     positions = idealgas.x_sample((10000, 1000), beta, rng=validate_rng(rng))
     y = positions.mean(axis=-1)
@@ -67,6 +69,7 @@ class IG_DataWrapper:  # noqa: N801
     def get_data(
         self, n_conf: int = 10000, n_part: int = 1000
     ) -> tuple[xr.DataArray, xr.DataArray, NDArray[Any]]:
+        """Create data."""
         # Call thermoextrap.idealgas methods
         x, u_ = idealgas.generate_data((n_conf, n_part), self.beta, rng=self.rng)
         x = xr.DataArray(x[:, None], dims=["rec", "val"])
@@ -78,6 +81,7 @@ class IG_DataWrapper:  # noqa: N801
         all_data: tuple[xr.DataArray, xr.DataArray, NDArray[Any]] | None = None,
         max_order: int = 6,
     ) -> ExtrapModel[xr.DataArray]:
+        """Build state/model."""
         if all_data is None:
             all_data = self.get_data()
         u = all_data[0]
@@ -95,6 +99,7 @@ class SimulateIG:
         self.sim_func = sim_func  # Will not perform any simulations
 
     def run_sim(self, unused: Any, beta: Any, n_repeats: Any = None) -> IG_DataWrapper:  # pylint: disable=no-self-use
+        """Run simulation."""
         # All this does is creates an IG_DataWrapper object at the specified beta
         # (and returns it)
         return IG_DataWrapper(beta)

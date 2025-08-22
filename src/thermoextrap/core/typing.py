@@ -42,9 +42,11 @@ if TYPE_CHECKING:
 
 
 DataT = TypeVar("DataT", xr.DataArray, xr.Dataset, default=xr.DataArray)
-DataT_ = TypeVar("DataT_", xr.DataArray, xr.Dataset, default=xr.DataArray)
+"""Type variable for :class:`~xarray.DataArray` or :class:`~xarray.Dataset`."""
 
 T_co = TypeVar("T_co", covariant=True)
+"""Generic covariant type variable."""
+
 _T = TypeVar("_T")
 
 NDArrayOrDataArrayT = TypeVar(
@@ -172,10 +174,16 @@ class SupportsModelDerivs(SupportsModel[T_co], Protocol[T_co]):
 
 
 SupportsModelT = TypeVar("SupportsModelT", bound=SupportsModel[XArrayObj])
+"""Generic type variable for :class:`SupportsModel`"""
+SupportsModelT_co = TypeVar(
+    "SupportsModelT_co", bound=SupportsModel[XArrayObj], covariant=True
+)
+"""Generic covariant type variable for :class:`SupportsModel`"""
 SupportsModelDerivsT = TypeVar(
     "SupportsModelDerivsT",
     bound=SupportsModelDerivs[XArrayObj],
 )
+"""Generic type variable for :class:`SupportsModelDerivs`"""
 # Special case for DataArray only
 SupportsModelDerivsDataArrayT = TypeVar(
     "SupportsModelDerivsDataArrayT",
@@ -184,9 +192,6 @@ SupportsModelDerivsDataArrayT = TypeVar(
 
 # TODO(wpk): Create SupportsStateCollection protocol
 # M_co = TypeVar("M_co", covariant=True)
-SupportsModelT_co = TypeVar(
-    "SupportsModelT_co", bound=SupportsModel[XArrayObj], covariant=True
-)
 
 
 @runtime_checkable

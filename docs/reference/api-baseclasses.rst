@@ -7,18 +7,6 @@ Base classes
    :inherited-members:
    :members:
 
-.. autoclass:: thermoextrap.models.SymDerivBase
-   :autosummary:
-   :show-inheritance:
-   :inherited-members:
-   :members:
-
-.. autoclass:: thermoextrap.models.SymFuncBase
-   :autosummary:
-   :show-inheritance:
-   :members:
-
-
 .. autoclass:: thermoextrap.data.AbstractData
    :autosummary:
    :show-inheritance:
