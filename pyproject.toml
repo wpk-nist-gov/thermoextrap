@@ -77,7 +77,6 @@ urls.Homepage = "https://github.com/usnistgov/thermoextrap"
 [dependency-groups]
 dev = [
     "nbconvert",
-    "pytest-monkeytype",
     "righttyper",
     "thermoextrap[all]",
     { include-group = "mypy" },
@@ -93,7 +92,7 @@ test = [
     "pytest-cov",
     "pytest-env",
     "pytest-sugar",
-    # "pytest-xdist>3.6.0",
+    "pytest-xdist>3.6.0",
     "thermoextrap[mbar,gpr]",
     { include-group = "pandas" },
     { include-group = "pytest" },
@@ -176,8 +175,6 @@ ignore = [
     "PC170", # pygrep
     "PC901", # ci message
     "RTD",
-    # For now
-    "MY101",
 ]
 
 [tool.codespell]
@@ -199,16 +196,16 @@ max_supported_python = "3.12"
 
 [tool.pytest.ini_options]
 addopts = [
-    # "-ra",
-    # "--strict-config",
-    # "--strict-markers",
+    "-ra",
+    "--strict-config",
+    "--strict-markers",
     "--doctest-modules",
     "--doctest-glob=*.md",
     "--pyargs",
     "--cov-config=pyproject.toml",
     "--ignore-glob='**/legacy/**",
-    # "-n",
-    # "4",
+    "-n",
+    "4",
 ]
 testpaths = [
     "README.md",
@@ -216,23 +213,23 @@ testpaths = [
     "thermoextrap",
 ]
 minversion = "8"
-# log_cli_level = "INFO"
-# xfail_strict = true
-# filterwarnings = [
-#     "error",
-#     "ignore: Type google:DeprecationWarning",
-#     "ignore: distutils Version classes are deprecated:DeprecationWarning",
-#     "ignore: pkg_resources is deprecated as an API:DeprecationWarning",
-#     "ignore: FNV hashing is not implemented in Numba:UserWarning",
-#     "ignore: A kernel object:UserWarning",
-#     "ignore: Unknown solver options",
-#     "ignore::docstring_inheritance.DocstringInheritanceWarning",
-#     "ignore: Module thermoextrap was never imported:coverage.exceptions.CoverageWarning",
-#     "ignore: No data was collected:coverage.exceptions.CoverageWarning",
-#     "ignore: pkg_resources is deprecated:UserWarning",
-#     "ignore: invalid escape sequence:SyntaxWarning",
-#     "ignore: The default datetime:DeprecationWarning",
-# ]
+log_cli_level = "INFO"
+xfail_strict = true
+filterwarnings = [
+    "error",
+    "ignore: Type google:DeprecationWarning",
+    "ignore: distutils Version classes are deprecated:DeprecationWarning",
+    "ignore: pkg_resources is deprecated as an API:DeprecationWarning",
+    "ignore: FNV hashing is not implemented in Numba:UserWarning",
+    "ignore: A kernel object:UserWarning",
+    "ignore: Unknown solver options",
+    "ignore::docstring_inheritance.DocstringInheritanceWarning",
+    "ignore: Module thermoextrap was never imported:coverage.exceptions.CoverageWarning",
+    "ignore: No data was collected:coverage.exceptions.CoverageWarning",
+    "ignore: pkg_resources is deprecated:UserWarning",
+    "ignore: invalid escape sequence:SyntaxWarning",
+    "ignore: The default datetime:DeprecationWarning",
+]
 
 [tool.pytest_env]
 NUMBA_CACHE_DIR = { value = "{PWD}/.numba_cache", transform = true, skip_if_set = true }
@@ -298,13 +295,11 @@ module = [
 
 [[tool.mypy.overrides]]
 strict = false
-allow_untyped_defs = true
-allow_incomplete_defs = true
-allow_untyped_calls = true
-# check_untyped_defs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
 module = [
     "tests.*",
-    # "tests.legacy.*",
 ]
 
 [[tool.mypy.overrides]]
@@ -331,17 +326,6 @@ exclude = [
 strict = [
     "noxfile.py",
     "tools/*.py",
-    # "src/thermoextrap/__init__.py",
-    # "src/thermoextrap/data.py",
-    # "src/thermoextrap/idealgas.py",
-    # "src/thermoextrap/models.py",
-    # "src/thermoextrap/beta.py",
-    # "src/thermoextrap/lnpy.py",
-    # "src/thermoextrap/volume.py",
-    # "src/thermoextrap/volume_idealgas.py",
-    # "src/thermoextrap/adaptive_interp.py",
-    # "src/thermoextrap/recursive_interp.py",
-    # "src/thermoextrap/stack.py",
     "src/thermoextrap/*.py",
     "src/thermoextrap/core/*.py",
     "src/thermoextrap/gpr_active/ig_active.py",

@@ -82,12 +82,12 @@ def sample_data():
 
 
 @pytest.fixture
-def ref(sample_data):  # noqa: FURB118
+def ref(sample_data):
     return sample_data[0]
 
 
 @pytest.fixture
-def samples(sample_data):  # noqa: FURB118
+def samples(sample_data):
     return sample_data[1]
 
 

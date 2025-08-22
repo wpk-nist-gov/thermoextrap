@@ -37,8 +37,8 @@ dependencies:
   - pytest
   - pytest-cov
   - pytest-env
-  - pytest-monkeytype
   - pytest-sugar
+  - pytest-xdist>3.6.0
   - righttyper
   - scipy
   - scipy-stubs
