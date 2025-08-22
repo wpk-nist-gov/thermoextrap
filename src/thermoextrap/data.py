@@ -784,10 +784,6 @@ class DataCentralMomentsBase(AbstractData, Generic[DataT]):
         but can lead to large objects.
     """
 
-    #: :class:`cmomy.CentralMomentsData` object
-    dxduave: cmomy.CentralMomentsData[DataT] = field(
-        validator=attv.instance_of(cmomy.CentralMomentsData)
-    )
     #: Overvable moment dimension
     xmom_dim: SingleDim = field(kw_only=True, default="xmom")
     #: Records dimension
@@ -798,6 +794,10 @@ class DataCentralMomentsBase(AbstractData, Generic[DataT]):
     x_is_u: bool = field(kw_only=True, default=None)
 
     _use_cache: bool = field(kw_only=True, default=True)
+
+    @property
+    def dxduave(self) -> cmomy.CentralMomentsData[DataT]:
+        raise NotImplementedError
 
     @property
     def order(self) -> int:
@@ -944,6 +944,15 @@ class DataCentralMomentsBase(AbstractData, Generic[DataT]):
 @docfiller_shared.inherit(DataCentralMomentsBase)
 class DataCentralMoments(DataCentralMomentsBase[DataT]):
     """Data class using :class:`cmomy.CentralMomentsData` to handle central moments."""
+
+    #: :class:`cmomy.CentralMomentsData` object
+    _dxduave: cmomy.CentralMomentsData[DataT] = field(
+        validator=attv.instance_of(cmomy.CentralMomentsData), alias="dxduave"
+    )
+
+    @property
+    def dxduave(self) -> cmomy.CentralMomentsData[DataT]:
+        return self._dxduave
 
     def __len__(self) -> int:
         return self.values.sizes[self.rec_dim]
@@ -1556,28 +1565,6 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         )
 
 
-def _convert_dxduave(
-    dxduave: cmomy.CentralMomentsData[DataT] | None,
-    self_: DataCentralMomentsVals[DataT],
-) -> cmomy.CentralMomentsData[DataT]:
-    if dxduave is not None:
-        return dxduave
-
-    if (order := self_._order) is None:  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001  # pylint: disable=protected-access
-        msg = "Must pass order if calculating dxduave"
-        raise ValueError(msg)
-
-    return cmomy.wrap_reduce_vals(  # type: ignore[no-any-return]
-        self_.xv,  # pyright: ignore[reportUnknownMemberType,reportUnknownArgumentType]
-        self_.uv,
-        weight=self_.weight,  # pyright: ignore[reportUnknownMemberType,reportUnknownArgumentType]
-        dim=self_.rec_dim,
-        mom=(1, order),
-        mom_dims=(self_.xmom_dim, self_.umom_dim),
-        **self_.from_vals_kws,
-    )
-
-
 def _validate_weight(
     instance: DataCentralMomentsVals[Any],
     attribute: Any,  # noqa: ARG001
@@ -1591,6 +1578,22 @@ def _validate_weight(
 
     msg = "weight can be None, ndarray, DataArray, or Dataset (if xv is also a Dataset)"
     raise TypeError(msg)
+
+
+def _validate_dxduave(
+    instance: DataCentralMomentsVals[DataT],
+    attribute: Any,  # noqa: ARG001
+    value: object,
+) -> None:
+    if value is None:
+        if instance._order is None:  # pyright: ignore[reportPrivateUsage] # noqa: SLF001  # pylint: disable=protected-access
+            msg = "Must pass order if calculating dxduave"
+            raise ValueError(msg)
+        return
+
+    if not isinstance(value, cmomy.CentralMomentsData):
+        msg = "Must pass None or `cmomy.CentralMomentsData` instance for dxduave"
+        raise TypeError(msg)
 
 
 @attrs.frozen
@@ -1632,12 +1635,33 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         converter=convert_mapping_or_none_to_dict,
     )
     #: :class:`cmomy.CentralMomentsData` object
-    dxduave: cmomy.CentralMomentsData[DataT] = field(
+    _dxduave: cmomy.CentralMomentsData[DataT] | None = field(
         kw_only=True,
-        converter=attrs.Converter(_convert_dxduave, takes_self=True),  # type: ignore[misc,call-overload]
-        validator=attv.instance_of(cmomy.CentralMomentsData),
+        validator=_validate_dxduave,
         default=None,
+        alias="dxduave",
     )
+
+    @property
+    @cached.meth
+    def dxduave(self) -> cmomy.CentralMomentsData[DataT]:
+        if self._dxduave is None:
+            return cmomy.wrap_reduce_vals(  # type: ignore[no-any-return]
+                self.xv,
+                self.uv,
+                weight=self.weight,
+                dim=self.rec_dim,
+                mom=(1, self.order),
+                mom_dims=(self.xmom_dim, self.umom_dim),
+                **self.from_vals_kws,
+            )
+        return self._dxduave
+
+    @property
+    def order(self) -> int:
+        if self._order is None:
+            return super().order
+        return self._order
 
     @classmethod
     @docfiller_shared.decorate
