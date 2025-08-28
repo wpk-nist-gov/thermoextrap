@@ -707,7 +707,7 @@ def test_extrapmodel_alphadep(fixture, rng: np.random.Generator) -> None:
 
     xem1 = xtrap.beta.factory_extrapmodel(
         beta0,
-        data=xtrap.DataCentralMomentsVals.from_vals(
+        data=xtrap.DataCentralMomentsVals[xr.DataArray].from_vals(
             uv=u, xv=x, order=order, central=False, deriv_dim="deriv"
         ),
     )
@@ -717,7 +717,7 @@ def test_extrapmodel_alphadep(fixture, rng: np.random.Generator) -> None:
     # for central, only test up to third order
     xem1 = xtrap.beta.factory_extrapmodel(
         beta0,
-        data=xtrap.DataCentralMomentsVals.from_vals(
+        data=xtrap.DataCentralMomentsVals[xr.DataArray].from_vals(
             uv=u, xv=x, order=order, central=True, deriv_dim="deriv"
         ),
     )
@@ -899,7 +899,7 @@ def test_extrapmodel_alphadep_minuslog(fixture, rng: np.random.Generator) -> Non
     xem1 = xtrap.beta.factory_extrapmodel(
         beta0,
         post_func=None,
-        data=xtrap.DataCentralMomentsVals.from_vals(
+        data=xtrap.DataCentralMomentsVals[xr.DataArray].from_vals(
             uv=u, xv=x, order=order, central=False, deriv_dim="deriv"
         ),
     )
@@ -910,7 +910,7 @@ def test_extrapmodel_alphadep_minuslog(fixture, rng: np.random.Generator) -> Non
     xem1 = xtrap.beta.factory_extrapmodel(
         beta0,
         post_func=None,
-        data=xtrap.DataCentralMomentsVals.from_vals(
+        data=xtrap.DataCentralMomentsVals[xr.DataArray].from_vals(
             uv=u, xv=x, order=order, central=True, deriv_dim="deriv"
         ),
     )

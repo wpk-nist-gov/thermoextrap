@@ -68,7 +68,7 @@ class RecursiveInterp:
         self,
         model_cls: Callable[
             [Sequence[ExtrapModel[xr.DataArray]]],
-            InterpModel[ExtrapModel[xr.DataArray], xr.DataArray],
+            InterpModel[xr.DataArray, ExtrapModel[xr.DataArray]],
         ],
         derivatives: Derivatives,
         edge_beta: Sequence[SupportsFloat],
@@ -362,7 +362,7 @@ class RecursiveInterp:
 
                 # Checking maximum over both tested interior state points AND observable values
                 # (if observable is a vector, use element with maximum error
-                check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)  # type: ignore[arg-type]  # pyright: ignore[reportUnknownVariableType, reportArgumentType, reportCallIssue]
+                check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)  # type: ignore[arg-type]
                 check_val = rel_err[check_ind]
                 logger.info("Maximum bootstrapped error within interval: %f", check_val)
                 logger.info("At point: %f", beta_vals[check_ind[0]])

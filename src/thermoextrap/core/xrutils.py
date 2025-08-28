@@ -34,7 +34,7 @@ def _check_xr(
     name: str | None = None,
     strict: bool = False,
 ) -> xr.DataArray | DataT:
-    if is_xarray_typevar(x):
+    if is_xarray_typevar["DataT"].check(x):
         if is_dataarray(x) and strict:  # type: ignore[redundant-expr]
             if isinstance(dims, Mapping):
                 dims = dims[x.ndim]

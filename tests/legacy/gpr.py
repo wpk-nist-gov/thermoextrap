@@ -266,7 +266,7 @@ class combined_loss:
 
 
 # Now can construct a model class inheriting from StateCollection
-class GPRModel(StateCollection[Any]):
+class GPRModel(StateCollection[Any, Any]):
     def _collect_data(self, order=None, order_dim="order", n_resample=100):
         if order is None:
             order = self.order

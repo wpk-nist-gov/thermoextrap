@@ -1,5 +1,6 @@
 import cmomy
 import numpy as np
+import xarray as xr
 
 import thermoextrap as xtrap
 
@@ -97,3 +98,25 @@ def test_resample(fixture) -> None:
     # central
     a = fixture.cdata.resample(sampler=sampler)
     fixture.xr_test_central(a=a, b=b)
+
+
+def test_resample_data(fixture) -> None:
+    sampler = {"nrep": 10, "rng": 0}
+
+    a = fixture.rdata.resample(sampler=sampler)
+    b = fixture.cdata.resample(sampler=sampler)
+    c = fixture.xdata_val.resample(sampler=sampler, resample_data=True)
+
+    for x, y in [(a, b), (b, c)]:
+        xr.testing.assert_allclose(x.xv, y.xv)
+        xr.testing.assert_allclose(x.uv, y.uv)
+
+    d = xtrap.DataCentralMoments.from_resample_vals(
+        xv=fixture.x,
+        uv=fixture.u,
+        sampler=sampler,
+        order=fixture.order,
+        dim="rec",
+        axes_to_end=False,
+    )
+    np.testing.assert_allclose(c.dxduave.obj, d.dxduave.obj)

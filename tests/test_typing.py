@@ -1,5 +1,5 @@
-"""Check/test typing support"""
-# pyright: reportUnreachable=false
+"""Check/test typing pyright"""
+# support: reportUnreachable=false
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import thermoextrap as xtrap
 if sys.version_info >= (3, 11):
     from typing import assert_type
 else:
-    from typing_extensions import assert_type
+    from typing_extensions import assert_type  # pyright: ignore[reportUnreachable]
 
 if TYPE_CHECKING:
     import sympy as sp  # pyright: ignore[reportMissingTypeStubs]
@@ -23,7 +23,9 @@ if TYPE_CHECKING:
 
     from thermoextrap.core.typing import (
         SupportsModel,
-        SupportsModelT,
+        SupportsModelDataT,
+        SupportsModelDerivs,
+        SupportsModelDerivsDataT,
     )
     from thermoextrap.models import StateCollection
 
@@ -352,23 +354,29 @@ if TYPE_CHECKING:
         assert_type(func_dataperturbmodel(d), xr.Dataset)
 
     def func_statecollection(
-        # factory_state: Callable[..., SupportsModelDerivsT]
-        state: SupportsModelT,
-        state_collection: StateCollection[SupportsModelT, xr.DataArray],
+        # factory_state: Callable[..., SupportsModelDerivsDataT]
+        x: DataT,
+        state: SupportsModelDataT,
+        state2: SupportsModelDerivs[xr.DataArray],
+        state3: SupportsModelDerivsDataT,
+        state_collection: StateCollection[xr.DataArray, SupportsModelDataT],
         factory_state_collection: Callable[
-            ..., StateCollection[SupportsModelT, xr.DataArray]
+            ..., StateCollection[xr.DataArray, SupportsModelDataT]
         ],
     ) -> None:
         pass
 
     def tester_statecollection(
+        x: xr.DataArray,
         state: ExtrapModel[xr.DataArray],
-        state_collection: InterpModel[ExtrapModel[xr.DataArray], xr.DataArray],
+        state_collection: InterpModel[xr.DataArray, ExtrapModel[xr.DataArray]],
         factory_state_collection: type[
-            InterpModel[ExtrapModel[xr.DataArray], xr.DataArray]
+            InterpModel[xr.DataArray, ExtrapModel[xr.DataArray]]
         ],
     ) -> None:
-        func_statecollection(state, state_collection, factory_state_collection)
+        func_statecollection(
+            x, state, state, state, state_collection, factory_state_collection
+        )
 
     def func_supports(
         index: SupportsIndex,

@@ -14,7 +14,7 @@ dependencies:
   - python=3.12
   - attrs>=24.1.0
   - bottleneck
-  - cmomy>=0.24.0
+  - cmomy>=1.0.0
   - dask
   - dm-tree
   - docstring-inheritance

@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
     FactoryStateCollection: TypeAlias = Callable[
         Concatenate[Sequence[SupportsModelDerivsDataArrayT], ...],
-        StateCollection[SupportsModelDerivsDataArrayT, DataT],
+        StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT],
     ]
 
 logging.basicConfig()
@@ -88,7 +88,7 @@ class _InfoDict(TypedDict, Generic[DataT], total=True):
 
 def _check_relative_fluctuations(
     alphas: NDArray[Any],
-    model: StateCollection[Any, xr.DataArray],
+    model: StateCollection[xr.DataArray, SupportsModelDerivs[xr.DataArray]],
     states: Sequence[SupportsModelDerivs[xr.DataArray]],
     reduce_dim: str = "rep",
     # states_avail=None,
@@ -141,9 +141,7 @@ def _check_relative_fluctuations(
 def train_iterative(
     alphas: ArrayLike,
     factory_state: FactoryState[SupportsModelDerivsDataArrayT],
-    factory_statecollection: FactoryStateCollection[
-        SupportsModelDerivsDataArrayT, xr.DataArray
-    ],
+    factory_statecollection: FactoryStateCollection[SupportsModelDerivsDataArrayT],
     states: Sequence[SupportsModelDerivsDataArrayT] | None = None,
     reduce_dim: str = "rep",
     maxiter: int = 10,
@@ -155,7 +153,7 @@ def train_iterative(
     callback: Callable[..., Any] | None = None,
     callback_kws: OptionalKwsAny = None,
 ) -> tuple[
-    StateCollection[SupportsModelDerivsDataArrayT, xr.DataArray],
+    StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT],
     list[_InfoDict[xr.DataArray]],
 ]:
     """
@@ -277,9 +275,7 @@ def train_iterative(
 def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
     alphas: ArrayLike,
     factory_state: FactoryState[SupportsModelDerivsDataArrayT],
-    factory_statecollection: FactoryStateCollection[
-        SupportsModelDerivsDataArrayT, xr.DataArray
-    ],
+    factory_statecollection: FactoryStateCollection[SupportsModelDerivsDataArrayT,],
     state0: SupportsModelDerivsDataArrayT | None = None,
     state1: SupportsModelDerivsDataArrayT | None = None,
     states: Sequence[SupportsModelDerivsDataArrayT] | None = None,
@@ -294,7 +290,7 @@ def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
     alpha_tol: float = 0.01,
     callback: Callable[
         Concatenate[
-            StateCollection[SupportsModelDerivsDataArrayT, xr.DataArray],
+            StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT],
             ArrayLike,
             Mapping[str, Any],
             ...,
@@ -485,14 +481,12 @@ def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
 
 def check_polynomial_consistency(
     states: Sequence[SupportsModelDerivsDataArrayT],
-    factory_statecollection: FactoryStateCollection[
-        SupportsModelDerivsDataArrayT, xr.DataArray
-    ],
+    factory_statecollection: FactoryStateCollection[SupportsModelDerivsDataArrayT],
     reduce_dim: str = "rep",
     statecollection_kws: OptionalKwsAny = None,
 ) -> tuple[
     dict[Any, xr.DataArray],
-    dict[Any, StateCollection[SupportsModelDerivsDataArrayT, xr.DataArray]],
+    dict[Any, StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT]],
 ]:
     """
     Check polynomial consistency across subsegments.
@@ -521,7 +515,7 @@ def check_polynomial_consistency(
 
     ave = {}
     var = {}
-    models: dict[Any, StateCollection[SupportsModelDerivsDataArrayT, xr.DataArray]] = {}
+    models: dict[Any, StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT]] = {}
 
     if statecollection_kws is None:
         statecollection_kws = {}
@@ -611,7 +605,7 @@ def factory_state_idealgas(
 
 
 def callback_plot_progress(
-    model: StateCollection[SupportsModelDerivsDataArrayT, xr.DataArray],
+    model: StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT],
     alphas: ArrayLike,  # noqa: ARG001
     info_dict: _InfoDict[xr.DataArray],
     verbose: bool = True,

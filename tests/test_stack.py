@@ -12,13 +12,12 @@ import thermoextrap as xtrap
 from thermoextrap import stack
 
 if TYPE_CHECKING:
-    from typing import Any
-
-    from thermoextrap.models import StateCollection
+    from thermoextrap.core.typing import SupportsModelDerivs
+    from thermoextrap.models import ExtrapModel, StateCollection
 
 
 @pytest.fixture
-def states() -> StateCollection[Any, xr.DataArray]:
+def states() -> StateCollection[xr.DataArray, ExtrapModel[xr.DataArray]]:
     shape = (3, 2, 4)
     dims = ["rec", "pair", "position"]
     coords = {"position": np.linspace(0, 2, shape[-1])}
@@ -60,7 +59,9 @@ def test_derivs_concat(states) -> None:
     xr.testing.assert_allclose(a, b)
 
 
-def test_stack(states: StateCollection[Any, xr.DataArray]) -> None:
+def test_stack(
+    states: StateCollection[xr.DataArray, SupportsModelDerivs[xr.DataArray]],
+) -> None:
     y_unstack = stack.states_derivs_concat(states).pipe(stack.to_mean_var, "rep")  # type: ignore[call-overload]
     y_data = stack.stack_dataarray(
         y_unstack, x_dims=["beta", "order"], stats_dim="stats"

@@ -24,6 +24,7 @@ if TYPE_CHECKING:
         SingleDim,
         StackPolicy,
         SupportsModel,
+        SupportsModelDerivs,
     )
     from .core.typing_compat import Self
 
@@ -194,7 +195,7 @@ def to_mean_var(
 
 
 def states_derivs_concat(
-    states: StateCollection[Any, xr.DataArray],
+    states: StateCollection[xr.DataArray, SupportsModelDerivs[xr.DataArray]],
     dim: Any = None,
     concat_kws: OptionalKwsAny = None,
     **kws: Any,
@@ -228,7 +229,7 @@ def states_derivs_concat(
 
     kws.setdefault("norm", False)
 
-    return xr.concat((s.derivs(**kws) for s in states), dim=dim, **concat_kws)  # type: ignore[no-any-return]
+    return xr.concat((s.derivs(**kws) for s in states), dim=dim, **concat_kws)
 
 
 def _convert_dims(dims: str | Sequence[str]) -> tuple[str, ...]:
@@ -469,8 +470,7 @@ class StackedDerivatives:
     @classmethod
     def from_states(
         cls,
-        states: StateCollection[SupportsModel[xr.DataArray], xr.DataArray]
-        | Sequence[SupportsModel[xr.DataArray]],
+        states: StateCollection[xr.DataArray] | Sequence[SupportsModel[xr.DataArray]],
         x_dims: str | Sequence[str],
         resample: bool = True,
         resample_kws: OptionalKwsAny = None,
@@ -511,7 +511,7 @@ class StackedDerivatives:
         `StackedDerivatives.from_derivs`
         """
         states = cast(
-            "StateCollection[SupportsModel[xr.DataArray], xr.DataArray]",
+            "StateCollection[xr.DataArray]",
             states if isinstance(states, StateCollection) else StateCollection(states),
         )
 
@@ -548,8 +548,8 @@ class StackedDerivatives:
 
 
 # class GPRData(
-#     StateCollection[SupportsModelT, xr.DataArray],
-#     Generic[SupportsModelT],
+#     StateCollection[SupportsModelDataT, xr.DataArray],
+#     Generic[SupportsModelDataT],
 # ):
 #     """
 #     Statecollection for GPFlow analysis.

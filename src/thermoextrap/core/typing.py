@@ -173,29 +173,48 @@ class SupportsModelDerivs(SupportsModel[T_co], Protocol[T_co]):
     def derivs(self, *args: Any, **kwargs: Any) -> T_co: ...
 
 
-SupportsModelT = TypeVar("SupportsModelT", bound=SupportsModel[XArrayObj])
-"""Generic type variable for :class:`SupportsModel`"""
-SupportsModelT_co = TypeVar(
-    "SupportsModelT_co", bound=SupportsModel[XArrayObj], covariant=True
+# Type Variables with name `...DataT...` have defaults bound to DataT
+SupportsModelDataT = TypeVar(
+    "SupportsModelDataT", bound=SupportsModel[XArrayObj], default=SupportsModel[DataT]
 )
-"""Generic covariant type variable for :class:`SupportsModel`"""
-SupportsModelDerivsT = TypeVar(
-    "SupportsModelDerivsT",
+"""Generic type variable for :class:`SupportsModel`"""
+
+SupportsModelDataT_co = TypeVar(
+    "SupportsModelDataT_co",
+    bound=SupportsModel[XArrayObj],
+    default=SupportsModel[DataT],
+    covariant=True,
+)
+"""Generic type variable for :class:`SupportsModel`"""
+
+SupportsModelDerivsDataT = TypeVar(
+    "SupportsModelDerivsDataT",
     bound=SupportsModelDerivs[XArrayObj],
+    default=SupportsModelDerivs[DataT],
 )
 """Generic type variable for :class:`SupportsModelDerivs`"""
+
 # Special case for DataArray only
 SupportsModelDerivsDataArrayT = TypeVar(
     "SupportsModelDerivsDataArrayT",
     bound=SupportsModelDerivs[xr.DataArray],
+    default=SupportsModelDerivs[xr.DataArray],
 )
+"""Generic type variable for :class:`SupportsModelDerivs` with DataArray"""
+
+SupportsModelT_co = TypeVar(
+    "SupportsModelT_co",
+    bound=SupportsModel[Any],
+    covariant=True,
+    default=SupportsModel[T_co],
+)
+"""Generic covariant type variable for :class:`SupportsModel`"""
+
 
 # TODO(wpk): Create SupportsStateCollection protocol
 # M_co = TypeVar("M_co", covariant=True)
-
-
 @runtime_checkable
-class SupportsStateCollection(Protocol[SupportsModelT_co, T_co]):
+class SupportsStateCollection(Protocol[T_co, SupportsModelT_co]):
     """Protocol for State collection"""
 
     def __init__(

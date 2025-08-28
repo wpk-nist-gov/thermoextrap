@@ -45,8 +45,9 @@ from .core.typing import (
     SupportsData,
     SupportsDataXU,
     SupportsGetItem,
-    SupportsModelDerivsT,
-    SupportsModelT,
+    SupportsModelDataT,
+    SupportsModelDataT_co,
+    SupportsModelDerivsDataT,
 )
 from .core.validate import validate_alpha
 from .core.xrutils import xrwrap_alpha
@@ -723,8 +724,8 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
 @attrs.define
 class StateCollection(
     MyAttrsMixin,
-    Sequence[SupportsModelT],
-    Generic[SupportsModelT, DataT],
+    Sequence[SupportsModelDataT_co],
+    Generic[DataT, SupportsModelDataT_co],
 ):
     """
     Sequence of models.
@@ -738,7 +739,7 @@ class StateCollection(
         additional key word arguments to keep internally in self.kws
     """
 
-    states: Sequence[SupportsModelT] = field()
+    states: Sequence[SupportsModelDataT_co] = field()
     kws: dict[str, Any] = field(
         kw_only=True,
         factory=dict[str, "Any"],
@@ -751,13 +752,13 @@ class StateCollection(
         return len(self.states)
 
     @overload
-    def __getitem__(self, idx: SupportsIndex, /) -> SupportsModelT: ...
+    def __getitem__(self, idx: SupportsIndex, /) -> SupportsModelDataT_co: ...
     @overload
     def __getitem__(self, idx: slice[Any, Any, Any], /) -> Self: ...
 
     def __getitem__(  # pyright: ignore[reportIncompatibleMethodOverride]  # NOTE: adding slice functionality...
         self, idx: SupportsIndex | slice[Any, Any, Any], /
-    ) -> SupportsModelT | Self:
+    ) -> SupportsModelDataT_co | Self:
         if isinstance(idx, slice):
             return type(self)(self.states[idx], kws=self.kws)
         return self.states[int(idx)]
@@ -899,7 +900,7 @@ def xr_weights_minkowski(
 
 
 @attrs.define
-class PiecewiseStateCollection(StateCollection[SupportsModelT, DataT]):
+class PiecewiseStateCollection(StateCollection[DataT, SupportsModelDataT]):
     """Provide methods for Piecewise state collection."""
 
     def _indices_between_alpha(self, alpha: float) -> NDArray[np.int64]:
@@ -932,7 +933,7 @@ class PiecewiseStateCollection(StateCollection[SupportsModelT, DataT]):
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
 class ExtrapWeightedModel(
-    PiecewiseStateCollection[ExtrapModel[DataT], DataT], Generic[DataT]
+    PiecewiseStateCollection[DataT, ExtrapModel[DataT]], Generic[DataT]
 ):
     """
     Weighted extrapolation model.
@@ -1030,7 +1031,7 @@ class ExtrapWeightedModel(
 
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
-class InterpModel(StateCollection[SupportsModelDerivsT, DataT]):
+class InterpModel(StateCollection[DataT, SupportsModelDerivsDataT]):
     """Interpolation model."""
 
     @cached.meth
@@ -1123,7 +1124,7 @@ class InterpModel(StateCollection[SupportsModelDerivsT, DataT]):
 
 
 @docfiller_shared.inherit(StateCollection)
-class InterpModelPiecewise(PiecewiseStateCollection[SupportsModelDerivsT, DataT]):
+class InterpModelPiecewise(PiecewiseStateCollection[DataT, SupportsModelDerivsDataT]):
     """Apposed to the multiple model InterpModel, perform a piecewise interpolation."""
 
     # @cached.meth
@@ -1132,7 +1133,7 @@ class InterpModelPiecewise(PiecewiseStateCollection[SupportsModelDerivsT, DataT]
     @cached.meth
     def single_interpmodel(
         self, *state_indices: SupportsIndex
-    ) -> InterpModel[SupportsModelDerivsT, DataT]:
+    ) -> InterpModel[DataT, SupportsModelDerivsDataT]:
         state0, state1 = (self[i] for i in state_indices)
         return InterpModel([state0, state1])
 
@@ -1241,7 +1242,7 @@ class PerturbModel(MyAttrsMixin, Generic[DataT]):
 
 @attrs.define
 @docfiller_shared.inherit(StateCollection)
-class MBARModel(StateCollection[Any, xr.DataArray]):
+class MBARModel(StateCollection[xr.DataArray, Any]):
     """Sadly, this doesn't work as beautifully."""
 
     def __attrs_pre_init__(self) -> None:  # pylint: disable=bad-dunder-name,no-self-use
