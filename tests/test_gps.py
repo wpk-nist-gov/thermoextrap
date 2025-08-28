@@ -441,8 +441,8 @@ def test_sympy_mean_func() -> None:
     assert sp.simplify(check_sym.expr - sig_expr) == 0
     # Check that found optimal parameters
     # pylint: disable=no-member
-    np.testing.assert_allclose(check_sym.m, m_check, rtol=1e-06)  # type: ignore[attr-defined]
-    np.testing.assert_allclose(check_sym.b, b_check, rtol=1e-06)  # type: ignore[attr-defined]
+    np.testing.assert_allclose(check_sym.m, m_check, rtol=1e-06)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+    np.testing.assert_allclose(check_sym.b, b_check, rtol=1e-06)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     # And check values and derivatives
     output = check_sym(x_check)
     np.testing.assert_allclose(
@@ -452,11 +452,11 @@ def test_sympy_mean_func() -> None:
     )
     np.testing.assert_allclose(
         output[10:20].numpy(),
-        check_sym.m * (output[:10] - output[:10] ** 2).numpy(),  # type: ignore[attr-defined]
+        check_sym.m * (output[:10] - output[:10] ** 2).numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     )
     np.testing.assert_allclose(
         output[20:].numpy(),
-        (check_sym.m**2)  # type: ignore[attr-defined]
+        (check_sym.m**2)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         * (output[:10] - 3.0 * output[:10] ** 2 + 2.0 * output[:10] ** 3),
     )
 
@@ -570,12 +570,12 @@ def test_gp() -> None:  # noqa: PLR0915
     ref_like = HetGaussianDeriv(
         cov_data,
         1,
-        **like_kwargs,  # type: ignore[arg-type]
+        **like_kwargs,  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
     )
-    np.testing.assert_allclose(ref_like.cov, check_1d.likelihood.cov)  # type: ignore[attr-defined]
+    np.testing.assert_allclose(ref_like.cov, check_1d.likelihood.cov)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     np.testing.assert_allclose(
         ref_like.build_scaled_cov_mat(x_data),
-        check_1d.likelihood.build_scaled_cov_mat(x_data),  # type: ignore[attr-defined]
+        check_1d.likelihood.build_scaled_cov_mat(x_data),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     )
 
     # Since working with 1D data, scaling should not change the trained model
@@ -617,13 +617,13 @@ def test_gp() -> None:  # noqa: PLR0915
 
     # Comparing parameters
     np.testing.assert_allclose(
-        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]
-        check_scale.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]
+        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        check_scale.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         rtol=1e-03,
     )
     np.testing.assert_allclose(
-        check_base.kernel.kernel.var.numpy(),  # type: ignore[attr-defined]
-        check_scale.kernel.kernel.var.numpy() * (check_scale.scale_fac**2),  # type: ignore[attr-defined]
+        check_base.kernel.kernel.var.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        check_scale.kernel.kernel.var.numpy() * (check_scale.scale_fac**2),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         rtol=1e-03,
     )
     # np.testing.assert_allclose(
@@ -736,13 +736,13 @@ def test_gp() -> None:  # noqa: PLR0915
     np.testing.assert_allclose(pred_base[0], pred_sep_ind[0][:, :1], rtol=1e-03)
     np.testing.assert_allclose(pred_base[1], pred_sep_ind[1][:, :1], rtol=1e-03)
     np.testing.assert_allclose(
-        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]
-        check_sep_ind.kernel.kernels[0].l_0.numpy(),  # type: ignore[attr-defined]
+        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        check_sep_ind.kernel.kernels[0].l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         rtol=1e-03,
     )
     np.testing.assert_allclose(
-        check_base.kernel.kernel.var.numpy(),  # type: ignore[attr-defined]
-        check_sep_ind.kernel.kernels[0].var.numpy(),  # type: ignore[attr-defined]
+        check_base.kernel.kernel.var.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        check_sep_ind.kernel.kernels[0].var.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         rtol=1e-03,
     )
 
@@ -774,7 +774,7 @@ def test_gp() -> None:  # noqa: PLR0915
         likelihood_kwargs={"p": 0.0, "transform_p": None},
     )
 
-    check_meanf.kernel.kernel.l_0.assign(1e-06)  # type: ignore[attr-defined]
+    check_meanf.kernel.kernel.l_0.assign(1e-06)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     np.testing.assert_allclose(y_data, check_meanf.predict_f(x_data)[0], atol=1e-01)
 
     train_GPR(check_meanf)
@@ -784,7 +784,7 @@ def test_gp() -> None:  # noqa: PLR0915
     np.testing.assert_allclose(pred_base[0], pred_meanf[0], atol=1e-01)
     np.testing.assert_allclose(pred_base[1], pred_meanf[1], atol=1e-01)
     np.testing.assert_allclose(
-        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]
-        check_meanf.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]
+        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        check_meanf.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         atol=2e-01,
     )

@@ -268,8 +268,8 @@ def test_extrapmodel_weighted_multi(fixture, rng: np.random.Generator) -> None:
             beta=xem.alpha0,
             data=xtrap.factory_data_values(
                 order=fixture.order,
-                uv=xem.data.uv,  # type: ignore[attr-defined]
-                xv=xem.data.xv,  # type: ignore[attr-defined]
+                uv=xem.data.uv,  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+                xv=xem.data.xv,  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
                 central=True,
             ),
         )
@@ -281,8 +281,8 @@ def test_extrapmodel_weighted_multi(fixture, rng: np.random.Generator) -> None:
             beta=xem.alpha0,
             data=xtrap.DataCentralMomentsVals.from_vals(
                 order=fixture.order,
-                uv=xem.data.uv,  # type: ignore[attr-defined]
-                xv=xem.data.xv,  # type: ignore[attr-defined]
+                uv=xem.data.uv,  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+                xv=xem.data.xv,  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
                 central=True,
             ),
         )
@@ -312,7 +312,7 @@ def test_extrapmodel_weighted_multi(fixture, rng: np.random.Generator) -> None:
     nrep = 20
     sampler = []
     for xem in xems_c:
-        ndat = xem.data.uv.shape[0]  # type: ignore[attr-defined]
+        ndat = xem.data.uv.shape[0]  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         sampler.append(cmomy.factory_sampler(ndat=ndat, nrep=nrep, rng=rng))
 
     a = xemw_c.resample(sampler=sampler)
@@ -368,8 +368,8 @@ def test_interpmodel(fixture, rng: np.random.Generator) -> None:
             beta=xem.alpha0,
             data=xtrap.factory_data_values(
                 order=fixture.order,
-                uv=xem.data.uv,  # type: ignore[attr-defined]
-                xv=xem.data.xv,  # type: ignore[attr-defined]
+                uv=xem.data.uv,  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+                xv=xem.data.xv,  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
                 central=True,
             ),
         )
@@ -381,8 +381,8 @@ def test_interpmodel(fixture, rng: np.random.Generator) -> None:
             beta=xem.alpha0,
             data=xtrap.DataCentralMomentsVals.from_vals(
                 order=fixture.order,
-                uv=xem.data.uv,  # type: ignore[attr-defined]
-                xv=xem.data.xv,  # type: ignore[attr-defined]
+                uv=xem.data.uv,  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+                xv=xem.data.xv,  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
                 central=True,
             ),
         )
@@ -400,7 +400,7 @@ def test_interpmodel(fixture, rng: np.random.Generator) -> None:
     nrep = 20
     samplers = []
     for xem in xems_c:
-        ndat = xem.data.uv.shape[0]  # type: ignore[attr-defined]
+        ndat = xem.data.uv.shape[0]  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         samplers.append(
             cmomy.factory_sampler(
                 ndat=ndat,

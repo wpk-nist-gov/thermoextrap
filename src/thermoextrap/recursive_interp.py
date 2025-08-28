@@ -1,4 +1,4 @@
-# pyright: reportPossiblyUnboundVariable=false,reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportPossiblyUnboundVariable=false,reportUnknownMemberType=false, reportUnknownArgumentType=false, reportMissingImports=false, reportUnknownVariableType=warning, reportUnnecessaryTypeIgnoreComment=warning
 
 """
 Recursive interpolation (:mod:`~thermoextrap.recursive_interp`)
@@ -117,7 +117,7 @@ class RecursiveInterp:
         # datModel = IGmodel(nParticles=1000)
         # xdata, udata = datModel.genData(B, nConfigs=10000)
         # Need to also change data object kwargs based on data when change getData
-        return factory_data_values(uv=udata, xv=xdata, order=self.max_order)  # type: ignore[return-value]
+        return factory_data_values(uv=udata, xv=xdata, order=self.max_order)  # type: ignore[return-value]  # pyright: ignore[reportReturnType]
 
     getData = deprecate("getData", get_data, "0.2.0")  # noqa: N815
 
@@ -150,7 +150,7 @@ class RecursiveInterp:
         specific state points and you do not wish to generate more.
         """
         if do_plot:
-            import matplotlib.pyplot as plt  # pyright: ignore[reportMissingImports]
+            import matplotlib.pyplot as plt
 
         if recurse_depth > recurse_max:
             msg = "Maximum recursion depth reached."
@@ -201,7 +201,7 @@ class RecursiveInterp:
 
         # Checking maximum over both tested interior state points AND observable values
         # (if observable is a vector, use element with maximum error
-        check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)  # type: ignore[arg-type]
+        check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)  # type: ignore[arg-type]  # pyright: ignore[reportUnknownVariableType, reportArgumentType, reportCallIssue]
         check_val = rel_err[check_ind]
 
         logger.info("Maximum bootstrapped error within interval: %f", check_val)
@@ -362,7 +362,7 @@ class RecursiveInterp:
 
                 # Checking maximum over both tested interior state points AND observable values
                 # (if observable is a vector, use element with maximum error
-                check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)  # type: ignore[arg-type]
+                check_ind = np.unravel_index(rel_err.argmax(), rel_err.shape)  # type: ignore[arg-type]  # pyright: ignore[reportUnknownVariableType, reportArgumentType, reportCallIssue]
                 check_val = rel_err[check_ind]
                 logger.info("Maximum bootstrapped error within interval: %f", check_val)
                 logger.info("At point: %f", beta_vals[check_ind[0]])
@@ -383,7 +383,7 @@ class RecursiveInterp:
 
         # For each state point in beta, select a piecewise model to use
         beta = np.asarray(beta)
-        xv: xr.DataArray = self.states[0].data.xv  # type: ignore[union-attr]
+        xv: xr.DataArray = self.states[0].data.xv  # type: ignore[union-attr]  # pyright: ignore[reportUnknownVariableType, reportAttributeAccessIssue, reportOptionalMemberAccess]
         predict_vals = np.zeros(
             (len(beta), xv["val"].size) if "val" in xv.dims else len(beta)
         )
@@ -437,7 +437,7 @@ class RecursiveInterp:
         from scipy import stats
 
         if do_plot:
-            import matplotlib.pyplot as plt  # pyright: ignore[reportMissingImports]
+            import matplotlib.pyplot as plt
 
         if self.model_cls != InterpModel:
             msg = "Incorrect class provided. Can only check polynomial consistency with a polynomial interpolation model class."
@@ -465,8 +465,8 @@ class RecursiveInterp:
 
         # Before loop, set up plot if wanted
         if do_plot:
-            pcolors = plt.cm.cividis(np.linspace(0.0, 1.0, len(edge_sets)))  # type: ignore[attr-defined,unused-ignore] # pylint: disable=no-member
-            pfig, pax = plt.subplots()  # pyright: ignore[reportUnknownVariableType]
+            pcolors = plt.cm.cividis(np.linspace(0.0, 1.0, len(edge_sets)))  # type: ignore[attr-defined,unused-ignore] # pylint: disable=no-member  # pyright: ignore[reportUnknownVariableType, reportAttributeAccessIssue]
+            pfig, pax = plt.subplots()
             plotymin = 1e10
             plotymax = -1e10
 
@@ -526,9 +526,9 @@ class RecursiveInterp:
                 plotpoints = np.linspace(
                     self.edge_beta[aset[0]], self.edge_beta[aset[2]], 50
                 )
-                plotfull = np.polynomial.polynomial.polyval(plotpoints, fullcoeffs)  # type: ignore[no-untyped-call]
-                plotreg1 = np.polynomial.polynomial.polyval(plotpoints, reg1coeffs)  # type: ignore[no-untyped-call]
-                plotreg2 = np.polynomial.polynomial.polyval(plotpoints, reg2coeffs)  # type: ignore[no-untyped-call]
+                plotfull = np.polynomial.polynomial.polyval(plotpoints, fullcoeffs)  # type: ignore[no-untyped-call]  # pyright: ignore[reportUnknownVariableType]
+                plotreg1 = np.polynomial.polynomial.polyval(plotpoints, reg1coeffs)  # type: ignore[no-untyped-call]  # pyright: ignore[reportUnknownVariableType]
+                plotreg2 = np.polynomial.polynomial.polyval(plotpoints, reg2coeffs)  # type: ignore[no-untyped-call]  # pyright: ignore[reportUnknownVariableType]
                 pax.plot(plotpoints, plotfull, color=pcolors[i], linestyle="-")
                 pax.plot(plotpoints, plotreg1, color=pcolors[i], linestyle=":")
                 pax.plot(plotpoints, plotreg2, color=pcolors[i], linestyle="--")

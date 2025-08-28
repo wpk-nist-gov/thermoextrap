@@ -2,6 +2,7 @@
 GPR utilities (:mod:`~thermoextrap.gpr_active.active_utils`)
 ------------------------------------------------------------
 """
+# pyright: reportMissingTypeStubs=false, reportMissingImports=false
 
 from __future__ import annotations
 
@@ -828,7 +829,7 @@ def create_base_GP_model(
         )
     else:
         full_kernel = gpflow.kernels.SeparateIndependent(
-            [kernel() for k in range(gpr_data[1].shape[-1])]
+            [kernel() for _ in range(gpr_data[1].shape[-1])]
         )
 
     return HeteroscedasticGPR(
@@ -1024,7 +1025,7 @@ def identityTransform(
     y: NDArrayOrDataArrayT,
     y_var: ArrayLike,
 ) -> tuple[NDArrayOrDataArrayT, NDArrayOrDataArrayT, list[NDArrayOrDataArrayT]]:
-    y_std = np.sqrt(y_var)
+    y_std: NDArrayOrDataArrayT = np.sqrt(y_var)  # type: ignore[assignment]  # pyright: ignore[reportAssignmentType]
     conf_int = [y - 2.0 * y_std, y + 2.0 * y_std]
     return y, y_std, conf_int  # type: ignore[return-value]
 
@@ -1175,19 +1176,20 @@ class UpdateFuncBase(UpdateStopABC):
         Plots output used to select new update point.
         err is expected to be length 2 list with upper and lower confidence intervals.
         """
-        import matplotlib.pyplot as plt  # pyright: ignore[reportMissingImports]
+        import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots()
-        if self.compare_func is not None:
-            compare_y = self.compare_func(x[:, None])
+        compare_y = (
+            self.compare_func(x[:, None]) if self.compare_func is not None else None
+        )
         # Need loop to handle multiple outputs if have them
         for k in range(y.shape[1]):
             ax.plot(x, y[:, k])
             ax.fill_between(x, err[0][:, k], err[1][:, k], alpha=0.2)
-            if self.compare_func is not None:
+            if compare_y is not None:
                 ax.plot(x, compare_y[:, k], "k--")
         # Use compare_func output to set range of plot
-        if self.compare_func is not None:
+        if compare_y is not None:
             compare_min = np.min(compare_y)
             compare_max = np.max(compare_y)
             compare_range = compare_max - compare_min
@@ -1950,8 +1952,8 @@ class ErrorStability(MetricBase, UpdateStopABC):
         # (and remember to only take first output of transform_func, which is mean/median)
         mu_curr = self.transform_func(pred_x[:, :1], mu_curr.numpy(), 1.0)[0]
         transform_scale = self.transform_func(
-            pred_x[:, :1],  # pyright: ignore[reportArgumentType]
-            np.ones_like(pred_x[:, :1]),  # pyright: ignore[reportArgumentType]
+            pred_x[:, :1],
+            np.ones_like(pred_x[:, :1]),
             1.0,
         )[0]
 

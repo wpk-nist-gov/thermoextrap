@@ -133,7 +133,7 @@ def test_out_u(samples, out_u) -> None:
 
 @pytest.fixture
 def meta_lnpi(ref):
-    return xtrap.lnpi.lnPiDataCallback(  # pyright: ignore[reportCallIssue]
+    return xtrap.lnpi.lnPiDataCallback(
         ref["lnpi_data"], ref["mu"], dims_n=["n"], dims_comp="comp"
     )
 

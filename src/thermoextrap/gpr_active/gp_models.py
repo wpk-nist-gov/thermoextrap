@@ -176,7 +176,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         # Want full list of all combinations of derivative pairs
         expand_d1 = tf.reshape(
             tf.tile(d1, (1, d2.shape[0])),
-            (d1.shape[0] * d2.shape[0], -1),  # type: ignore[operator]
+            (d1.shape[0] * d2.shape[0], -1),  # type: ignore[operator]  # pyright: ignore[reportOperatorIssue]
         )
         expand_d1 = tf.cast(expand_d1, tf.int32)
         expand_d2 = tf.tile(d2, (d1.shape[0], 1))
@@ -187,7 +187,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         # Sort of same idea as creating a mesh grid
         expand_x1 = tf.reshape(
             tf.tile(x1, (1, x2.shape[0])),
-            (x1.shape[0] * x2.shape[0], -1),  # type: ignore[operator]
+            (x1.shape[0] * x2.shape[0], -1),  # type: ignore[operator]  # pyright: ignore[reportOperatorIssue]
         )
         expand_x2 = tf.tile(x2, (x1.shape[0], 1))
 
@@ -1075,17 +1075,17 @@ class HeteroscedasticGPR(
         # subclass off of MultioutputKernel in gpflow and make custom
         if not isinstance(kernel, gpflow.kernels.MultioutputKernel):
             # Get number of input dimensions
-            n_obs_dims = kernel.obs_dims  # type: ignore[attr-defined]
+            n_obs_dims = kernel.obs_dims  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
             # And now wrap in SharedIndependent
             kernel = gpflow.kernels.SharedIndependent(kernel, output_dim=self.out_dim)
         elif isinstance(kernel, gpflow.kernels.SharedIndependent):
-            n_obs_dims = kernel.kernel.obs_dims  # type: ignore[attr-defined]
+            n_obs_dims = kernel.kernel.obs_dims  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         elif isinstance(kernel, gpflow.kernels.SeparateIndependent):
-            n_obs_dims = kernel.kernels[0].obs_dims  # type: ignore[attr-defined]
+            n_obs_dims = kernel.kernels[0].obs_dims  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         else:
             # Know how to handle above cases, but if have something else, just try below
             # Assuming some type of custom MultioutputKernel, so requiring obs_dims is defined there
-            n_obs_dims = kernel.obs_dims  # type: ignore[attr-defined]
+            n_obs_dims = kernel.obs_dims  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
 
         # Create specific likelihood for this model
         likelihood = HetGaussianDeriv(noise_cov, n_obs_dims, **likelihood_kwargs)
@@ -1099,8 +1099,8 @@ class HeteroscedasticGPR(
     def log_marginal_likelihood(self) -> tf.Tensor:
         X, Y = self.data
 
-        K = self.kernel(X, full_cov=True, full_output_cov=False)  # type: ignore[call-arg]
-        ks = K + self.likelihood.build_scaled_cov_mat(X)  # type: ignore[attr-defined]
+        K = self.kernel(X, full_cov=True, full_output_cov=False)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
+        ks = K + self.likelihood.build_scaled_cov_mat(X)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         L = tf.linalg.cholesky(ks)
         m = self.mean_function(X) / self.scale_fac
 
@@ -1126,10 +1126,10 @@ class HeteroscedasticGPR(
         # With MultiOutput kernels in GPflow, default full_cov and full_output_cov behavior
         # is different from base_kernel, which requires more explicit specifications
         # Following IndependentPosteriorMultiOutput but with custom likelihood covariance
-        kmm = self.kernel(X_data, full_cov=True, full_output_cov=False)  # type: ignore[call-arg]
-        knn = self.kernel(Xnew, full_cov=full_cov, full_output_cov=False)  # type: ignore[call-arg]
-        kmn = self.kernel(X_data, Xnew, full_cov=True, full_output_cov=False)  # type: ignore[call-arg]
-        kmm_plus_s = kmm + self.likelihood.build_scaled_cov_mat(X_data)  # type: ignore[attr-defined]
+        kmm = self.kernel(X_data, full_cov=True, full_output_cov=False)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
+        knn = self.kernel(Xnew, full_cov=full_cov, full_output_cov=False)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
+        kmn = self.kernel(X_data, Xnew, full_cov=True, full_output_cov=False)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
+        kmm_plus_s = kmm + self.likelihood.build_scaled_cov_mat(X_data)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
 
         # To generally handle multioutput data, use appropriate conditional
         # Means also need to tile kernel (not kmm_plus_s, though, since __init__ checks noise)

@@ -317,7 +317,7 @@ def deprecate_nonkeyword_arguments(
 
         # error: "Callable[[VarArg(Any), KwArg(Any)], Any]" has no
         # attribute "__signature__"
-        wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
+        wrapper.__signature__ = new_sig  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         return cast("F", wrapper)
 
     return decorate

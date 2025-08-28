@@ -1,4 +1,5 @@
 """Check/test typing support"""
+# pyright: reportUnreachable=false
 
 from __future__ import annotations
 

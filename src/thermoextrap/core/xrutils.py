@@ -128,7 +128,7 @@ def xrwrap_alpha(
 
     alpha = np.array(alpha)
     if dims is None:
-        dims = name  # type: ignore[assignment]
+        dims = name  # type: ignore[assignment]  # pyright: ignore[reportAssignmentType]
 
     if alpha.ndim == 0:
         return xr.DataArray(alpha, coords={dims: alpha}, name=name)

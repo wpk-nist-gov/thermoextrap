@@ -135,6 +135,7 @@ test-notebook = [
     { include-group = "test" },
 ]
 typecheck = [
+    "matplotlib; python_version=='3.12'",
     "pandas-stubs",
     "scipy-stubs; python_version>='3.10'",
     "thermoextrap[mbar,gpr]",
@@ -324,7 +325,8 @@ exclude = [
     "**/.numba_cache",
     "**/legacy/*.py",
 ]
-# strict = ["src", "tests", "noxfile.py", "tools/*.py"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
 strict = [
     "noxfile.py",
     "tools/*.py",
@@ -336,9 +338,6 @@ strict = [
     "src/thermoextrap/gpr_active/sine_active.py",
     "tests/test_typing.py",
 ]
-pythonVersion = "3.11"
-typeCheckingMode = "standard"
-# enable subset of "strict"
 reportDuplicateImport = true
 reportInvalidStubStatement = true
 reportOverlappingOverload = true
@@ -347,20 +346,10 @@ reportUntypedClassDecorator = true
 reportUntypedFunctionDecorator = true
 reportUntypedNamedTuple = true
 reportUnusedImport = true
-# disable subset of "basic"
-reportGeneralTypeIssues = false
-reportMissingModuleSource = false
-reportOptionalCall = false
-reportOptionalIterable = false
-reportOptionalMemberAccess = false
-reportOptionalOperand = false
-reportOptionalSubscript = false
-reportPrivateImportUsage = false
-reportUnboundVariable = false
-# Turn on too see unused ignores
-# reportUnnecessaryTypeIgnoreComment = true
-# infer types.  Can be slow...
-# useLibraryCodeForTypes = true
+# Extra flags
+enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = true
+reportUnreachable = "warning"
 
 [tool.pytype]
 inputs = [
@@ -411,6 +400,7 @@ reqs = [
     "pre-commit-uv",
     "pyrefly",
     "pyright>=1.1.396",
+    "basedpyright>=1.31.3",
     "scriv",
     "twine>=5.0.0",
     "ty",

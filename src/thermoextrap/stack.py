@@ -446,7 +446,7 @@ class StackedDerivatives:
         if reduce_kws is None:
             reduce_kws = {}
 
-        da: xr.DataArray = apply_reduction(  # type: ignore[assignment]
+        da: xr.DataArray = apply_reduction(  # type: ignore[assignment]  # pyright: ignore[reportAssignmentType]
             derivs,
             dim=reduce_dim,
             funcs=reduce_funcs,
@@ -518,7 +518,7 @@ class StackedDerivatives:
         if resample:
             if resample_kws is None:
                 resample_kws = {}
-            states = states.resample(**resample_kws)  # pyright: ignore[reportUnknownVariableType]
+            states = states.resample(**resample_kws)
 
         if map_kws is None:
             map_kws = {}

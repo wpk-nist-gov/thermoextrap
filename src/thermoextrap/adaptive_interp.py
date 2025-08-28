@@ -8,6 +8,7 @@ This includes the recursive training algorithm and consistency checks.
 See :ref:`examples/usage/basic/temperature_interp:adaptive interpolation` for example usage.
 
 """
+# pyright: reportMissingTypeStubs=false, reportMissingImports=false, reportUnknownVariableType=warning, reportUnknownMemberType=warning
 
 from __future__ import annotations
 
@@ -122,7 +123,7 @@ def _check_relative_fluctuations(
     if len(err_rel) > 0 and len(states) > 0 and alpha_tol > 0:
         alphas_states = xr.DataArray([s.alpha0 for s in states], dims=alphas_states_dim)
         err_rel = err_rel.where(
-            np.abs(err_rel[alpha_name] - alphas_states).min(alphas_states_dim)  # type: ignore[arg-type]
+            np.abs(err_rel[alpha_name] - alphas_states).min(alphas_states_dim)  # type: ignore[arg-type]  # pyright: ignore[reportCallIssue, reportArgumentType]
             > alpha_tol,
             drop=True,
         )
@@ -631,7 +632,7 @@ def callback_plot_progress(
         purposes
     ax : :class:`matplotlib.axes.Axes`, optional
     """
-    import matplotlib.pyplot as plt  # pyright: ignore[reportMissingImports]
+    import matplotlib.pyplot as plt
 
     from . import idealgas
 
@@ -646,17 +647,17 @@ def callback_plot_progress(
     logger.info("alphas: %s", model.alpha0)
 
     if ax is None:
-        _, ax = plt.subplots()  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        _, ax = plt.subplots()  # pyright: ignore[reportUnknownMemberType]
 
     pred = info_dict["ave"]
-    pred.plot(ax=ax)  # type: ignore[call-arg]
+    pred.plot(ax=ax)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
     # absolute:
     idealgas.x_ave(pred.beta).plot(ls=":", color="k", ax=ax)
 
     if (alpha_new := info_dict.get("alpha_new")) is not None:
         logger.info("alpha_new: %s", alpha_new)
-        ax.axvline(x=alpha_new, ls=":")  # pyright: ignore[reportUnknownMemberType]
+        ax.axvline(x=alpha_new, ls=":")
     plt.show()  # pyright: ignore[reportUnknownMemberType]
 
     # demo of coding in stop criteria

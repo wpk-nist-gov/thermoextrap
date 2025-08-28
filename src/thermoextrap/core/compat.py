@@ -50,10 +50,10 @@ def xr_dot(
         return x.map(xr_dot, args=arrays, dim=dim, **kwargs)  # pyright: ignore[reportUnknownMemberType]
 
     if isinstance(y, xr.Dataset):
-        return x.map(lambda _x: xr_dot(_x, y, *arrays, dim=dim, **kwargs))  # type: ignore[no-any-return]
+        return x.map(lambda _x: xr_dot(_x, y, *arrays, dim=dim, **kwargs))  # type: ignore[no-any-return]  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
 
     try:
-        return xr.dot(x, y, *arrays, dim=dim, **kwargs)  # type: ignore[arg-type,unused-ignore,no-any-return]
+        return xr.dot(x, y, *arrays, dim=dim, **kwargs)  # type: ignore[arg-type,unused-ignore,no-any-return]  # pyright: ignore[reportUnknownMemberType, reportArgumentType]
     except TypeError:
         # TODO(wpk): pretty sure can get rid of this.
-        return xr.dot(x, y, *arrays, dims=dim, **kwargs)  # type: ignore[arg-type,unused-ignore,no-any-return]
+        return xr.dot(x, y, *arrays, dims=dim, **kwargs)  # type: ignore[arg-type,unused-ignore,no-any-return]  # pyright: ignore[reportUnknownMemberType]

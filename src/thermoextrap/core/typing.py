@@ -35,7 +35,7 @@ from numpy.typing import NDArray
 from .typing_compat import Self, TypeAlias, TypeVar
 
 if TYPE_CHECKING:
-    import tensorflow as tf  # pyright: ignore[reportMissingTypeStubs]
+    import tensorflow as tf
     from cmomy.core.typing import Sampler
     from numpy.typing import ArrayLike
     from sympy.core.expr import Expr  # pyright: ignore[reportMissingTypeStubs]

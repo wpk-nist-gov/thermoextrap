@@ -92,6 +92,8 @@ def data_other(request, data, xv_fixture, order, central):
         factory = xtrap.DataCentralMoments.from_vals
     elif style == "cmom_vals":
         factory = xtrap.DataCentralMomentsVals.from_vals
+    else:
+        raise ValueError
 
     xv = None if xv_fixture is None else xrwrap_xv(xv_fixture)
     uv = xrwrap_uv(data.u)
@@ -150,6 +152,8 @@ def data_x_is_u(request, data, order, central):
         factory = xtrap.DataCentralMoments.from_vals
     elif style == "cmom_vals":
         factory = xtrap.DataCentralMomentsVals.from_vals
+    else:
+        raise ValueError
 
     uv = xrwrap_uv(data.u)
     return factory(xv=uv, uv=uv, order=order, central=central, x_is_u=True)

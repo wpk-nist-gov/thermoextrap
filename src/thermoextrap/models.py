@@ -559,7 +559,7 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
 
     #: Data object
     data: SupportsData[DataT] = field(
-        validator=attv.instance_of(SupportsData),  # type: ignore[type-abstract]
+        validator=attv.instance_of(SupportsData),  # type: ignore[type-abstract]  # pyright: ignore[reportCallIssue, reportArgumentType]
     )
 
     #: Derivatives object
@@ -1086,7 +1086,7 @@ class InterpModel(StateCollection[SupportsModelDerivsT, DataT]):
 
         coefs = cast(
             "DataT",
-            xr.concat(  # type: ignore[type-var]
+            xr.concat(  # type: ignore[type-var]  # pyright: ignore[reportCallIssue]
                 (  # pyright: ignore[reportArgumentType]
                     m.derivs(order, norm=False, minus_log=minus_log, order_dim="order")
                     for m in self.states
@@ -1201,7 +1201,7 @@ class PerturbModel(MyAttrsMixin, Generic[DataT]):
 
     alpha0: float = field(converter=float)
     data: SupportsDataXU[DataT] = field(
-        validator=attv.instance_of(SupportsDataXU)  # type: ignore[type-abstract]
+        validator=attv.instance_of(SupportsDataXU)  # type: ignore[type-abstract]  # pyright: ignore[reportCallIssue, reportArgumentType]
     )
     alpha_name: str = field(
         default="alpha",

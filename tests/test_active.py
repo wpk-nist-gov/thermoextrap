@@ -231,7 +231,7 @@ def test_base_gp_creation(rng: Generator, sampler: Sampler) -> None:
     # (note default kernel is SharedIndependent, so referencing kernel.kernel)
     assert (
         sp.simplify(
-            check_gp.kernel.kernel.kernel_expr - active_utils.make_rbf_expr()[0]  # type: ignore[attr-defined]
+            check_gp.kernel.kernel.kernel_expr - active_utils.make_rbf_expr()[0]  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         )
         == 0
     )
@@ -243,7 +243,7 @@ def test_base_gp_creation(rng: Generator, sampler: Sampler) -> None:
     assert isinstance(check_gp_sep.kernel, gpflow.kernels.SeparateIndependent)
     assert (
         sp.simplify(
-            check_gp_sep.kernel.kernels[0].kernel_expr - active_utils.make_rbf_expr()[0]  # type: ignore[attr-defined]
+            check_gp_sep.kernel.kernels[0].kernel_expr - active_utils.make_rbf_expr()[0]  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         )
         == 0
     )
@@ -259,15 +259,15 @@ def test_base_gp_creation(rng: Generator, sampler: Sampler) -> None:
     k_rbf = active_utils.RBFDerivKernel()
     # Changing parameter values to check if passed faithfully
     # pylint: disable=no-member
-    k_rbf.l_0.assign(0.5)  # type: ignore[attr-defined]
-    k_rbf.var.assign(5.0)  # type: ignore[attr-defined]
+    k_rbf.l_0.assign(0.5)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+    k_rbf.var.assign(5.0)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     check_kernel = active_utils.create_base_GP_model(
         data_input_1p, d_order_ref=0, shared_kernel=False, kernel=k_rbf
     )
     assert isinstance(check_kernel.kernel, gpflow.kernels.SharedIndependent)
     assert check_kernel.kernel.kernel == k_rbf
-    assert check_kernel.kernel.kernel.l_0.numpy() == 0.5  # type: ignore[attr-defined]
-    assert check_kernel.kernel.kernel.var.numpy() == 5.0  # type: ignore[attr-defined]
+    assert check_kernel.kernel.kernel.l_0.numpy() == 0.5  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+    assert check_kernel.kernel.kernel.var.numpy() == 5.0  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
 
 
 # Simple test for checking training of GP model
@@ -325,7 +325,7 @@ def test_create_gp_from_states(rng: Generator, sampler: Sampler) -> None:
     gp = active_utils.create_GPR(states, sampler=sampler)
     assert gp.data[0].shape == (n_gp_points, 2)
     assert gp.data[1].shape == (n_gp_points, 1)
-    assert gp.likelihood.cov.shape == (gp.data[1].shape[1], n_gp_points, n_gp_points)  # type: ignore[attr-defined]
+    assert gp.likelihood.cov.shape == (gp.data[1].shape[1], n_gp_points, n_gp_points)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
 
     # Also test with multidimensional data
     states_mult = [
@@ -334,7 +334,7 @@ def test_create_gp_from_states(rng: Generator, sampler: Sampler) -> None:
     gp_mult = active_utils.create_GPR(states_mult, sampler=sampler)
     assert gp_mult.data[0].shape == (n_gp_points, 2)
     assert gp_mult.data[1].shape == (n_gp_points, 2)
-    assert gp_mult.likelihood.cov.shape == (  # type: ignore[attr-defined]
+    assert gp_mult.likelihood.cov.shape == (  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         gp_mult.data[1].shape[1],
         n_gp_points,
         n_gp_points,
@@ -506,7 +506,7 @@ def test_metrics(rng: Generator, sampler: Sampler) -> None:
     # Use to test _check_history function for all inheriting classes
     # pylint: disable=protected-access
     np.testing.assert_raises(ValueError, check_base._check_history, None)
-    np.testing.assert_raises(ValueError, check_base._check_history, x)  # type: ignore[call-overload]
+    np.testing.assert_raises(ValueError, check_base._check_history, x)  # type: ignore[call-overload]  # pyright: ignore[reportArgumentType]
     check_base._check_history(hist)
     # And generic call and calc_metric both work
     np.testing.assert_raises(NotImplementedError, check_base, hist, x, None)
