@@ -14,7 +14,7 @@ The general scheme is to use the following:
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Generic, cast
+from typing import TYPE_CHECKING, Generic, cast, overload
 
 import attrs
 import cmomy
@@ -1180,7 +1180,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
     {order}
     from_vals_kws : dict, optional
         extra arguments passed to :func:`cmomy.wrap_reduce_vals`.
-    resample_data : bool, default=False
+    resample_values : bool, default=False
         If True, fallback to resampling ``xv`` and ``uv`` instead of
         just resampling on ``dxduave``.
     {dxduave}
@@ -1209,7 +1209,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         factory=dict[str, "Any"],
         converter=convert_mapping_or_none_to_dict,
     )
-    resample_data: bool = field(default=False)
+    resample_values: bool = field(default=False)
     #: :class:`cmomy.CentralMomentsData` object
     _dxduave: cmomy.CentralMomentsData[DataT] | None = field(
         kw_only=True,
@@ -1254,7 +1254,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         deriv_dim: SingleDim | None = None,
         central: bool = False,
         from_vals_kws: OptionalKwsAny = None,
-        resample_data: bool = False,
+        resample_values: bool = False,
         meta: DataCallbackABC | None = None,
         x_is_u: bool = False,
     ) -> Self:
@@ -1298,7 +1298,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
             deriv_dim=deriv_dim,
             central=central,
             from_vals_kws=from_vals_kws,
-            resample_data=resample_data,
+            resample_values=resample_values,
             meta=meta,
             x_is_u=x_is_u,
         )
@@ -1315,7 +1315,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         rep_dim: SingleDim = "rep",
         parallel: bool | None = None,
         meta_kws: OptionalKwsAny = None,
-        resample_data: bool | None = None,
+        resample_values: bool | None = None,
         **kwargs: Any,
     ) -> Self:
         """
@@ -1329,9 +1329,9 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         {rep_dim}
         {parallel}
         {meta_kws}
-        resample_data : bool, optional
+        resample_values : bool, optional
             If ``True``, resample ``xv`` and ``uv``.  If ``False``, resample ``dxduave`` (see :func:`cmomy.wrap_resample_vals`) and leave ``xv`` and ``uv`` unchanged.
-            Default is to fallback to ``self.resample_data``.
+            Default is to fallback to ``self.resample_values``.
         **kwargs
             Keyword arguments to :func:`cmomy.wrap_resample_vals`
 
@@ -1351,10 +1351,10 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
             parallel=parallel,
         )
 
-        if resample_data is None:
-            resample_data = self.resample_data
+        if resample_values is None:
+            resample_values = self.resample_values
 
-        if resample_data:
+        if resample_values:
             # resample xv/uv
             indices = sampler.indices
 
@@ -1380,7 +1380,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
             return self.new_like(
                 uv=uv,
                 xv=xv,
-                resample_data=resample_data,
+                resample_values=resample_values,
                 meta=meta,
                 dxduave=None,
             )
@@ -1407,7 +1407,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
 
         dxduave = dxduave.transpose(rep_dim, ...)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
         return self.new_like(
-            dxduave=dxduave, rec_dim=rep_dim, meta=meta, resample_data=resample_data
+            dxduave=dxduave, rec_dim=rep_dim, meta=meta, resample_values=resample_values
         )
 
 
@@ -1784,11 +1784,68 @@ def factory_data_values(
     )
 
 
-@docfiller_shared.decorate
-def factory_data_values2(
+@overload
+def factory_data_values2(  # pyright: ignore[reportOverlappingOverload]
+    uv: ArrayLike | xr.DataArray,
+    xv: DataT,
+    *,
     order: int,
+    central: bool = ...,
+    xalpha: bool = ...,
+    rec_dim: str = ...,
+    umom_dim: str = ...,
+    xmom_dim: str = ...,
+    val_dims: str = ...,
+    rep_dim: str = ...,
+    deriv_dim: str | None = ...,
+    x_is_u: bool = ...,
+    resample_values: bool = ...,
+    **kws: Any,
+) -> DataCentralMomentsVals[DataT]: ...
+@overload
+def factory_data_values2(
+    uv: ArrayLike | xr.DataArray,
+    xv: ArrayLike,
+    *,
+    order: int,
+    central: bool = ...,
+    xalpha: bool = ...,
+    rec_dim: str = ...,
+    umom_dim: str = ...,
+    xmom_dim: str = ...,
+    val_dims: str = ...,
+    rep_dim: str = ...,
+    deriv_dim: str | None = ...,
+    x_is_u: bool = ...,
+    resample_values: bool = ...,
+    **kws: Any,
+) -> DataCentralMomentsVals[xr.DataArray]: ...
+@overload
+def factory_data_values2(
     uv: ArrayLike | xr.DataArray,
     xv: ArrayLike | DataT,
+    *,
+    order: int,
+    central: bool = ...,
+    xalpha: bool = ...,
+    rec_dim: str = ...,
+    umom_dim: str = ...,
+    xmom_dim: str = ...,
+    val_dims: str = ...,
+    rep_dim: str = ...,
+    deriv_dim: str | None = ...,
+    x_is_u: bool = ...,
+    resample_values: bool = ...,
+    **kws: Any,
+) -> DataCentralMomentsVals[Any]: ...
+
+
+@docfiller_shared.decorate
+def factory_data_values2(
+    uv: ArrayLike | xr.DataArray,
+    xv: ArrayLike | DataT,
+    *,
+    order: int,
     central: bool = False,
     xalpha: bool = False,
     rec_dim: str = "rec",
@@ -1798,7 +1855,7 @@ def factory_data_values2(
     rep_dim: str = "rep",
     deriv_dim: str | None = None,
     x_is_u: bool = False,
-    resample_data: bool = True,
+    resample_values: bool = True,
     **kws: Any,
 ) -> DataCentralMomentsVals[Any]:
     """
@@ -1847,7 +1904,7 @@ def factory_data_values2(
 
     return DataCentralMomentsVals(
         uv=uv,
-        xv=xv,  # pyright: ignore[reportArgumentType]
+        xv=xv,
         order=order,
         rec_dim=rec_dim,
         umom_dim=umom_dim,
@@ -1855,6 +1912,6 @@ def factory_data_values2(
         central=central,
         deriv_dim=deriv_dim,
         x_is_u=x_is_u,
-        resample_data=resample_data,
+        resample_values=resample_values,
         **kws,
     )

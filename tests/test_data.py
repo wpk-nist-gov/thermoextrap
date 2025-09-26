@@ -1,6 +1,7 @@
 import cmomy
 import numpy as np
 import xarray as xr
+from cmomy.core.typing import FactoryIndexSamplerKwargs
 
 import thermoextrap as xtrap
 
@@ -101,11 +102,11 @@ def test_resample(fixture) -> None:
 
 
 def test_resample_data(fixture) -> None:
-    sampler = {"nrep": 10, "rng": 0}
+    sampler = FactoryIndexSamplerKwargs({"nrep": 10, "rng": 0})
 
     a = fixture.rdata.resample(sampler=sampler)
     b = fixture.cdata.resample(sampler=sampler)
-    c = fixture.xdata_val.resample(sampler=sampler, resample_data=True)
+    c = fixture.xdata_val.resample(sampler=sampler, resample_values=True)
 
     for x, y in [(a, b), (b, c)]:
         xr.testing.assert_allclose(x.xv, y.xv)
@@ -117,6 +118,5 @@ def test_resample_data(fixture) -> None:
         sampler=sampler,
         order=fixture.order,
         dim="rec",
-        axes_to_end=False,
     )
     np.testing.assert_allclose(c.dxduave.obj, d.dxduave.obj)
