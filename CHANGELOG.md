@@ -17,6 +17,29 @@ See the fragment files in [changelog.d]
 
 <!-- scriv-insert-here -->
 
+## v1.0.0 — 2025-09-29
+
+### Removed
+
+- Removed `DataValues` and `DataValuesCentral` classes. Addition of
+  `resample_values` option to `DataCentralMomentsVals`, and addition of
+  `Dataset` support from `cmomy` package, made these classes redundant.
+
+### Added
+
+- Added type annotations/checking. The core functionality is fully covered. GPR
+  modules are mostly covered (there are still so `Any` objects about). This
+  caught several edge case bugs.
+
+- Added `resample_values` option to `DataCentralMomentsVals` class. This allows
+  resampling on `uv` and `xv` instead of resampling during construction of
+  `dxduave`. Used in `PerturbModel`, etc.
+
+### Changed
+
+- Moved thermoextrap.legacy submodule to tests/legacy, as this module is used
+  solely for regression testing.
+
 ## v0.6.0 — 2025-02-18
 
 ### Changed
