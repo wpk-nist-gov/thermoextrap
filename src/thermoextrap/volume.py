@@ -203,7 +203,7 @@ def factory_extrapmodel(
     {val_dims}
     {rep_dim}
     **kws :
-        Extra arguments to :meth:`~.DataCentralMomentsVals`
+        Extra arguments to :class:`~.DataCentralMomentsVals`
 
     Returns
     -------

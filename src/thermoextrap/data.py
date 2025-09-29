@@ -397,6 +397,7 @@ class DataCentralMomentsBase(AbstractData, Generic[DataT]):
 
     @property
     def dxduave(self) -> cmomy.CentralMomentsData[DataT]:
+        """Wrapped :class:`cmomy.CentralMomentsData` object."""
         raise NotImplementedError
 
     @property
@@ -1198,7 +1199,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         validator=_validate_weight,
         default=None,
     )
-    #: Optional parameters to :func:`cmomy.wrap_reduce_vals
+    #: Optional parameters to :func:`cmomy.wrap_reduce_vals`
     from_vals_kws: dict[str, Any] = field(
         kw_only=True,
         factory=dict[str, "Any"],
