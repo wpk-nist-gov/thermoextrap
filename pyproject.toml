@@ -37,12 +37,13 @@ dynamic = [
 ]
 dependencies = [
     "attrs>=24.1.0",
-    "cmomy>=0.24.0",
+    "cmomy>=1.0.1",
     "dm-tree",
     "lazy-loader",
-    "module-utilities[inherit]>=0.2",
+    "module-utilities[inherit]>=0.11.0",
     "numba>=0.60.0",
     "numpy>=1.26.0",
+    "packaging",
     "scipy",
     "sympy",
     "xarray>=2024.7.0",
@@ -75,11 +76,13 @@ urls.Homepage = "https://github.com/usnistgov/thermoextrap"
 
 [dependency-groups]
 dev = [
+    "nbconvert",
+    "righttyper",
     "thermoextrap[all]",
     { include-group = "mypy" },
     { include-group = "notebook" },
     { include-group = "nox" },
-    { include-group = "pytest-accept" },
+    # { include-group = "pytest-accept" },
     { include-group = "test" },
     { include-group = "test-notebook" },
     { include-group = "typecheck" },
@@ -132,8 +135,11 @@ test-notebook = [
     { include-group = "test" },
 ]
 typecheck = [
+    "matplotlib; python_version=='3.12'",
     "pandas-stubs",
+    "scipy-stubs; python_version>='3.10'",
     "thermoextrap[mbar,gpr]",
+    "types-tensorflow",
     { include-group = "pylint" },
     { include-group = "pytest" },
 ]
@@ -170,8 +176,6 @@ ignore = [
     "PC170", # pygrep
     "PC901", # ci message
     "RTD",
-    # For now
-    "MY101",
 ]
 
 [tool.codespell]
@@ -225,7 +229,7 @@ filterwarnings = [
     "ignore: No data was collected:coverage.exceptions.CoverageWarning",
     "ignore: pkg_resources is deprecated:UserWarning",
     "ignore: invalid escape sequence:SyntaxWarning",
-
+    "ignore: The default datetime:DeprecationWarning",
 ]
 
 [tool.pytest_env]
@@ -275,22 +279,37 @@ exclude = [
     "docs",
 ]
 check_untyped_defs = true
-# strict = true
+strict = true
 enable_error_code = [
     "ignore-without-code",
     "redundant-expr",
     "truthy-bool",
 ]
 
-# [[tool.mypy.overrides]]
-# ignore_missing_imports = true
-# module = [
-# ]
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+    "matplotlib.*",
+    "scipy.*",
+    "sympy.*",
+    "pymbar.*",
+    "tensorflow_probability.*",
+]
 
-# [[tool.mypy.overrides]]
-# ignore_errors = true
-# module = [
-# ]
+[[tool.mypy.overrides]]
+strict = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+module = [
+    "tests.*",
+]
+
+[[tool.mypy.overrides]]
+check_untyped_defs = false
+module = [
+    "tests.legacy.*",
+]
 
 [tool.pyright]
 include = [
@@ -304,16 +323,21 @@ exclude = [
     ".venv/**",
     "**/.mypy_cache",
     "**/.numba_cache",
-    "**/thermoextrap/legacy/*.py",
+    "**/legacy/*.py",
 ]
-# strict = ["src", "tests", "noxfile.py", "tools/*.py"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
 strict = [
     "noxfile.py",
     "tools/*.py",
+    "src/thermoextrap/*.py",
+    "src/thermoextrap/core/*.py",
+    "src/thermoextrap/gpr_active/ig_active.py",
+    # "src/thermoextrap/gpr_active/active_utils.py",
+    # "src/thermoextrap/gpr_active/gp_models.py",
+    "src/thermoextrap/gpr_active/sine_active.py",
+    "tests/test_typing.py",
 ]
-pythonVersion = "3.11"
-typeCheckingMode = "basic"
-# enable subset of "strict"
 reportDuplicateImport = true
 reportInvalidStubStatement = true
 reportOverlappingOverload = true
@@ -322,16 +346,10 @@ reportUntypedClassDecorator = true
 reportUntypedFunctionDecorator = true
 reportUntypedNamedTuple = true
 reportUnusedImport = true
-# disable subset of "basic"
-reportGeneralTypeIssues = false
-reportMissingModuleSource = false
-reportOptionalCall = false
-reportOptionalIterable = false
-reportOptionalMemberAccess = false
-reportOptionalOperand = false
-reportOptionalSubscript = false
-reportPrivateImportUsage = false
-reportUnboundVariable = false
+# Extra flags
+enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = true
+reportUnreachable = "warning"
 
 [tool.pytype]
 inputs = [
@@ -380,8 +398,10 @@ reqs = [
     "nbqa>=1.8.4",
     "pre-commit>=4.0.0",
     "pre-commit-uv",
+    "prek",
     "pyrefly",
     "pyright>=1.1.396",
+    "basedpyright>=1.31.3",
     "scriv",
     "twine>=5.0.0",
     "ty",
@@ -440,6 +460,7 @@ extend-exclude = [ "spelling_wordlist.txt" ]
 extend-ignore-identifiers-re = [
     "struc_.*",
     ".*equil.*",
+    "NDArray.*",
 ]
 
 [tool.typos.default.extend-identifiers]

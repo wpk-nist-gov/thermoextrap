@@ -8,16 +8,50 @@ This includes the recursive training algorithm and consistency checks.
 See :ref:`examples/usage/basic/temperature_interp:adaptive interpolation` for example usage.
 
 """
+# pyright: reportMissingTypeStubs=false, reportMissingImports=false, reportUnknownVariableType=warning, reportUnknownMemberType=warning
 
 from __future__ import annotations
 
+import logging
 from itertools import chain, islice
+from typing import TYPE_CHECKING, Generic, TypedDict
 
 import numpy as np
 import xarray as xr
 
+from .core.typing import DataT
 
-def window(seq, n=2):
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+    from typing import Any
+
+    from numpy.typing import ArrayLike, NDArray
+
+    from .core.typing import (
+        OptionalKwsAny,
+        OptionalRng,
+        SupportsModelDerivs,
+        SupportsModelDerivsDataArrayT,
+    )
+    from .core.typing_compat import Concatenate, NotRequired, TypeAlias, TypeVar
+    from .models import ExtrapModel, StateCollection
+
+    _T = TypeVar("_T")
+
+    FactoryState: TypeAlias = Callable[
+        Concatenate[float, ...], SupportsModelDerivsDataArrayT
+    ]
+
+    FactoryStateCollection: TypeAlias = Callable[
+        Concatenate[Sequence[SupportsModelDerivsDataArrayT], ...],
+        StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT],
+    ]
+
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+
+
+def window(seq: Iterable[_T], n: int = 2) -> Iterator[tuple[_T, ...]]:
     """
     Returns a sliding window (of width n) over data from `seq`.
 
@@ -28,11 +62,11 @@ def window(seq, n=2):
     if len(result) == n:
         yield result
     for elem in it:
-        result = (result[1:], elem)
+        result = (*result[1:], elem)
         yield result
 
 
-def relative_fluctuations(da, dim):
+def relative_fluctuations(da: DataT, dim: str) -> tuple[DataT, DataT]:
     """Calculate relative mean and relative error of DataArray along dimension."""
     ave = da.mean(dim)
     err = da.std(dim) / np.abs(ave)
@@ -41,16 +75,27 @@ def relative_fluctuations(da, dim):
     return ave, err
 
 
+class _InfoDict(TypedDict, Generic[DataT], total=True):
+    """Info dictionary."""
+
+    alpha0: list[float]
+    err: DataT
+    ave: DataT
+    alpha_new: NotRequired[float]
+    err_max: NotRequired[float]
+    depth: NotRequired[int]
+
+
 def _check_relative_fluctuations(
-    alphas,
-    model,
-    states,
-    reduce_dim="rep",
+    alphas: NDArray[Any],
+    model: StateCollection[xr.DataArray, SupportsModelDerivs[xr.DataArray]],
+    states: Sequence[SupportsModelDerivs[xr.DataArray]],
+    reduce_dim: str = "rep",
     # states_avail=None,
-    predict_kws=None,
-    tol=0.003,
-    alpha_tol=0.01,
-):
+    predict_kws: OptionalKwsAny = None,
+    tol: float = 0.003,
+    alpha_tol: float = 0.01,
+) -> tuple[float | None, _InfoDict[xr.DataArray]]:
     """Test relative fluctuations of model."""
     if predict_kws is None:
         predict_kws = {}
@@ -58,8 +103,9 @@ def _check_relative_fluctuations(
     alpha_name = model.alpha_name
     alphas_states_dim = f"_{alpha_name}_states"
 
-    ave, err_rel = model.predict(alphas, **predict_kws).pipe(
-        relative_fluctuations, dim=reduce_dim
+    ave, err_rel = relative_fluctuations(
+        da=model.predict(alphas, **predict_kws),
+        dim=reduce_dim,
     )
 
     # take maximum over all dimenensions but alpha_name
@@ -68,7 +114,7 @@ def _check_relative_fluctuations(
         err_rel = err_rel.max(dims=max_dims)
 
     # collect info before reduce err_rel below
-    info = {"alpha0": model.alpha0, "err": err_rel, "ave": ave}
+    info: _InfoDict[xr.DataArray] = {"alpha0": model.alpha0, "err": err_rel, "ave": ave}
 
     # only consider values > tol
     err_rel = err_rel.where(err_rel > tol, drop=True)
@@ -77,15 +123,15 @@ def _check_relative_fluctuations(
     if len(err_rel) > 0 and len(states) > 0 and alpha_tol > 0:
         alphas_states = xr.DataArray([s.alpha0 for s in states], dims=alphas_states_dim)
         err_rel = err_rel.where(
-            np.abs(err_rel[alpha_name] - alphas_states).min(alphas_states_dim)
+            np.abs(err_rel[alpha_name] - alphas_states).min(alphas_states_dim)  # type: ignore[arg-type]  # pyright: ignore[reportCallIssue, reportArgumentType]
             > alpha_tol,
             drop=True,
         )
 
     if len(err_rel) > 0:
-        alpha_new = err_rel.idxmax(alpha_name).values[()]
+        alpha_new = float(err_rel.idxmax(alpha_name))
         info["alpha_new"] = alpha_new
-        info["err_max"] = err_rel.max().values[()]
+        info["err_max"] = float(err_rel.max())
     else:
         alpha_new = None
 
@@ -93,21 +139,23 @@ def _check_relative_fluctuations(
 
 
 def train_iterative(
-    alphas,
-    factory_state,
-    factory_statecollection,
-    states=None,
-    reduce_dim="rep",
-    maxiter=10,
-    # states_avail=None,
-    state_kws=None,
-    statecollection_kws=None,
-    predict_kws=None,
-    tol=0.003,
-    alpha_tol=0.01,
-    callback=None,
-    callback_kws=None,
-):
+    alphas: ArrayLike,
+    factory_state: FactoryState[SupportsModelDerivsDataArrayT],
+    factory_statecollection: FactoryStateCollection[SupportsModelDerivsDataArrayT],
+    states: Sequence[SupportsModelDerivsDataArrayT] | None = None,
+    reduce_dim: str = "rep",
+    maxiter: int = 10,
+    state_kws: OptionalKwsAny = None,
+    statecollection_kws: OptionalKwsAny = None,
+    predict_kws: OptionalKwsAny = None,
+    tol: float = 0.003,
+    alpha_tol: float = 0.01,
+    callback: Callable[..., Any] | None = None,
+    callback_kws: OptionalKwsAny = None,
+) -> tuple[
+    StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT],
+    list[_InfoDict[xr.DataArray]],
+]:
     """
     Add states to satisfy some tolerance.
 
@@ -138,8 +186,6 @@ def train_iterative(
         dimension to calculate statistics along.
     maxiter : int, default=10
         number of iterations
-    states_avail : list, optional
-        Not implemented yet
     state_kws : dict, optional
         extra arguments to `factory_state`
     statecollection_kws : dict, optional
@@ -178,9 +224,10 @@ def train_iterative(
         statecollection_kws = {}
     if predict_kws is None:
         predict_kws = {}
-    if callback is not None and callback_kws is None:
+    if callback_kws is None:
         callback_kws = {}
 
+    alphas = np.atleast_1d(alphas)
     if states is None:
         states = [
             factory_state(alphas[0], **state_kws),
@@ -194,7 +241,7 @@ def train_iterative(
 
     # work with copy
     states = list(states)
-    info = []
+    info: list[_InfoDict[xr.DataArray]] = []
 
     for depth in range(maxiter):
         model = factory_statecollection(states, **statecollection_kws)
@@ -222,29 +269,37 @@ def train_iterative(
         else:
             break
 
-    return model, info
+    return model, info  # pyright: ignore[reportPossiblyUnboundVariable]
 
 
 def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
-    alphas,
-    factory_state,
-    factory_statecollection,
-    state0=None,
-    state1=None,
-    states=None,
-    info=None,
-    reduce_dim="rep",
-    depth=0,
-    maxiter=10,
-    # states_avail=None,
-    state_kws=None,
-    statecollection_kws=None,
-    predict_kws=None,
-    tol=0.003,
-    alpha_tol=0.01,
-    callback=None,
-    callback_kws=None,
-):
+    alphas: ArrayLike,
+    factory_state: FactoryState[SupportsModelDerivsDataArrayT],
+    factory_statecollection: FactoryStateCollection[SupportsModelDerivsDataArrayT,],
+    state0: SupportsModelDerivsDataArrayT | None = None,
+    state1: SupportsModelDerivsDataArrayT | None = None,
+    states: Sequence[SupportsModelDerivsDataArrayT] | None = None,
+    info: list[_InfoDict[xr.DataArray]] | None = None,
+    reduce_dim: str = "rep",
+    depth: int = 0,
+    maxiter: int = 10,
+    state_kws: OptionalKwsAny = None,
+    statecollection_kws: OptionalKwsAny = None,
+    predict_kws: OptionalKwsAny = None,
+    tol: float = 0.003,
+    alpha_tol: float = 0.01,
+    callback: Callable[
+        Concatenate[
+            StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT],
+            ArrayLike,
+            Mapping[str, Any],
+            ...,
+        ],
+        Any,
+    ]
+    | None = None,
+    callback_kws: OptionalKwsAny = None,
+) -> tuple[list[SupportsModelDerivsDataArrayT], list[_InfoDict[xr.DataArray]]]:
     """
     Add states to satisfy some tolerance.
 
@@ -278,8 +333,6 @@ def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
         dimension to calculate statistics along.
     maxiter : int, default=10
         number of iterations
-    states_avail : list, optional
-        Not implemented yet
     state_kws : dict, optional
         extra arguments to `factory_state`
     statecollection_kws : dict, optional
@@ -317,7 +370,6 @@ def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
 
     """
     states = [] if states is None else list(states)
-
     info = [] if info is None else list(info)
 
     if depth >= maxiter:
@@ -329,10 +381,14 @@ def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
         statecollection_kws = {}
     if predict_kws is None:
         predict_kws = {}
-    if callback is not None and callback_kws is None:
+    if callback_kws is None:
         callback_kws = {}
 
-    def get_state(alpha, states):
+    alphas = np.atleast_1d(alphas)
+
+    def get_state(
+        alpha: float, states: Iterable[SupportsModelDerivsDataArrayT]
+    ) -> SupportsModelDerivsDataArrayT:
         states_dict = {s.alpha0: s for s in states}
         if alpha in states_dict:
             return states_dict[alpha]
@@ -424,10 +480,14 @@ def train_recursive(  # noqa: C901,PLR0913,PLR0914,PLR0917
 
 
 def check_polynomial_consistency(
-    states,
-    factory_statecollection,
-    reduce_dim="rep",
-):
+    states: Sequence[SupportsModelDerivsDataArrayT],
+    factory_statecollection: FactoryStateCollection[SupportsModelDerivsDataArrayT],
+    reduce_dim: str = "rep",
+    statecollection_kws: OptionalKwsAny = None,
+) -> tuple[
+    dict[Any, xr.DataArray],
+    dict[Any, StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT]],
+]:
     """
     Check polynomial consistency across subsegments.
 
@@ -439,8 +499,6 @@ def check_polynomial_consistency(
         `model = factory_statecollection(states, **statecollection_kws)`
     reduce_dim : str, default="rep"
         dimension to reduce along
-    order : int, optional
-        order passed to `model.predict`
     statecollection_kws : dict, optional
         extra arguments to `factory_statecollection`
 
@@ -457,10 +515,14 @@ def check_polynomial_consistency(
 
     ave = {}
     var = {}
-    models = {}
+    models: dict[Any, StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT]] = {}
 
+    if statecollection_kws is None:
+        statecollection_kws = {}
+
+    key: tuple[Any, ...]
     for state_pair in chain(zip(states[:-1], states[1:]), zip(states[:-2], states[2:])):
-        model = factory_statecollection(list(state_pair))
+        model = factory_statecollection(list(state_pair), **statecollection_kws)
         key = tuple(model.alpha0)
         coef = model.coefs(order=None)
 
@@ -470,21 +532,19 @@ def check_polynomial_consistency(
         models[key] = model
 
     # build up p values
-    ps = {}
+    ps: dict[Any, xr.DataArray] = {}
     for keys in window((s.alpha0 for s in states), n=3):
         keys01 = keys[0], keys[1]
         keys12 = keys[1], keys[2]
         keys02 = keys[0], keys[2]
 
-        for key0, key1 in [(keys01, keys12), (keys01, keys02), (keys12, keys02)]:
-            key = key0, key1
-            if key not in ps:
-                z = (ave[key0] - ave[key1]) / np.sqrt(var[key0] + var[key1])
-                p = xr.DataArray(
-                    stats.norm.cdf(np.abs(z)) - stats.norm.cdf(-np.abs(z)),
-                    dims=z.dims,
-                    coords=z.coords,
+        for key0, key1 in ((keys01, keys12), (keys01, keys02), (keys12, keys02)):
+            if (key := key0, key1) not in ps:
+                z: xr.DataArray = (ave[key0] - ave[key1]) / np.sqrt(  # pyright: ignore[reportUnknownVariableType]
+                    var[key0] + var[key1]  # pyright: ignore[reportUnknownArgumentType]
                 )
+                zv: NDArray[Any] = np.abs(z.to_numpy())  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+                p: xr.DataArray = z.copy(data=stats.norm.cdf(zv) - stats.norm.cdf(-zv))  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
                 ps[key] = p
 
     return ps, models
@@ -493,14 +553,14 @@ def check_polynomial_consistency(
 # Utility functions for Examples/testing
 # need a function to create states
 def factory_state_idealgas(
-    beta,
-    order,
-    nrep=100,
-    rep_dim="rep",
-    nconfig=10_000,
-    npart=1_000,
-    rng: np.random.Generator | None = None,
-):
+    beta: float,
+    order: int,
+    nrep: int = 100,
+    rep_dim: str = "rep",
+    nconfig: int = 10_000,
+    npart: int = 1_000,
+    rng: OptionalRng = None,
+) -> ExtrapModel[xr.DataArray]:
     """
     Example factory function to create single state.
 
@@ -515,9 +575,6 @@ def factory_state_idealgas(
 
     Parameters
     ----------
-    seed_from_beta : bool, default=True
-        If `True`, then set rng seed based on beta value.
-        For testing purposes.  Only applies if `rng = None`.
     rng: :class:`numpy.random.Generator`, optional
 
     See Also
@@ -548,13 +605,13 @@ def factory_state_idealgas(
 
 
 def callback_plot_progress(
-    model,
-    alphas,  # noqa: ARG001
-    info_dict,
-    verbose=True,
-    maxdepth_stop=None,
-    ax=None,
-):
+    model: StateCollection[xr.DataArray, SupportsModelDerivsDataArrayT],
+    alphas: ArrayLike,  # noqa: ARG001
+    info_dict: _InfoDict[xr.DataArray],
+    verbose: bool = True,
+    maxdepth_stop: int | None = None,
+    ax: Any = None,
+) -> bool:
     """
     The callback function is called each iteration after model is created.
 
@@ -573,63 +630,65 @@ def callback_plot_progress(
 
     from . import idealgas
 
+    if (depth := info_dict.get("depth")) is None:
+        msg = "Must have `depth` parameter in info_dict"
+        raise ValueError(msg)
+
     if verbose:
-        print("depth:", info_dict["depth"])
-        print("alphas:", model.alpha0)
+        logger.setLevel(logging.INFO)
+
+    logger.info("depth: %s", depth)
+    logger.info("alphas: %s", model.alpha0)
 
     if ax is None:
-        _, ax = plt.subplots()
+        _, ax = plt.subplots()  # pyright: ignore[reportUnknownMemberType]
 
     pred = info_dict["ave"]
-    pred.plot(ax=ax)
+    pred.plot(ax=ax)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
     # absolute:
     idealgas.x_ave(pred.beta).plot(ls=":", color="k", ax=ax)
 
-    alpha_new = info_dict.get("alpha_new", None)
-    if alpha_new is not None:
-        if verbose:
-            print("alpha_new:", alpha_new)
+    if (alpha_new := info_dict.get("alpha_new")) is not None:
+        logger.info("alpha_new: %s", alpha_new)
         ax.axvline(x=alpha_new, ls=":")
-    plt.show()
+    plt.show()  # pyright: ignore[reportUnknownMemberType]
 
     # demo of coding in stop criteria
     if maxdepth_stop is not None:
-        stop = info_dict["depth"] > maxdepth_stop
-        if stop and verbose:
-            print("reached maxdepth_stop in callback")
-    else:
-        stop = False
-    return stop
+        if stop := depth > maxdepth_stop:
+            logger.info("reached maxdepth_stop in callback")
+        return stop
+    return False
 
 
-def plot_polynomial_consistency(alphas, states, factory_statecollection):
-    """Plotter for polynomial consistency."""
-    import matplotlib.pyplot as plt
+# def plot_polynomial_consistency(alphas, states, factory_statecollection):
+#     """Plotter for polynomial consistency."""
+#     import matplotlib.pyplot as plt
 
-    p_values, models_dict = check_polynomial_consistency(
-        states, factory_statecollection
-    )
+#     p_values, models_dict = check_polynomial_consistency(
+#         states, factory_statecollection
+#     )
 
-    hit = set()
-    for (key0, key1), p in p_values.items():
-        print(
-            "range0: {} range1:{} p01: {}".format(
-                *(np.round(x, 3) for x in [key0, key1, p.values])
-            )
-        )
+#     hit = set()
+#     for (key0, key1), p in p_values.items():
+#         print(
+#             "range0: {} range1:{} p01: {}".format(
+#                 *(np.round(x, 3) for x in [key0, key1, p.values])
+#             )
+#         )
 
-        lb = min(k[0] for k in (key0, key1))
-        ub = max(k[1] for k in (key0, key1))
+#         lb = min(k[0] for k in (key0, key1))
+#         ub = max(k[1] for k in (key0, key1))
 
-        alphas_lim = alphas[(lb <= alphas) & (alphas <= ub)]
+#         alphas_lim = alphas[(lb <= alphas) & (alphas <= ub)]
 
-        for key in key0, key1:
-            if key not in hit:
-                models_dict[key].predict(alphas_lim).mean("rep").plot(
-                    label=str(np.round(key, 3))
-                )
-                hit.add(key)
+#         for key in key0, key1:
+#             if key not in hit:
+#                 models_dict[key].predict(alphas_lim).mean("rep").plot(
+#                     label=str(np.round(key, 3))
+#                 )
+#                 hit.add(key)
 
-    plt.legend()
-    return p_values, models_dict
+#     plt.legend()
+#     return p_values, models_dict

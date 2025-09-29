@@ -10,29 +10,28 @@ import inspect
 import warnings
 from functools import wraps
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
+    from typing import Any
 
-# to maintain type information across generic functions and parametrization
-T = TypeVar("T")
+    from .typing_compat import TypeVar
 
-# used in decorators to preserve the signature of the function it decorates
-# see https://mypy.readthedocs.io/en/stable/generics.html#declaring-decorators
-FuncType = Callable[..., Any]
-F = TypeVar("F", bound=FuncType)
+    T = TypeVar("T")
+    FuncType = Callable[..., Any]
+    F = TypeVar("F", bound=FuncType)
 
 
 def deprecate(
     name: str,
-    alternative: Callable[..., Any],
+    alternative: F,
     version: str,
     alt_name: str | None = None,
     klass: type[Warning] | None = None,
     stacklevel: int = 2,
     msg: str | None = None,
-) -> Callable[[F], F]:
+) -> F:
     """
     Return a new function that emits a deprecation warning on use.
     To use this method for a deprecated function, another function
@@ -62,7 +61,7 @@ def deprecate(
     warning_msg = msg or f"{name} is deprecated, use {alt_name} instead."
 
     @wraps(alternative)
-    def wrapper(*args, **kwargs) -> Callable[..., Any]:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         warnings.warn(warning_msg, klass, stacklevel=stacklevel)
         return alternative(*args, **kwargs)
 
@@ -96,9 +95,7 @@ def deprecate(
 
         wrapper.__doc__ = head + dedent(doc_string)
 
-    # error: Incompatible return value type (got "Callable[[VarArg(Any), KwArg(Any)],
-    # Callable[...,Any]]", expected "Callable[[F], F]")
-    return wrapper  # type: ignore[return-value]
+    return cast("F", wrapper)
 
 
 def deprecate_kwarg(
@@ -158,16 +155,11 @@ def deprecate_kwarg(
     future version please takes steps to stop use of 'cols'
     should raise warning
     """
-    if mapping is not None and not hasattr(mapping, "get") and not callable(mapping):
-        msg = "mapping from old to new argument values must be dict or callable!"
-        raise TypeError(msg)
 
     def _deprecate_kwarg(func: F) -> F:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> Callable[..., Any]:
-            old_arg_value = kwargs.pop(old_arg_name, None)
-
-            if old_arg_value is not None:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if (old_arg_value := kwargs.pop(old_arg_name, None)) is not None:
                 if new_arg_name is None:
                     msg = (
                         f"the {old_arg_name!r} keyword is deprecated and "
@@ -210,9 +202,9 @@ def deprecate_kwarg(
     return _deprecate_kwarg
 
 
-def _format_argument_list(allow_args: list[str]) -> str:
+def _format_argument_list(allowed_args: list[str]) -> str:
     """
-    Convert the allow_args argument (either string or integer) of
+    Convert the allowed_args argument (either string or integer) of
     `deprecate_nonkeyword_arguments` function to a string describing
     it to be inserted into warning message.
 
@@ -236,15 +228,15 @@ def _format_argument_list(allow_args: list[str]) -> str:
     `format_argument_list(['a', 'b', 'c'])` ->
         "except for the arguments 'a', 'b' and 'c'"
     """
-    if "self" in allow_args:
-        allow_args.remove("self")
-    if not allow_args:
+    if "self" in allowed_args:
+        allowed_args.remove("self")
+    if not allowed_args:
         return ""
-    if len(allow_args) == 1:
-        return f" except for the argument '{allow_args[0]}'"
+    if len(allowed_args) == 1:
+        return f" except for the argument '{allowed_args[0]}'"
 
-    last = allow_args[-1]
-    args = ", ".join(["'" + x + "'" for x in allow_args[:-1]])
+    last = allowed_args[-1]
+    args = ", ".join(["'" + x + "'" for x in allowed_args[:-1]])
     return f" except for the arguments {args} and '{last}'"
 
 
@@ -281,18 +273,19 @@ def deprecate_nonkeyword_arguments(
         is used.
     """
 
-    def decorate(func):
+    def decorate(func: F) -> F:
         old_sig = inspect.signature(func)
 
-        if allowed_args is not None:
-            allow_args = allowed_args
-        else:
-            allow_args = [
+        allow_args = (
+            [
                 p.name
                 for p in old_sig.parameters.values()
                 if p.kind in {p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD}
                 and p.default is p.empty
             ]
+            if allowed_args is None
+            else allowed_args
+        )
 
         new_params = [
             p.replace(kind=p.KEYWORD_ONLY)
@@ -313,7 +306,7 @@ def deprecate_nonkeyword_arguments(
         )
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             if len(args) > num_allow_args:
                 warnings.warn(
                     msg.format(arguments=_format_argument_list(allow_args)),
@@ -324,7 +317,7 @@ def deprecate_nonkeyword_arguments(
 
         # error: "Callable[[VarArg(Any), KwArg(Any)], Any]" has no
         # attribute "__signature__"
-        wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
-        return wrapper
+        wrapper.__signature__ = new_sig  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        return cast("F", wrapper)
 
     return decorate

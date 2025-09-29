@@ -53,7 +53,7 @@ class IGmodel:
     def __init__(self, nParticles=1000):
         self.nP = nParticles  # Number of particles
 
-    def sampleX(self, B, s, L=1.0, rng=None):
+    def sampleX(self, B, s, L=1.0, rng=None):  # pylint: disable=no-self-use
         """Samples s samples of x from the probability density at inverse temperature B
         Does sampling based on inversion of cumulative distribution function
         """
@@ -79,7 +79,7 @@ class IGmodel:
         stdU = np.sqrt(self.nP * self.varX(B, L=L))
         return norm.pdf(U, avgU, stdU)
 
-    def pertAnalytic(self, B, B0, L=1.0):
+    def pertAnalytic(self, B, B0, L=1.0):  # pylint: disable=no-self-use
         """Analytical perturbation of the system from B0 to B.
         Nice check to see if get same thing as avgX
         """

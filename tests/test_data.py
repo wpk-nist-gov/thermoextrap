@@ -1,5 +1,7 @@
 import cmomy
 import numpy as np
+import xarray as xr
+from cmomy.core.typing import FactoryIndexSamplerKwargs
 
 import thermoextrap as xtrap
 
@@ -62,26 +64,13 @@ def test_xdata_from_ave_raw(fixture) -> None:
     b = xtrap.DataCentralMoments.from_ave_raw(
         u=a.u,
         xu=a.xu,
-        weight=len(a.uv),
+        weight=len(a.uv),  # pyright: ignore[reportArgumentType]
     )
     fixture.xr_test_raw(b)
 
 
 def test_xdata_from_ave_central(fixture) -> None:
     a = fixture.cdata
-
-    # base on raw values
-    b = xtrap.DataCentralMoments.from_ave_central(
-        du=a.du.values,
-        dxdu=a.dxdu.values,
-        xave=a.xave.values,
-        uave=fixture.rdata.u.values[1],
-        weight=len(a.uv),
-        axis=-1,
-        dims=["val"],
-    )
-
-    fixture.xr_test_central(b)
 
     # base on xarray
     b = xtrap.DataCentralMoments.from_ave_central(
@@ -110,3 +99,24 @@ def test_resample(fixture) -> None:
     # central
     a = fixture.cdata.resample(sampler=sampler)
     fixture.xr_test_central(a=a, b=b)
+
+
+def test_resample_data(fixture) -> None:
+    sampler = FactoryIndexSamplerKwargs({"nrep": 10, "rng": 0})
+
+    a = fixture.rdata.resample(sampler=sampler)
+    b = fixture.cdata.resample(sampler=sampler)
+    c = fixture.xdata_val.resample(sampler=sampler, resample_values=True)
+
+    for x, y in [(a, b), (b, c)]:
+        xr.testing.assert_allclose(x.xv, y.xv)
+        xr.testing.assert_allclose(x.uv, y.uv)
+
+    d = xtrap.DataCentralMoments.from_resample_vals(
+        xv=fixture.x,
+        uv=fixture.u,
+        sampler=sampler,
+        order=fixture.order,
+        dim="rec",
+    )
+    np.testing.assert_allclose(c.dxduave.obj, d.dxduave.obj)

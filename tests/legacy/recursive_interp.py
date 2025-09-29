@@ -1,6 +1,7 @@
 """Holds recursive interpolation class.
 This includes the recursive training algorithm and consistency checks.
 """
+# pylint: disable=too-many-try-statements,duplicate-code
 
 import numpy as np
 from scipy.stats import norm
@@ -13,10 +14,10 @@ except ImportError:
         " doPlot options are set to False, which is the default."
     )
 
+from cmomy.random import validate_rng
+
 from .ig import IGmodel
 from .interp import InterpModel
-
-from cmomy.random import validate_rng
 
 
 class RecursiveInterp:
@@ -133,16 +134,15 @@ class RecursiveInterp:
         if checkVal <= self.tol:
             newB = None
         # If not, we want to return the state point with the maximum error
+        # Select closest value of state points in list if provided
+        elif Bavail is not None:
+            Bavail = np.array(Bavail)
+            newBInd = np.argmin(abs(Bavail - Bvals[checkInd[0]]))
+            newB = Bavail[newBInd]
         else:
-            # Select closest value of state points in list if provided
-            if Bavail is not None:
-                Bavail = np.array(Bavail)
-                newBInd = np.argmin(abs(Bavail - Bvals[checkInd[0]]))
-                newB = Bavail[newBInd]
-            else:
-                newB = Bvals[
-                    checkInd[0]
-                ]  # First dimension of prediction is along beta values
+            newB = Bvals[
+                checkInd[0]
+            ]  # First dimension of prediction is along beta values
 
         if verbose:
             if newB is not None:
@@ -210,10 +210,9 @@ class RecursiveInterp:
             # Also add this data to what we save - hopefully have enough memory
             self.xData.append(xData1)
             self.uData.append(uData1)
-            if B2 == self.edgeB[-1]:
+            if self.edgeB[-1] == B2:
                 self.xData.append(xData2)
                 self.uData.append(uData2)
-            return
 
     def sequentialTrain(self, Btrain, verbose=False):
         """Trains sequentially without recursion. List of state point values is provided and
@@ -284,14 +283,14 @@ class RecursiveInterp:
                 bootErr = self.model.bootstrap(Bvals, order=self.maxOrder)
                 # Be careful to catch /0.0
                 relErr = np.zeros(bootErr.shape)
-                for i in range(bootErr.shape[0]):
-                    for j in range(bootErr.shape[1]):
-                        if abs(predictVals[i, j]) == 0.0:
+                for ii in range(bootErr.shape[0]):
+                    for jj in range(bootErr.shape[1]):
+                        if abs(predictVals[ii, jj]) == 0.0:
                             # If value is exactly zero, either really unlucky
                             # Or inherently no error because it IS zero - assume this
-                            relErr[i, j] = 0.0
+                            relErr[ii, jj] = 0.0
                         else:
-                            relErr[i, j] = bootErr[i, j] / abs(predictVals[i, j])
+                            relErr[ii, jj] = bootErr[ii, jj] / abs(predictVals[ii, jj])
 
                 # Checking maximum over both tested interior state points AND observable values
                 # (if observable is a vector, use element with maximum error
@@ -306,8 +305,6 @@ class RecursiveInterp:
             # And also append uncertainties by bootstrapping
             self.modelParamErrs.append(self.model.bootstrap(None))
             # Also add this data to what we save - hopefully have enough memory
-
-        return
 
     def predict(self, B):
         """Makes a prediction using the trained piecewise model.
@@ -326,26 +323,25 @@ class RecursiveInterp:
             # Check if out of lower bound
             if beta < self.edgeB[0]:
                 print(
-                    "Have provided point {:f} below interpolation function"
-                    " interval edges ({}).".format(beta, str(self.edgeB))
+                    f"Have provided point {beta:f} below interpolation function"
+                    f" interval edges ({self.edgeB!s})."
                 )
                 raise IndexError("Interpolation point below range")
 
             # Check if out of upper bound
             if beta > self.edgeB[-1]:
                 print(
-                    "Have provided point {:f} above interpolation function"
-                    " interval edges ({}).".format(beta, str(self.edgeB))
+                    f"Have provided point {beta:f} above interpolation function"
+                    f" interval edges ({self.edgeB!s})."
                 )
                 raise IndexError("Interpolation point above range")
 
             # And get correct index for interpolating polynomial
-            paramInd = np.where(self.edgeB <= beta)[0][-1]
 
             # Don't want to train model (already done!) but need to manually specify
             # both the parameters AND the reference state points
             # For the latter, must set manually
-            if paramInd == len(self.edgeB) - 1:
+            if (paramInd := np.where(self.edgeB <= beta)[0][-1]) == len(self.edgeB) - 1:
                 self.model.refB = np.array(
                     [self.edgeB[paramInd - 1], self.edgeB[paramInd]]
                 )
@@ -402,7 +398,7 @@ class RecursiveInterp:
 
         # Before loop, set up plot if wanted
         if doPlot:
-            pColors = plt.cm.cividis(np.arange(len(edgeSets)) / float(len(edgeSets)))
+            pColors = plt.cm.cividis(np.arange(len(edgeSets)) / float(len(edgeSets)))  # pylint: disable=no-member
             pFig, pAx = plt.subplots()
             plotYmin = 1e10
             plotYmax = -1e10
@@ -466,10 +462,8 @@ class RecursiveInterp:
                 pAx.plot(plotPoints, plotReg1, color=pColors[i], linestyle=":")
                 pAx.plot(plotPoints, plotReg2, color=pColors[i], linestyle="--")
                 allPlotY = np.hstack((plotFull, plotReg1, plotReg2))
-                if np.min(allPlotY) < plotYmin:
-                    plotYmin = np.min(allPlotY)
-                if np.max(allPlotY) > plotYmax:
-                    plotYmax = np.max(allPlotY)
+                plotYmin = min(plotYmin, np.min(allPlotY))
+                plotYmax = max(plotYmax, np.max(allPlotY))
 
         if doPlot:
             for edge in self.edgeB:

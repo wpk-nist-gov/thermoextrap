@@ -20,8 +20,6 @@ These classes/routines are made available at the top level by importing from :mo
 
     DataCentralMoments
     DataCentralMomentsVals
-    DataValues
-    DataValuesCentral
 
     factory_data_values
 

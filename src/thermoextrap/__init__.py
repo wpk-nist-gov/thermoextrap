@@ -1,6 +1,8 @@
 """Classes/routines to deal with thermodynamic extrapolation."""
+# pylint: disable=duplicate-code
 
-# TODO(wpk): move data, idealgas, models to top level.
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -10,7 +12,6 @@ if TYPE_CHECKING:
         idealgas,
         lnpi,
         models,
-        random,
         volume,
         volume_idealgas,
     )
@@ -18,8 +19,6 @@ if TYPE_CHECKING:
     from .data import (
         DataCentralMoments,
         DataCentralMomentsVals,
-        DataValues,
-        DataValuesCentral,
         factory_data_values,
     )
 
@@ -53,8 +52,6 @@ else:
             "data": [
                 "DataCentralMoments",
                 "DataCentralMomentsVals",
-                "DataValues",
-                "DataValuesCentral",
                 "factory_data_values",
             ],
             "models": [
@@ -72,10 +69,6 @@ else:
     )
 
 
-# updated versioning scheme
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _version
-
 try:
     __version__ = _version("thermoextrap")
 except PackageNotFoundError:  # pragma: no cover
@@ -85,8 +78,6 @@ except PackageNotFoundError:  # pragma: no cover
 __all__ = [
     "DataCentralMoments",
     "DataCentralMomentsVals",
-    "DataValues",
-    "DataValuesCentral",
     "Derivatives",
     "ExtrapModel",
     "ExtrapWeightedModel",
@@ -102,7 +93,6 @@ __all__ = [
     "idealgas",
     "lnpi",
     "models",
-    "random",
     "volume",
     "volume_idealgas",
     "xrwrap_alpha",

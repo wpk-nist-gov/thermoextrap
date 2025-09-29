@@ -17,6 +17,9 @@ def test_equations(central, order) -> None:
     f0 = xtrap.beta.factory_derivatives("u_ave", central=central)
     f1 = xtrap.lnpi.factory_derivatives(central=central)
 
+    assert f0.exprs is not None
+    assert f1.exprs is not None
+
     for i in range(2, order):
         assert f0.exprs[i] + f1.exprs[i + 1] == 0
 
@@ -36,7 +39,7 @@ def load_data():
         d = json.load(f)
 
     ref, samples = d["ref"], d["samples"]
-    for x in [ref, *samples]:
+    for x in (ref, *samples):
         # cleanup data
         x["lnpi_data"] = np.array(x.pop("lnPi"))
         x["energy"] = np.array(x.pop("energy"))
@@ -55,8 +58,10 @@ def prepare_data(lnpi_data, energy, mu, temp, order, beta):
 
     # have to include mom = 0
     a = np.ones_like(lnpi_data)
-    energy = np.concatenate((a[:, None], energy), axis=-1)
-    energy = xr.DataArray(energy, dims=["n", "umom"])
+    energy = xr.DataArray(
+        np.concatenate((a[:, None], energy), axis=-1),
+        dims=["n", "umom"],
+    )
 
     return {
         "lnpi_data": lnpi_data,
@@ -77,12 +82,12 @@ def sample_data():
 
 
 @pytest.fixture
-def ref(sample_data):  # noqa: FURB118
+def ref(sample_data):
     return sample_data[0]
 
 
 @pytest.fixture
-def samples(sample_data):  # noqa: FURB118
+def samples(sample_data):
     return sample_data[1]
 
 

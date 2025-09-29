@@ -9,11 +9,11 @@ import numpy as np
 import xarray as xr
 from cmomy.core.validate import (
     is_dataarray,
-    is_dataset,
+    is_xarray_typevar,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Hashable, Sequence
+    from collections.abc import Hashable, Sequence  # noqa: F401
 
     from cmomy.core.typing import DataT
     from numpy.typing import ArrayLike
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from thermoextrap.core.typing import MultDims, SingleDim
     from thermoextrap.core.typing_compat import TypeAlias
 
-    DimsMapping: TypeAlias = Sequence[Hashable] | Mapping[int, MultDims]
+    DimsMapping: TypeAlias = "Sequence[Hashable] | Mapping[int, MultDims]"
 
 
 ###############################################################################
@@ -30,14 +30,12 @@ if TYPE_CHECKING:
 def _check_xr(
     x: ArrayLike | DataT,
     dims: DimsMapping,
+    *,
     name: str | None = None,
     strict: bool = False,
 ) -> xr.DataArray | DataT:
-    if is_dataset(x):
-        return x
-
-    if is_dataarray(x):
-        if strict:
+    if is_xarray_typevar["DataT"].check(x):
+        if is_dataarray(x) and strict:  # type: ignore[redundant-expr]
             if isinstance(dims, Mapping):
                 dims = dims[x.ndim]
             for d in dims:
@@ -71,7 +69,7 @@ def xrwrap_uv(
 
 
 def xrwrap_xv(
-    xv: ArrayLike | DataT,
+    xv: ArrayLike | DataT | None,
     dims: DimsMapping | None = None,
     rec_dim: SingleDim = "rec",
     rep_dim: SingleDim = "rep",
@@ -86,6 +84,10 @@ def xrwrap_xv(
     if deriv_dim is None, assumes xv[rec_dim], xv[rec_dim, vals], xv[rep_dim, rec_dim, val_dims]
     if deriv_dim is not None, assumes xv[rec_dim, deriv_dim], xv[rec_dim,deriv_dim, val_dims], xv[rep_dim,rec_dim,deriv_dim,val_dims]
     """
+    if xv is None:
+        msg = "Must pass explicit xv."
+        raise ValueError(msg)
+
     if isinstance(val_dims, str):
         val_dims = [val_dims]
     elif not isinstance(val_dims, list):
@@ -94,8 +96,8 @@ def xrwrap_xv(
     if strict is None:
         strict = False
 
-    if deriv_dim is None:
-        if dims is None:
+    if dims is None:
+        if deriv_dim is None:
             rec_val = [rec_dim, *val_dims]
             rep_val = [rep_dim, rec_dim, *val_dims]
 
@@ -104,22 +106,21 @@ def xrwrap_xv(
                 len(rec_val): [rec_dim, *val_dims],
                 len(rep_val): [rep_dim, rec_dim, *val_dims],
             }
-
-    elif dims is None:
-        rec_val = [rec_dim, deriv_dim, *val_dims]
-        rep_val = [rep_dim, rec_dim, deriv_dim, *val_dims]
-        dims = {
-            2: [rec_dim, deriv_dim],
-            len(rec_val): [rec_dim, deriv_dim, *val_dims],
-            len(rep_val): [rep_dim, rec_dim, deriv_dim, val_dims],
-        }
+        else:
+            rec_val = [rec_dim, deriv_dim, *val_dims]
+            rep_val = [rep_dim, rec_dim, deriv_dim, *val_dims]
+            dims = {
+                2: [rec_dim, deriv_dim],
+                len(rec_val): [rec_dim, deriv_dim, *val_dims],
+                len(rep_val): [rep_dim, rec_dim, deriv_dim, *val_dims],
+            }
     return _check_xr(xv, dims=dims, name=name, strict=strict)
 
 
 def xrwrap_alpha(
     alpha: ArrayLike | xr.DataArray,
     dims: MultDims | None = None,
-    name: str = "alpha",
+    name: str | Hashable = "alpha",
 ) -> xr.DataArray:
     """Wrap alpha values."""
     if is_dataarray(alpha):
@@ -127,7 +128,7 @@ def xrwrap_alpha(
 
     alpha = np.array(alpha)
     if dims is None:
-        dims = name
+        dims = name  # type: ignore[assignment]  # pyright: ignore[reportAssignmentType]
 
     if alpha.ndim == 0:
         return xr.DataArray(alpha, coords={dims: alpha}, name=name)

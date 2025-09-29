@@ -14,21 +14,23 @@ dependencies:
   - python=3.12
   - attrs>=24.1.0
   - bottleneck
-  - cmomy>=0.24.0
+  - cmomy>=1.0.1
   - dask
   - dm-tree
   - docstring-inheritance
   - ipykernel
   - lazy_loader
   - matplotlib-base
-  - module-utilities>=0.2
+  - module-utilities>=0.11.0
   - mypy>=1.15.0
   - nbclient
+  - nbconvert
   - nbval
   - nox>=2025.5.1
   - numba>=0.60.0
   - numpy>=1.26.0
   - orjson
+  - packaging
   - pandas
   - pandas-stubs
   - pylint
@@ -37,13 +39,15 @@ dependencies:
   - pytest-env
   - pytest-sugar
   - pytest-xdist>3.6.0
+  - righttyper
   - scipy
+  - scipy-stubs
   - sympy
+  - types-tensorflow
   - xarray>=2024.7.0
   - pip
   - pip:
       - gpflow>=2.6.0
       - pymbar[jax]>=4.0
-      - pytest-accept
       - tensorflow-probability[tf]~=0.24.0
       - tensorflow>=2.13

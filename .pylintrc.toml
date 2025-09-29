@@ -58,6 +58,13 @@ disable = [
     "consider-using-f-string",
     # "duplicate-code",
     # "cyclic-import",
+    # project specific
+    "use-implicit-booleaness-not-comparison-to-zero",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    "abstract-method",
+    "consider-using-augmented-assign",
+    "import-error",                                   # defer to pyright
 ]
 
 [tool.pylint.reports]
