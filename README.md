@@ -154,7 +154,8 @@ This environment will include all additional dependencies mentioned above.
 Alternatively, you can install the (locked) development dependencies using:
 
 ```bash
-pip install requirements/lock/dev.txt
+uv export --group dev > requirements-dev.txt
+uv pip install -r requirements/lock/dev.txt
 ```
 
 It is not recommended to install the development dependencies with `conda`.
