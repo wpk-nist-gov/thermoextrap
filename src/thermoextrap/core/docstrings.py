@@ -69,6 +69,10 @@ post_func : str or callable
 rng : Generator, optional
     Random number generator object.
     Defaults to result of :func:`cmomy.random.default_rng`.
+resample_values : bool
+        If ``True``, resample ``xv`` and ``uv``. If ``False``, resample
+        ``dxduave`` (see :func:`cmomy.wrap_resample_vals`) and leave ``xv`` and
+        ``uv`` unchanged.
 """
 
 DOCFILLER_XTRAP = DocFiller.from_docstring(

@@ -326,7 +326,7 @@ class AbstractData(
     #: Whether the observable `x` is the same as energy `u`
     x_is_u: bool = field(kw_only=True, default=False)
     # cache field
-    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict)
+    _cache: dict[str, Any] = field(init=False, repr=False, factory=dict[str, "Any"])
 
     @property
     @abstractmethod
@@ -1180,9 +1180,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
     {order}
     from_vals_kws : dict, optional
         extra arguments passed to :func:`cmomy.wrap_reduce_vals`.
-    resample_values : bool, default=False
-        If True, fallback to resampling ``xv`` and ``uv`` instead of
-        just resampling on ``dxduave``.
+    {resample_values}
     {dxduave}
     """
 
@@ -1203,12 +1201,13 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         validator=_validate_weight,
         default=None,
     )
-    #: Optional parameters to :func:`cmomy.wrap_reduce_vals`
+    #: Optional parameters to :func:`cmomy.wrap_reduce_vals
     from_vals_kws: dict[str, Any] = field(
         kw_only=True,
         factory=dict[str, "Any"],
         converter=convert_mapping_or_none_to_dict,
     )
+    #: If ``True``, resample ``uv`` and ``xv``. Otherwise resample during construction of ``dxduave``.
     resample_values: bool = field(default=False)
     #: :class:`cmomy.CentralMomentsData` object
     _dxduave: cmomy.CentralMomentsData[DataT] | None = field(
@@ -1329,11 +1328,14 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
         {rep_dim}
         {parallel}
         {meta_kws}
-        resample_values : bool, optional
-            If ``True``, resample ``xv`` and ``uv``.  If ``False``, resample ``dxduave`` (see :func:`cmomy.wrap_resample_vals`) and leave ``xv`` and ``uv`` unchanged.
-            Default is to fallback to ``self.resample_values``.
+        {resample_values}
         **kwargs
             Keyword arguments to :func:`cmomy.wrap_resample_vals`
+
+
+        Notes
+        -----
+        ``resample_values`` defaults to ``self.resample_values``.
 
         See Also
         --------
@@ -1785,7 +1787,7 @@ def factory_data_values(
 
 
 @overload
-def factory_data_values2(  # pyright: ignore[reportOverlappingOverload]
+def factory_data_values2(
     uv: ArrayLike | xr.DataArray,
     xv: DataT,
     *,
