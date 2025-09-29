@@ -2,6 +2,8 @@
 
 """Tests for GP models with derivatives and active learning based on those models."""
 
+# pylint: disable=missing-class-docstring,protected-access
+
 import copy
 
 import gpflow
@@ -127,7 +129,7 @@ def test_deriv_kernel_manual_1d() -> None:
 
     # Want to work with a few points to check...
     # (0, 0), (1, 1), (1, 0), (0, 1), and (-1, 0)
-    for x_pair in [(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 1.0), (-1.0, 0.0)]:
+    for x_pair in ((0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 1.0), (-1.0, 0.0)):
         ref = rbf_check(x_pair[0], x_pair[1])
         this_x1 = np.vstack([x_pair[0] * np.ones(3), np.arange(3)]).T
         this_x2 = np.vstack([x_pair[1] * np.ones(3), np.arange(3)]).T
@@ -179,13 +181,13 @@ def test_deriv_kernel_manual_multi_d() -> None:
     # Helpful to put together all combos of derivatives for each set of points
     d_combos = np.array([(i, j) for i in range(3) for j in range(3)])
 
-    for x_pair in [
-        [np.array([0.0, 0.0]), np.array([0.0, 0.0])],
-        [np.array([1.0, 1.0]), np.array([1.0, 1.0])],
-        [np.array([0.0, 0.0]), np.array([0.0, 1.0])],
-        [np.array([1.0, 0.0]), np.array([0.0, 0.0])],
-        [np.array([0.0, 0.0]), np.array([-1.0, -1.0])],
-    ]:
+    for x_pair in (
+        (np.array([0.0, 0.0]), np.array([0.0, 0.0])),
+        (np.array([1.0, 1.0]), np.array([1.0, 1.0])),
+        (np.array([0.0, 0.0]), np.array([0.0, 1.0])),
+        (np.array([1.0, 0.0]), np.array([0.0, 0.0])),
+        (np.array([0.0, 0.0]), np.array([-1.0, -1.0])),
+    ):
         ref = rbf_check(x_pair[0], x_pair[1])
         this_x1 = np.hstack([np.tile(x_pair[0], (9, 1)), d_combos])
         this_x2 = np.hstack([np.tile(x_pair[1], (9, 1)), d_combos])
@@ -418,8 +420,9 @@ def test_sympy_mean_func() -> None:
 
     # Create some x data
     x_vals = np.linspace(-10.0, 10.0, 10)
-    x_check = [np.vstack([x_vals, d_o * np.ones_like(x_vals)]).T for d_o in range(3)]
-    x_check = np.vstack(x_check)
+    x_check = np.vstack(
+        [np.vstack([x_vals, d_o * np.ones_like(x_vals)]).T for d_o in range(3)]
+    )
 
     # And some y data
     m_check = 0.26
@@ -437,8 +440,9 @@ def test_sympy_mean_func() -> None:
     # Check that expression matches input
     assert sp.simplify(check_sym.expr - sig_expr) == 0
     # Check that found optimal parameters
-    np.testing.assert_allclose(check_sym.m, m_check, rtol=1e-06)
-    np.testing.assert_allclose(check_sym.b, b_check, rtol=1e-06)
+    # pylint: disable=no-member
+    np.testing.assert_allclose(check_sym.m, m_check, rtol=1e-06)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+    np.testing.assert_allclose(check_sym.b, b_check, rtol=1e-06)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     # And check values and derivatives
     output = check_sym(x_check)
     np.testing.assert_allclose(
@@ -447,11 +451,12 @@ def test_sympy_mean_func() -> None:
         rtol=1e-04,
     )
     np.testing.assert_allclose(
-        output[10:20].numpy(), check_sym.m * (output[:10] - output[:10] ** 2).numpy()
+        output[10:20].numpy(),
+        check_sym.m * (output[:10] - output[:10] ** 2).numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     )
     np.testing.assert_allclose(
         output[20:].numpy(),
-        (check_sym.m**2)
+        (check_sym.m**2)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         * (output[:10] - 3.0 * output[:10] ** 2 + 2.0 * output[:10] ** 3),
     )
 
@@ -565,12 +570,12 @@ def test_gp() -> None:  # noqa: PLR0915
     ref_like = HetGaussianDeriv(
         cov_data,
         1,
-        **like_kwargs,
+        **like_kwargs,  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
     )
-    np.testing.assert_allclose(ref_like.cov, check_1d.likelihood.cov)
+    np.testing.assert_allclose(ref_like.cov, check_1d.likelihood.cov)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     np.testing.assert_allclose(
         ref_like.build_scaled_cov_mat(x_data),
-        check_1d.likelihood.build_scaled_cov_mat(x_data),
+        check_1d.likelihood.build_scaled_cov_mat(x_data),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     )
 
     # Since working with 1D data, scaling should not change the trained model
@@ -612,13 +617,13 @@ def test_gp() -> None:  # noqa: PLR0915
 
     # Comparing parameters
     np.testing.assert_allclose(
-        check_base.kernel.kernel.l_0.numpy(),
-        check_scale.kernel.kernel.l_0.numpy(),
+        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        check_scale.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         rtol=1e-03,
     )
     np.testing.assert_allclose(
-        check_base.kernel.kernel.var.numpy(),
-        check_scale.kernel.kernel.var.numpy() * (check_scale.scale_fac**2),
+        check_base.kernel.kernel.var.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        check_scale.kernel.kernel.var.numpy() * (check_scale.scale_fac**2),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         rtol=1e-03,
     )
     # np.testing.assert_allclose(
@@ -731,13 +736,13 @@ def test_gp() -> None:  # noqa: PLR0915
     np.testing.assert_allclose(pred_base[0], pred_sep_ind[0][:, :1], rtol=1e-03)
     np.testing.assert_allclose(pred_base[1], pred_sep_ind[1][:, :1], rtol=1e-03)
     np.testing.assert_allclose(
-        check_base.kernel.kernel.l_0.numpy(),
-        check_sep_ind.kernel.kernels[0].l_0.numpy(),
+        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        check_sep_ind.kernel.kernels[0].l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         rtol=1e-03,
     )
     np.testing.assert_allclose(
-        check_base.kernel.kernel.var.numpy(),
-        check_sep_ind.kernel.kernels[0].var.numpy(),
+        check_base.kernel.kernel.var.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        check_sep_ind.kernel.kernels[0].var.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         rtol=1e-03,
     )
 
@@ -747,12 +752,13 @@ def test_gp() -> None:  # noqa: PLR0915
     pred_tf = check_sep_ind.predict_f(x_data, full_cov=True)[1]
 
     # Assert correct shapes
-    assert pred_ff.shape == (x_data.shape[0], 2)
-    assert pred_tf.shape == (2, x_data.shape[0], x_data.shape[0])
+    assert tuple(pred_ff.shape) == (x_data.shape[0], 2)
+    assert tuple(pred_tf.shape) == (2, x_data.shape[0], x_data.shape[0])
 
     # And assert that diagonal of full_cov=True matches full_cov=False
     np.testing.assert_allclose(
-        pred_ff.numpy(), np.vstack([np.diag(v) for v in pred_tf]).T
+        pred_ff.numpy(),
+        np.vstack([np.diag(v) for v in pred_tf]).T,  # type: ignore[attr-defined]
     )
 
     # Check proper handling of mean functions
@@ -768,7 +774,7 @@ def test_gp() -> None:  # noqa: PLR0915
         likelihood_kwargs={"p": 0.0, "transform_p": None},
     )
 
-    check_meanf.kernel.kernel.l_0.assign(1e-06)
+    check_meanf.kernel.kernel.l_0.assign(1e-06)  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     np.testing.assert_allclose(y_data, check_meanf.predict_f(x_data)[0], atol=1e-01)
 
     train_GPR(check_meanf)
@@ -778,7 +784,7 @@ def test_gp() -> None:  # noqa: PLR0915
     np.testing.assert_allclose(pred_base[0], pred_meanf[0], atol=1e-01)
     np.testing.assert_allclose(pred_base[1], pred_meanf[1], atol=1e-01)
     np.testing.assert_allclose(
-        check_base.kernel.kernel.l_0.numpy(),
-        check_meanf.kernel.kernel.l_0.numpy(),
+        check_base.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        check_meanf.kernel.kernel.l_0.numpy(),  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         atol=2e-01,
     )

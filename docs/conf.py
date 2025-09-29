@@ -56,6 +56,9 @@ suppress_warnings = ["autosectionlabel.*"]
 nitpick_ignore = [
     # ("py:class", "Command"),
 ]
+# nitpick_ignore_regex = [
+#     (r"py:.*", r".*IndexSampler.*"),
+# ]
 
 # -- myst stuff ---------------------------------------------------------
 myst_enable_extensions = [
@@ -189,6 +192,7 @@ napoleon_type_aliases = {
     "DataArrayGroupBy": "~xarray.core.groupby.DataArrayGroupBy",
     "CentralMomentsArray": "~cmomy.CentralMomentsArray",
     "CentralMomentsData": "~cmomy.CentralMomentsData",
+    "IndexSampler": "~cmomy.resample.IndexSampler",
     # objects without namespace: numpy
     "ndarray": "~numpy.ndarray",
     "MaskedArray": "~numpy.ma.MaskedArray",

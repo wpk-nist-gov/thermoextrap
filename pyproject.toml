@@ -22,7 +22,6 @@ requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Science/Research",
-    "License :: Public Domain",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
@@ -38,12 +37,13 @@ dynamic = [
 ]
 dependencies = [
     "attrs>=24.1.0",
-    "cmomy>=0.24.0",
-    "dm-tree<0.1.9",
+    "cmomy>=1.0.1",
+    "dm-tree",
     "lazy-loader",
-    "module-utilities[inherit]>=0.2",
+    "module-utilities[inherit]>=0.11.0",
     "numba>=0.60.0",
     "numpy>=1.26.0",
+    "packaging",
     "scipy",
     "sympy",
     "xarray>=2024.7.0",
@@ -57,12 +57,10 @@ optional-dependencies.all = [
 optional-dependencies.gpr = [
     "gpflow>=2.6.0",
     "tensorflow>=2.13",
-    "tensorflow-probability[tf]>0.23.0,<0.25.0",
+    "tensorflow-probability[tf]~=0.24.0",
 ]
 optional-dependencies.mbar = [
-    # NOTE: Getting all sorts of errors with pymbar with jax.  This seems to fix them for now...
-    "jax[cpu]<0.4.25",
-    "pymbar>=4.0",
+    "pymbar[jax]>=4.0",
 ]
 optional-dependencies.openmm = [
     "openmm",
@@ -78,16 +76,26 @@ urls.Homepage = "https://github.com/usnistgov/thermoextrap"
 
 [dependency-groups]
 dev = [
+    "nbconvert",
+    "righttyper",
     "thermoextrap[all]",
-    { include-group = "dev-extras" },
     { include-group = "mypy" },
-    { include-group = "nbval" },
+    { include-group = "notebook" },
+    { include-group = "nox" },
+    # { include-group = "pytest-accept" },
     { include-group = "test" },
-    { include-group = "typing" },
-    { include-group = "uvxrun" },
+    { include-group = "test-notebook" },
+    { include-group = "typecheck" },
 ]
+
 test = [
-    { include-group = "test-extras" },
+    "pytest-cov",
+    "pytest-env",
+    "pytest-sugar",
+    "pytest-xdist>3.6.0",
+    "thermoextrap[mbar,gpr]",
+    { include-group = "pandas" },
+    { include-group = "pytest" },
 ]
 docs = [
     "autodocsumm",
@@ -99,43 +107,42 @@ docs = [
     "sphinxcontrib-spelling",
     "thermoextrap[gpr,mbar,viz]",
 ]
-cog = [ "cogapp" ]
-dev-extras = [
-    "ipykernel",
-    "ipython",
-    "nbclient>=0.10.0",
-    "nox>=2024.4.15",
-    "pytest-accept",
-]
+# other packages/tools
+ipython = [ "ipython" ]
+mypy = [ "mypy>=1.15.0", "orjson" ]
+notebook = [ "ipykernel", "nbclient" ]
+nox = [ "nox>=2025.5.1" ]
+pandas = [ "pandas" ]
+pylint = [ "pylint" ]
+pytest = [ "pytest" ]
+pytest-accept = [ "pytest-accept" ]
+# other environments
 docs-live = [
     "sphinx-autobuild",
     { include-group = "docs" },
 ]
-mypy = [ "mypy>=1.15.0" ]
-nbval = [ "nbclient>=0.10.0", "nbval" ]
+docs-spelling = [
+    "pyenchant",
+    "sphinxcontrib-spelling",
+    { include-group = "docs" },
+]
 test-extras = [
-    "pandas",
-    "pytest",
-    "pytest-cov",
-    "pytest-sugar",
-    "pytest-xdist>3.6.0",
-    "thermoextrap[mbar,gpr]",
+    { include-group = "test" },
 ]
 test-notebook = [
+    "nbval",
     "thermoextrap[viz]",
-    { include-group = "nbval" },
-    { include-group = "test-extras" },
+    { include-group = "test" },
 ]
-typing = [
+typecheck = [
+    "matplotlib; python_version=='3.12'",
     "pandas-stubs",
-    "pylint",
-    "pytest",
+    "scipy-stubs; python_version>='3.10'",
     "thermoextrap[mbar,gpr]",
-    { include-group = "uvxrun" },
+    "types-tensorflow",
+    { include-group = "pylint" },
+    { include-group = "pytest" },
 ]
-# Anything needed to run tools/uvxrun.py
-# NOTE: uvxrun-tools defined explicitly in tool.pyproject2conda.envs.uvxrun-tools
-uvxrun = [ "packaging" ]
 
 [tool.hatch.version]
 source = "vcs"
@@ -162,6 +169,15 @@ fragments = [
 [tool.nbqa.exclude]
 ruff = "^examples/gpr_active_learning|^examples/usage/gpr"
 
+[tool.repo-review]
+ignore = [
+    "GH",    # enable for actions
+    "PC140", # do this externally
+    "PC170", # pygrep
+    "PC901", # ci message
+    "RTD",
+]
+
 [tool.codespell]
 skip = "examples/*"
 
@@ -181,6 +197,9 @@ max_supported_python = "3.12"
 
 [tool.pytest.ini_options]
 addopts = [
+    "-ra",
+    "--strict-config",
+    "--strict-markers",
     "--doctest-modules",
     "--doctest-glob=*.md",
     "--pyargs",
@@ -194,6 +213,27 @@ testpaths = [
     "tests",
     "thermoextrap",
 ]
+minversion = "8"
+log_cli_level = "INFO"
+xfail_strict = true
+filterwarnings = [
+    "error",
+    "ignore: Type google:DeprecationWarning",
+    "ignore: distutils Version classes are deprecated:DeprecationWarning",
+    "ignore: pkg_resources is deprecated as an API:DeprecationWarning",
+    "ignore: FNV hashing is not implemented in Numba:UserWarning",
+    "ignore: A kernel object:UserWarning",
+    "ignore: Unknown solver options",
+    "ignore::docstring_inheritance.DocstringInheritanceWarning",
+    "ignore: Module thermoextrap was never imported:coverage.exceptions.CoverageWarning",
+    "ignore: No data was collected:coverage.exceptions.CoverageWarning",
+    "ignore: pkg_resources is deprecated:UserWarning",
+    "ignore: invalid escape sequence:SyntaxWarning",
+    "ignore: The default datetime:DeprecationWarning",
+]
+
+[tool.pytest_env]
+NUMBA_CACHE_DIR = { value = "{PWD}/.numba_cache", transform = true, skip_if_set = true }
 
 [tool.coverage.run]
 branch = true
@@ -219,17 +259,17 @@ source = [
     ".nox/**/site-packages/",
 ]
 
-# * Typing ---------------------------------------------------------------------
+# * typecheck ---------------------------------------------------------------------
 
 [tool.mypy]
 files = [
     "src",
     "tests",
 ]
-show_error_codes = true
 warn_unused_ignores = true
 warn_return_any = true
 warn_unused_configs = true
+warn_unreachable = true
 exclude = [
     ".eggs",
     ".tox",
@@ -239,17 +279,37 @@ exclude = [
     "docs",
 ]
 check_untyped_defs = true
-# strict = true
+strict = true
+enable_error_code = [
+    "ignore-without-code",
+    "redundant-expr",
+    "truthy-bool",
+]
 
-# [[tool.mypy.overrides]]
-# ignore_missing_imports = true
-# module = [
-# ]
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+    "matplotlib.*",
+    "scipy.*",
+    "sympy.*",
+    "pymbar.*",
+    "tensorflow_probability.*",
+]
 
-# [[tool.mypy.overrides]]
-# ignore_errors = true
-# module = [
-# ]
+[[tool.mypy.overrides]]
+strict = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+module = [
+    "tests.*",
+]
+
+[[tool.mypy.overrides]]
+check_untyped_defs = false
+module = [
+    "tests.legacy.*",
+]
 
 [tool.pyright]
 include = [
@@ -263,16 +323,21 @@ exclude = [
     ".venv/**",
     "**/.mypy_cache",
     "**/.numba_cache",
-    "**/thermoextrap/legacy/*.py",
+    "**/legacy/*.py",
 ]
-# strict = ["src", "tests", "noxfile.py", "tools/*.py"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
 strict = [
     "noxfile.py",
     "tools/*.py",
+    "src/thermoextrap/*.py",
+    "src/thermoextrap/core/*.py",
+    "src/thermoextrap/gpr_active/ig_active.py",
+    # "src/thermoextrap/gpr_active/active_utils.py",
+    # "src/thermoextrap/gpr_active/gp_models.py",
+    "src/thermoextrap/gpr_active/sine_active.py",
+    "tests/test_typing.py",
 ]
-pythonVersion = "3.11"
-typeCheckingMode = "basic"
-# enable subset of "strict"
 reportDuplicateImport = true
 reportInvalidStubStatement = true
 reportOverlappingOverload = true
@@ -281,16 +346,10 @@ reportUntypedClassDecorator = true
 reportUntypedFunctionDecorator = true
 reportUntypedNamedTuple = true
 reportUnusedImport = true
-# disable subset of "basic"
-reportGeneralTypeIssues = false
-reportMissingModuleSource = false
-reportOptionalCall = false
-reportOptionalIterable = false
-reportOptionalMemberAccess = false
-reportOptionalOperand = false
-reportOptionalSubscript = false
-reportPrivateImportUsage = false
-reportUnboundVariable = false
+# Extra flags
+enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = true
+reportUnreachable = "warning"
 
 [tool.pytype]
 inputs = [
@@ -301,9 +360,10 @@ inputs = [
 # * Dependency creation --------------------------------------------------------
 
 [tool.pyproject2conda]
-user_config = "config/userconfig.toml"
-template_python = "requirements/py{py}-{env}"
+user-config = "config/userconfig.toml"
+template-python = "requirements/py{py}-{env}"
 template = "requirements/{env}"
+name = "py{py}-{env}"
 python = "default"
 channels = "conda-forge"
 style = "yaml"
@@ -319,7 +379,6 @@ tensorflow = { pip = true }
 tensorflow-probability = { pip = true }
 pymbar = { pip = true }
 jax = { pip = true }
-jaxlib = { pip = true }
 module-utilities = { packages = "docstring-inheritance" }
 
 [tool.pyproject2conda.envs.dev]
@@ -330,25 +389,33 @@ python = "default"
 groups = [ "test" ]
 python = "all"
 
-[tool.pyproject2conda.envs.uvxrun-tools]
-# define these here so they don't override deps in uv.lock
+[tool.pyproject2conda.envs.uvx-tools]
 reqs = [
-    # these used solely for specking tools to be used with tools/uvxrun.py
+    # these used solely for specking tools to be used with uvx ...
     "conda-lock>=2.5.5",
+    "cruft",
     "grayskull>=2.5.3",
     "nbqa>=1.8.4",
-    "pre-commit",
-    "pyright>=1.1.392",
+    "pre-commit>=4.0.0",
+    "pre-commit-uv",
+    "prek",
+    "pyrefly",
+    "pyright>=1.1.396",
+    "basedpyright>=1.31.3",
     "scriv",
     "twine>=5.0.0",
+    "ty",
 ]
-groups = [ "mypy" ]
-skip_package = true
+groups = [
+    "mypy",
+    "nox",
+]
+skip-package = true
 style = "requirements"
 
 [tool.pyproject2conda.envs.test-extras]
 groups = [ "test-extras" ]
-skip_package = true
+skip-package = true
 python = "all"
 
 # * uv -------------------------------------------------------------------------
@@ -357,10 +424,22 @@ python = "all"
 managed = true
 default-groups = [ "dev" ]
 fork-strategy = "requires-python"
-required-version = ">=0.5.21"
+required-version = ">=0.7.15"
 
 [tool.uv.pip]
 annotation-style = "line"
+generate-hashes = true
+
+[tool.uv.dependency-groups]
+dev.requires-python = ">=3.12"
+docs.requires-python = ">=3.12"
+docs-live.requires-python = ">=3.12"
+docs-spelling.requires-python = ">=3.12"
+# other tools
+ipython.requires-python = ">=3.12"
+mypy.requires-python = ">=3.12"
+notebook.requires-python = ">=3.12"
+nox.requires-python = ">=3.12"
 
 # * Other tools ----------------------------------------------------------------
 
@@ -381,6 +460,7 @@ extend-exclude = [ "spelling_wordlist.txt" ]
 extend-ignore-identifiers-re = [
     "struc_.*",
     ".*equil.*",
+    "NDArray.*",
 ]
 
 [tool.typos.default.extend-identifiers]

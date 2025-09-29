@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import cmomy
 import numpy as np
 import pandas as pd
@@ -7,9 +11,13 @@ import xarray as xr
 import thermoextrap as xtrap
 from thermoextrap import stack
 
+if TYPE_CHECKING:
+    from thermoextrap.core.typing import SupportsModelDerivs
+    from thermoextrap.models import ExtrapModel, StateCollection
+
 
 @pytest.fixture
-def states():
+def states() -> StateCollection[xr.DataArray, ExtrapModel[xr.DataArray]]:
     shape = (3, 2, 4)
     dims = ["rec", "pair", "position"]
     coords = {"position": np.linspace(0, 2, shape[-1])}
@@ -17,7 +25,7 @@ def states():
     rng = cmomy.random.default_rng()
 
     xems = []
-    for beta in [0.1, 10.0]:
+    for beta in (0.1, 10.0):
         x = xr.DataArray(rng.random(shape), dims=dims, coords=coords)
         u = xr.DataArray(rng.random(shape[0]), dims=dims[0])
         data = xtrap.DataCentralMomentsVals.from_vals(x, u, order=3, central=True)
@@ -51,8 +59,10 @@ def test_derivs_concat(states) -> None:
     xr.testing.assert_allclose(a, b)
 
 
-def test_stack(states) -> None:
-    y_unstack = stack.states_derivs_concat(states).pipe(stack.to_mean_var, "rep")
+def test_stack(
+    states: StateCollection[xr.DataArray, SupportsModelDerivs[xr.DataArray]],
+) -> None:
+    y_unstack = stack.states_derivs_concat(states).pipe(stack.to_mean_var, "rep")  # type: ignore[call-overload]
     y_data = stack.stack_dataarray(
         y_unstack, x_dims=["beta", "order"], stats_dim="stats"
     )

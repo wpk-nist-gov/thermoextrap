@@ -1,19 +1,19 @@
 """
 Routines GPR interpolation models
 """
-
+# pylint: disable=redefined-variable-type,arguments-differ,duplicate-code
 
 import gpflow
 import numpy as np
 import sympy as sp
 import tensorflow as tf
 import xarray as xr
+from module_utilities import cached
 
-from ..models import StateCollection
+
+from thermoextrap.stack import multiindex_to_array
 
 
-# First define classes needed for a GPR model
-# A general derivative kernel based on a sympy expression
 class DerivativeKernel(gpflow.kernels.Kernel):
     """
         Creates a kernel that can be differentiated based on a sympy expression for the kernel.
@@ -51,14 +51,18 @@ class DerivativeKernel(gpflow.kernels.Kernel):
     """
 
     def __init__(
-        self, kernel_expr, obs_dims, kernel_params={}, active_dims=None, **kwargs
+        self, kernel_expr, obs_dims, kernel_params=None, active_dims=None, **kwargs
     ):
+        if kernel_params is None:
+            kernel_params = {}
         if active_dims is not None:
             print("active_dims set to: ", active_dims)
             print("This is not implemented in this kernel, so setting to 'None'")
             active_dims = None
 
         super().__init__(active_dims=active_dims, **kwargs)
+
+        self._cache = {}
 
         # Get the sympy expression for the kernel
         self.kernel_expr = kernel_expr
@@ -83,7 +87,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         # Make sure that parameters here match those in kernel_params, if it's provided
         if bool(kernel_params):
             if (
-                list([s.name for s in self.param_syms]).sort()
+                [s.name for s in self.param_syms].sort()
                 != list(kernel_params.keys()).sort()
             ):
                 raise ValueError(
@@ -104,11 +108,11 @@ class DerivativeKernel(gpflow.kernels.Kernel):
 
     # Define ARD behavior (if ever want multiple dimensions with different lengthscales)
     @property
-    def ard(self) -> bool:
+    def ard(self):
         """
         Whether ARD behavior is active, following gpflow.kernels.Stationary
         """
-        return self.lengthscales.shape.ndims > 0
+        return self.lengthscales.shape.ndims > 0  # pylint: disable=no-member
 
     def K(self, X, X2=None):
         if X2 is None:
@@ -116,6 +120,10 @@ class DerivativeKernel(gpflow.kernels.Kernel):
 
         x1, d1 = self._split_x_into_locs_and_deriv_info(X)
         x2, d2 = self._split_x_into_locs_and_deriv_info(X2)
+
+        # pylint: disable=attribute-defined-outside-init
+        self.x1, self.d1 = x1, d1
+        self.x2, self.d2 = x2, d2
 
         # Output should be a tensor that is len(X) by len(X2) - at least in 1D, not
         # sure what to do otherwise
@@ -144,25 +152,27 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         k_list = []
         inds_list = []
         for pair in unique_pairs:
-            # Get the right indices
+            # get the right indices
             this_inds = tf.cast(
                 tf.where(tf.reduce_all(deriv_pairs == pair, axis=1))[:, :1], tf.int32
             )
-            # Use sympy to obtain right derivative
-            this_expr = sp.diff(
-                self.kernel_expr,
-                self.x_syms[0],
-                int(pair[0]),
-                self.x_syms[1],
-                int(pair[1]),
-            )
-            # Get lambdified function compatible with tensorflow
-            this_func = sp.lambdify(
-                (self.x_syms[0], self.x_syms[1], *self.param_syms),
-                this_expr,
-                modules="tensorflow",
-            )
-            # Plug in our values for the derivative kernel
+            # # use sympy to obtain right derivative
+            # this_expr = sp.diff(
+            #     self.kernel_expr,
+            #     self.x_syms[0],
+            #     int(pair[0]),
+            #     self.x_syms[1],
+            #     int(pair[1]),
+            # )
+            # # get lambdified function compatible with tensorflow
+            # this_func = sp.lambdify(
+            #     (self.x_syms[0], self.x_syms[1], *self.param_syms),
+            #     this_expr,
+            #     modules="tensorflow",
+            # )
+            this_func = self._lambda_kernel(int(pair[0]), int(pair[1]))
+
+            # plug in our values for the derivative kernel
             k_list.append(
                 this_func(
                     tf.gather_nd(expand_x1, this_inds),
@@ -170,7 +180,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
                     *[getattr(self, s.name) for s in self.param_syms],
                 )
             )
-            # Also keep track of indices so can dynamically stitch back together
+            # also keep track of indices so can dynamically stitch back together
             inds_list.append(this_inds)
 
         # Stitch back together
@@ -188,14 +198,16 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         inds_list = []
         for d in unique_d1:
             this_inds = tf.cast(tf.where(d1 == d)[:, :1], tf.int32)
-            this_expr = sp.diff(
-                self.kernel_expr, self.x_syms[0], int(d), self.x_syms[1], int(d)
-            )
-            this_func = sp.lambdify(
-                (self.x_syms[0], self.x_syms[1], *self.param_syms),
-                this_expr,
-                modules="tensorflow",
-            )
+            # this_expr = sp.diff(
+            #     self.kernel_expr, self.x_syms[0], int(d), self.x_syms[1], int(d)
+            # )
+            # this_func = sp.lambdify(
+            #     (self.x_syms[0], self.x_syms[1], *self.param_syms),
+            #     this_expr,
+            #     modules="tensorflow",
+            # )
+            this_func = self._lambda_kernel(int(d), int(d))
+
             k_list.append(
                 this_func(
                     tf.gather_nd(x1, this_inds),
@@ -209,6 +221,16 @@ class DerivativeKernel(gpflow.kernels.Kernel):
         k_diag = tf.reshape(k_list, (x1.shape[0],))
         return k_diag
 
+    @cached.meth
+    def _lambda_kernel(self, d1, d2):
+        expr = sp.diff(self.kernel_expr, self.x_syms[0], d1, self.x_syms[1], d2)
+
+        return sp.lambdify(
+            (self.x_syms[0], self.x_syms[1], *self.param_syms),
+            expr,
+            modules="tensorflow",
+        )
+
     def _split_x_into_locs_and_deriv_info(self, x):
         """Splits input into actual observable input and derivative labels"""
         locs = x[:, : self.obs_dims]
@@ -218,7 +240,7 @@ class DerivativeKernel(gpflow.kernels.Kernel):
 
 # A custom GPFlow likelihood with heteroscedastic Gaussian noise
 # Comes from GPFlow tutorial on this subject
-class HeteroscedasticGaussian(gpflow.likelihoods.Likelihood):
+class HeteroscedasticGaussian(gpflow.likelihoods.Likelihood):   # pylint: disable=missing-class-docstring
     def __init__(self, **kwargs):
         # this likelihood expects a single latent function F, and two columns in
         # the data matrix Y:
@@ -243,7 +265,6 @@ class HeteroscedasticGaussian(gpflow.likelihoods.Likelihood):
 
     # The following two methods are abstract in the base class.
     # They need to be implemented even if not used.
-
     def _predict_log_density(self, Fmu, Fvar, Y):
         raise NotImplementedError
 
@@ -262,155 +283,155 @@ class combined_loss:
 
 
 # Now can construct a model class inheriting from StateCollection
-class GPRModel(StateCollection):
-    def _collect_data(self, order=None, order_dim="order", n_resample=100):
-        if order is None:
-            order = self.order
-        x_data = np.reshape([m.alpha0 for m in self.states], (-1, 1))
-        # For each alpha value, stack order+1 times and signify derivative order
-        x_data = np.reshape(np.tile(x_data, (1, order + 1)), (-1, 1))
-        x_data = np.concatenate(
-            [x_data, np.tile(np.arange(order + 1)[:, None], (len(self.states), 1))],
-            axis=1,
-        )
-        # Collect all derivatives and uncertainties at each alpha and reshape
-        y_data_xr = []
-        y_data_err_xr = []
-        for m in self.states:
-            # Set norm to False so does not divide by factorial of each derivative order
-            y_data_xr.append(m.derivs(order=order, order_dim=order_dim, norm=False))
-            # Obtain variances by bootstrap resampling of original data and compute for each
-            this_boot = m.resample(nrep=n_resample).derivs(
-                order=order, order_dim=order_dim, norm=False
+
+
+class GPRModel:
+    """
+    perform gaussian process regression
+
+    Parameters
+    ----------
+    data : stack.GPRData
+        data object to analyze
+    kernel_expr : sympy expression
+    kernel_params : dict
+    """
+
+    def __init__(self, data, kernel_expr, kernel_params=None):
+        self.data = data
+        self.kernel_expr = kernel_expr
+        self.kernel_params = {} if kernel_params is None else kernel_params
+        self._cache = {}
+
+    @cached.meth
+    def kern(self, out_dim):
+        return [
+            DerivativeKernel(
+                self.kernel_expr,
+                1,  # for now, obs_dims is always 1 while figure out math
+                kernel_params=self.kernel_params,
             )
-            y_data_err_xr.append(this_boot.var("rep"))
-        y_data_xr = xr.concat(y_data_xr, dim="state")
-        y_data_err_xr = xr.concat(y_data_err_xr, dim="state")
-        # Need to flatten order and state dimensions together
-        # ORDER MATTERS - we want state first to be consistent with x_data
-        y_data_xr = y_data_xr.stack(flat_state=("state", "order"))
-        y_data_err_xr = y_data_err_xr.stack(flat_state=("state", "order"))
-        # If the y data has a multidimensional observable ('val' dimension)
-        # then we want to split it and the error estimates along this dimension
-        # In that case (including if just has one dimension), will return list
-        y_data_vals = y_data_xr.transpose("flat_state", "val").values
-        y_data_err_vals = y_data_err_xr.transpose("flat_state", "val").values
-        # Before wrapping up, realize that any error values of 0 will mess up GPR
-        # Anywhere this is the case, add uncertainty near smallest possible floating point
-        err_zero = np.where(y_data_err_vals == 0)
-        y_data_err_vals[err_zero] = 1.0e-44
-        # Stack it all together
-        y_data = [
-            np.vstack([y_data_vals[:, i], y_data_err_vals[:, i]]).T
-            for i in range(y_data_vals.shape[1])
+            for _ in range(out_dim)
         ]
-        return x_data, y_data
 
-    # Define function to train the Gaussian process
-    # Hopefully, won't need to re-train many times with changing data
-    # However, if do need to and want to keep same model, this allows for that
-    def _train_GP(self, x_input, y_input, opt_steps=100, fresh_train=False):
-        # Want option to continue training with same model, so adding in
-        # So default behavior is fresh_train=False, so continues training if model exists
-        # Might use to add extra training or if add more data
-        # If set fresh_train to True, will get new model - need if change order
-        if self.gp is None or fresh_train:
-            self.gp = [
-                gpflow.models.VGP(
-                    (x_input, y_input[i]),
-                    kernel=self.kern[i],
-                    likelihood=self.het_gauss[i],
-                    num_latent_gps=1,
-                )
-                for i in range(self.out_dim)
-            ]
+    @cached.meth
+    def het_gauss(self, out_dim):  # pylint: disable=no-self-use
+        return [HeteroscedasticGaussian() for _ in range(out_dim)]
 
+    @cached.meth
+    def gp_params(self, order):
+        x, ys = self.data.array_data(order=order)
+        out_dim = len(ys)
+
+        kernels = self.kern(out_dim)
+        likelihoods = self.het_gauss(out_dim)
+
+        # Not sure about adding data, but can reuse this to train some more...
+        gp = [
+            gpflow.models.VGP(
+                (x, y),
+                kernel=kernel,
+                likelihood=likelihood,
+                num_latent_gps=1,
+            )
+            for y, kernel, likelihood in zip(ys, kernels, likelihoods)
+        ]
         # To train all models over all dimension in parallel, create sum over losses
-        tot_loss = combined_loss([g.training_loss for g in self.gp])
+        tot_loss = combined_loss([g.training_loss for g in gp])
 
         # Make some parameters fixed
         variational_params = []
         trainable_params = []
-        for i in range(self.out_dim):
-            gpflow.set_trainable(self.gp[i].q_mu, False)
-            gpflow.set_trainable(self.gp[i].q_sqrt, False)
-            variational_params.append((self.gp[i].q_mu, self.gp[i].q_sqrt))
-            trainable_params.append(self.gp[i].trainable_variables)
-
-        # Run optimization
+        for g in gp:
+            gpflow.set_trainable(g.q_mu, False)
+            gpflow.set_trainable(g.q_sqrt, False)
+            variational_params.append((g.q_mu, g.q_sqrt))
+            trainable_params.append(g.trainable_variables)
         natgrad = gpflow.optimizers.NaturalGradient(gamma=1.0)
-        adam = tf.optimizers.Adam(
+        adam = tf.optimizers.Adam(  # pylint: disable=no-member
             learning_rate=0.5
         )  # Can be VERY aggressive with learning
+
+        return {
+            "gp": gp,
+            "tot_loss": tot_loss,
+            "variational_params": variational_params,
+            "trainable_params": trainable_params,
+            "natgrad": natgrad,
+            "adam": adam,
+        }
+
+    def train(self, order=None, opt_steps=100, **kws):
+        if order is None:
+            order = self.data.order
+
+        params = self.gp_params(order=order)
+
+        natgrad = params["natgrad"]
+        adam = params["adam"]
+
+        tot_loss = params["tot_loss"]
+        variational_params = params["variational_params"]
+        trainable_params = params["trainable_params"]
+
+        # Run optimization
         for _ in range(opt_steps):
             # Training is extremely slow for vector observables with large dimension
             # Seems to mainly be because natgrad requires matrix inversion
             natgrad.minimize(tot_loss, variational_params)
             # Even running loop, as below, does not see to speed things up, though...
             # So not exactly sure why so much slower
-            # for i in range(self.out_dim):
-            #    natgrad.minimize(self.gp[i].training_loss, [variational_params[i]])
+            # for i in range(out_dim):
+            #    natgrad.minimize(gp[i].training_loss, [variational_params[i]])
             adam.minimize(tot_loss, trainable_params)
-        # And even though trains, convergence is slow, so requires more steps
-        # Again not sure why
 
-    def __init__(self, states, kernel_expr, kernel_params={}, **kwargs):
-        super().__init__(states, **kwargs)
+        return self
 
-        # Collect data for training and defining output dimensionality
-        x_in, y_in = self._collect_data()
-
-        # y_in should be a list
-        # Create separate GP model for each output dimension
-        self.out_dim = len(y_in)
-        self.kern = [
-            DerivativeKernel(
-                kernel_expr,
-                1,  # For now, obs_dims is always 1 while figure out math
-                kernel_params=kernel_params,
-            )
-            for _ in range(self.out_dim)
-        ]
-        self.het_gauss = [HeteroscedasticGaussian() for _ in range(self.out_dim)]
-
-        # Initially train GPR model
-        self.gp = None
-        self._train_GP(x_in, y_in)
-
-    def predict(self, alpha, order=None, order_dim="order", alpha_name=None):
+    def predict(self, alpha, order=None, unstack=False, drop_order=True):
         if order is None:
-            order = self.order
-        elif order != self.order:
-            # In this case, must retrain GP at different order
-            # So try not to do this if possible
-            x_in, y_in = self._collect_data(order=order, order_dim=order_dim)
-            self._train_GP(x_in, y_in, fresh_train=True)
+            order = self.data.order
 
-        x_pred = np.hstack([np.reshape(alpha, (-1, 1)), np.zeros((alpha.shape[0], 1))])
-        out = np.array([np.hstack(g.predict_f(x_pred)) for g in self.gp])
+        gp = self.gp_params(order=order)["gp"]
+        xindex = self.data.xindexer_from_arrays(**{self.data.alpha_name: alpha})
+        x_pred = multiindex_to_array(xindex)
 
-        # Make it an xarray for consistency
-        # Output from predict_f is mean and variance, so split up
-        if alpha_name is None:
-            alpha_name = self.alpha_name
-        mean_out = xr.DataArray(
-            out[:, :, 0].T, dims=(alpha_name, "val"), coords={alpha_name: alpha}
+        out = np.array([np.hstack(g.predict_f(x_pred)) for g in gp])
+        # out has form: out[ystack, stack, stats_dim]
+
+        # wrap output
+        template = self.data.stacked(order=order)
+        xstack_dim, ystack_dim, stats_dim = (
+            self.data.xstack_dim,
+            self.data.ystack_dim,
+            self.data.stats_dim,
         )
-        std_out = xr.DataArray(
-            np.sqrt(out[:, :, 1].T),
-            dims=(alpha_name, "val"),
-            coords={alpha_name: alpha},
+
+        coords = {xstack_dim: xindex}
+        for name in (ystack_dim, stats_dim):
+            if name in template.indexes:
+                coords[name] = template.indexes[name]
+
+        xout = xr.DataArray(
+            out, dims=[ystack_dim, xstack_dim, stats_dim], coords=coords
         )
-        return mean_out, std_out
+
+        if unstack:
+            xout = xout.unstack(xstack_dim).unstack(ystack_dim)
+
+        if drop_order:
+            xout = xout.sel(**{self.data.order_dim: 0})
+
+        return xout
 
 
-def factory_rbf_gprmodel(states, **kws):
+def factory_gprmodel(data, **kws):
     """
     factory function to create GPR model for beta expansion
 
     Parameters
     ----------
-    states : StateCollection of ExtrapModel objects
+    data : object
+        Data object.
     **kws : additional keyword arguments to pass to the model
 
     Returns
@@ -420,7 +441,7 @@ def factory_rbf_gprmodel(states, **kws):
 
     # Define RBF kernel expression and parameters
     var = sp.symbols("var")
-    l = sp.symbols("l")
+    l = sp.symbols("l")  # noqa: E741
     x1 = sp.symbols("x1")
     x2 = sp.symbols("x2")
     rbf_kern_expr = var * sp.exp(-0.5 * (x1 / l - x2 / l) ** 2)
@@ -429,5 +450,4 @@ def factory_rbf_gprmodel(states, **kws):
         "var": [1.0, {"transform": gpflow.utilities.positive()}],
         "l": [1.0, {"transform": gpflow.utilities.positive()}],
     }
-
-    return GPRModel(states, rbf_kern_expr, rbf_params, **kws)
+    return GPRModel(data, rbf_kern_expr, rbf_params, **kws)

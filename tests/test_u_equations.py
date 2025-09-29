@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, NamedTuple
 import pytest
 
 import thermoextrap as xtrap
-from thermoextrap.core.sputils import get_default_indexed
+from thermoextrap.core.sputils import get_default_indexed, get_default_symbol
 
 if TYPE_CHECKING:
     from typing import Any
@@ -16,10 +16,10 @@ if TYPE_CHECKING:
 n_list = [6]
 
 
-class DataNamedTuple(NamedTuple):
+class DataNamedTuple(NamedTuple):  # pylint: disable=missing-class-docstring
     n: int
     u: Symbol
-    x1: Symbol
+    x1: IndexedBase
     du: IndexedBase
     dxdu: IndexedBase
     xu: IndexedBase
@@ -29,7 +29,8 @@ class DataNamedTuple(NamedTuple):
 @pytest.fixture(params=n_list)
 def data(request) -> DataNamedTuple:
     n = request.param
-    u, x1 = xtrap.models.get_default_symbol("u", "x1")
+    u = get_default_symbol("u")
+    x1 = get_default_indexed("x1")
     du, dxdu = get_default_indexed("du", "dxdu")
     xu, ui = get_default_indexed("xu", "u")
 
@@ -62,6 +63,9 @@ def test_x_ave(data, central, post_func) -> None:
         name="u_ave", central=central, post_func=post_func
     )
 
+    assert f0.exprs is not None
+    assert f1.exprs is not None
+
     for i in range(n + 1):
         assert f0.exprs[i].subs(subs) - f1.exprs[i] == 0
 
@@ -73,6 +77,9 @@ def test_central_dx(data) -> None:
         f0 = xtrap.beta.factory_derivatives(name="dxdun_ave", n=m, central=True)
         f1 = xtrap.beta.factory_derivatives(name="dun_ave", n=m + 1, central=True)
 
+        assert f0.exprs is not None
+        assert f1.exprs is not None
+
         for i in range(n + 1):
             assert f0.exprs[i].subs(subs) - f1.exprs[i] == 0
 
@@ -83,6 +90,9 @@ def test_raw_un(data) -> None:
     for m in range(1, n):
         f0 = xtrap.beta.factory_derivatives(name="xun_ave", n=m, central=False)
         f1 = xtrap.beta.factory_derivatives(name="un_ave", n=m + 1, central=False)
+
+        assert f0.exprs is not None
+        assert f1.exprs is not None
 
         for i in range(n + 1):
             assert f0.exprs[i].subs(subs) - f1.exprs[i] == 0

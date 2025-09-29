@@ -12,12 +12,32 @@ from __future__ import annotations
 
 import math
 from functools import lru_cache
+from typing import TYPE_CHECKING
 
 import numpy as np
 from cmomy.random import validate_rng
+from module_utilities.docfiller import DocFiller
 
 from .core._imports import sympy as sp
-from .docstrings import DocFiller
+from .core.sputils import lambdify_with_defaults
+
+if TYPE_CHECKING:
+    # from .core.typing_compat import TypeVar
+
+    from collections.abc import Callable, Sequence
+    from typing import Any
+
+    from numpy.typing import NDArray
+
+    from .core.typing import OptionalRng
+    from .core.typing_compat import TypeAlias
+
+    # from xarray.core.dataarray import DataArray
+    # from xarray.core.dataset import Dataset
+
+    # FloatOrArray = TypeVar("FloatOrArray", float, np.floating[Any], NDArray[np.floating[Any]], DataArray, Dataset)
+
+    FloatOrArray: TypeAlias = Any
 
 __all__ = [
     "dbeta_xave",
@@ -84,7 +104,7 @@ xave_sym = (1 / beta_sym) - vol_sym / (sp.exp(beta_sym * vol_sym) - 1)
 
 
 @docfiller_shared
-def x_ave(beta, vol=1.0):
+def x_ave(beta: FloatOrArray, vol: FloatOrArray = 1.0) -> FloatOrArray:
     """
     Average position x at the inverse temperature beta.
 
@@ -98,7 +118,7 @@ def x_ave(beta, vol=1.0):
 
 
 @docfiller_shared
-def x_var(beta, vol=1.0):
+def x_var(beta: FloatOrArray, vol: FloatOrArray = 1.0) -> FloatOrArray:
     """
     Variance in position, x at the inverse temperature beta.
 
@@ -113,7 +133,9 @@ def x_var(beta, vol=1.0):
 
 
 @docfiller_shared
-def x_prob(x, beta, vol=1.0):
+def x_prob(
+    x: FloatOrArray, beta: FloatOrArray, vol: FloatOrArray = 1.0
+) -> FloatOrArray:
     """
     Canonical probability of position x for single article at inverse temperature beta.
 
@@ -128,7 +150,9 @@ def x_prob(x, beta, vol=1.0):
 
 # from scipy.stats import norm
 @docfiller_shared
-def u_prob(u, npart, beta, vol=1.0):
+def u_prob(
+    u: FloatOrArray, npart: FloatOrArray, beta: FloatOrArray, vol: FloatOrArray = 1.0
+) -> FloatOrArray:
     """
     In the large-N limit, the probability of the potential energy is Normal, so provides that.
 
@@ -149,7 +173,7 @@ def u_prob(u, npart, beta, vol=1.0):
 
 
 @docfiller_shared
-def x_cdf(x, beta, vol=1.0):
+def x_cdf(x: FloatOrArray, beta: FloatOrArray, vol: FloatOrArray = 1.0) -> FloatOrArray:
     """
     Cumulative probability density for position x for single particle.
 
@@ -163,7 +187,12 @@ def x_cdf(x, beta, vol=1.0):
 
 
 @docfiller_shared
-def x_sample(shape, beta, vol=1.0, rng: np.random.Generator | None = None):
+def x_sample(
+    shape: int | Sequence[int],
+    beta: FloatOrArray,
+    vol: FloatOrArray = 1.0,
+    rng: OptionalRng = None,
+) -> NDArray[np.float64]:
     """
     Sample positions from distribution at `beta` and `vol`.
 
@@ -186,11 +215,16 @@ def x_sample(shape, beta, vol=1.0, rng: np.random.Generator | None = None):
     If pass ``r``, then use these to build ``output``.  Otherwise, build random array of shape ``shape``.
     """
     r = validate_rng(rng).random(shape)
-    return (-1.0 / beta) * np.log(1.0 - r * (1.0 - np.exp(-beta * vol)))
+    return (-1.0 / beta) * np.log(1.0 - r * (1.0 - np.exp(-beta * vol)))  # type: ignore[no-any-return]
 
 
 @docfiller_shared
-def u_sample(shape, beta, vol=1.0, rng: np.random.Generator | None = None):
+def u_sample(
+    shape: Sequence[int],
+    beta: FloatOrArray,
+    vol: FloatOrArray = 1.0,
+    rng: OptionalRng = None,
+) -> FloatOrArray:
     """
     Samples potential energy values from a system.
 
@@ -209,29 +243,29 @@ def u_sample(shape, beta, vol=1.0, rng: np.random.Generator | None = None):
 
 
 @lru_cache(maxsize=100)
-def dbeta_xave(k):
+def dbeta_xave(k: int) -> Callable[[FloatOrArray, FloatOrArray], FloatOrArray]:
     """
     Analytical derivative of order k w.r.t. beta for the average of x.
 
     Returns sympy function with expression for derivative.
     """
     deriv = sp.diff(xave_sym, beta_sym, k)
-    return sp.lambdify([beta_sym, vol_sym], deriv, "numpy")
+    return lambdify_with_defaults([beta_sym, vol_sym], deriv)
 
 
 @lru_cache(maxsize=100)
-def dbeta_xave_minuslog(k):
+def dbeta_xave_minuslog(k: int) -> Callable[[FloatOrArray, FloatOrArray], FloatOrArray]:
     """
     Analytical derivative of order k w.r.t. beta for -ln(<x>)
 
     Returns sympy function with expression for derivative.
     """
     deriv = sp.diff(-sp.log(xave_sym), beta_sym, k)
-    return sp.lambdify([beta_sym, vol_sym], deriv, "numpy")
+    return lambdify_with_defaults([beta_sym, vol_sym], deriv)
 
 
 @lru_cache(maxsize=100)
-def dbeta_xave_depend(k):
+def dbeta_xave_depend(k: int) -> Callable[[FloatOrArray, FloatOrArray], FloatOrArray]:
     """
     Analytical derivative of order k w.r.t. beta for the average of beta*x
 
@@ -241,33 +275,37 @@ def dbeta_xave_depend(k):
     And since particles are independent, can just multiply by N for a system of N particles
     """
     deriv = sp.diff(beta_sym * xave_sym, beta_sym, k)
-    return sp.lambdify([beta_sym, vol_sym], deriv, "numpy")
+    return lambdify_with_defaults([beta_sym, vol_sym], deriv)
 
 
 @lru_cache(maxsize=100)
-def dbeta_xave_depend_minuslog(k):
+def dbeta_xave_depend_minuslog(
+    k: int,
+) -> Callable[[FloatOrArray, FloatOrArray], FloatOrArray]:
     """
     Analytical derivative of order k w.r.t. beta for -ln(<beta*x>)
 
     Returns sympy function with expression for derivative.
     """
     deriv = sp.diff(-sp.log(beta_sym * xave_sym), beta_sym, k)
-    return sp.lambdify([beta_sym, vol_sym], deriv, "numpy")
+    return lambdify_with_defaults([beta_sym, vol_sym], deriv)
 
 
 @lru_cache(maxsize=100)
-def dvol_xave(k):
+def dvol_xave(k: int) -> Callable[[FloatOrArray, FloatOrArray], FloatOrArray]:
     """
     Analytical derivative of order k w.r.t. L for average x
 
     Returns sympy function with expression for derivative.
     """
     deriv = sp.diff(xave_sym, vol_sym, k)
-    return sp.lambdify([beta_sym, vol_sym], deriv, "numpy")
+    return lambdify_with_defaults([beta_sym, vol_sym], deriv)
 
 
 @docfiller_shared
-def x_beta_extrap(order, beta0, beta, vol=1.0):
+def x_beta_extrap(
+    order: int, beta0: FloatOrArray, beta: FloatOrArray, vol: FloatOrArray = 1.0
+) -> tuple[float, NDArray[np.float64]]:
     """
     Analytical extrapolation and coefficients from beta0 to beta (at L=vol) using derivatives up to order
 
@@ -282,17 +320,19 @@ def x_beta_extrap(order, beta0, beta, vol=1.0):
     """
     dbeta = beta - beta0
 
-    out = []
+    out: list[Any] = []
     tot = 0.0
     for k in range(order + 1):
         val = dbeta_xave(k)(beta0, vol)
         out.append(val)
         tot += val / math.factorial(k) * (dbeta**k)
-    return tot, np.array(out)
+    return tot, np.array(out, dtype=np.float64)
 
 
 @docfiller_shared
-def x_beta_extrap_minuslog(order, beta0, beta, vol=1.0):
+def x_beta_extrap_minuslog(
+    order: int, beta0: FloatOrArray, beta: FloatOrArray, vol: FloatOrArray = 1.0
+) -> tuple[float, NDArray[np.float64]]:
     """
     Same as x_beta_extrap but with -ln<x>.
 
@@ -305,7 +345,7 @@ def x_beta_extrap_minuslog(order, beta0, beta, vol=1.0):
     """
     dbeta = beta - beta0
 
-    out = np.zeros(order + 1)
+    out = np.zeros(order + 1, dtype=np.float64)
     tot = 0.0
     for o in range(order + 1):
         out[o] = dbeta_xave_minuslog(o)(beta0, vol)
@@ -315,7 +355,9 @@ def x_beta_extrap_minuslog(order, beta0, beta, vol=1.0):
 
 
 @docfiller_shared
-def x_beta_extrap_depend(order, beta0, beta, vol=1.0):
+def x_beta_extrap_depend(
+    order: int, beta0: FloatOrArray, beta: FloatOrArray, vol: FloatOrArray = 1.0
+) -> tuple[float, NDArray[np.float64]]:
     """
     Same as x_beta_extrap but for <beta*x>.
 
@@ -328,7 +370,7 @@ def x_beta_extrap_depend(order, beta0, beta, vol=1.0):
     """
     dbeta = beta - beta0
 
-    out = np.zeros(order + 1)
+    out = np.zeros(order + 1, dtype=np.float64)
     tot = 0.0
     for o in range(order + 1):
         out[o] = dbeta_xave_depend(o)(beta0, vol)
@@ -343,7 +385,9 @@ def x_beta_extrap_depend(order, beta0, beta, vol=1.0):
 
 
 @docfiller_shared
-def x_beta_extrap_depend_minuslog(order, beta0, beta, vol=1.0):
+def x_beta_extrap_depend_minuslog(
+    order: int, beta0: FloatOrArray, beta: FloatOrArray, vol: FloatOrArray = 1.0
+) -> tuple[float, NDArray[np.float64]]:
     """
     Same as x_beta_extrap but with -ln<beta*x>.
 
@@ -356,7 +400,7 @@ def x_beta_extrap_depend_minuslog(order, beta0, beta, vol=1.0):
     """
     dbeta = beta - beta0
 
-    out = np.zeros(order + 1)
+    out = np.zeros(order + 1, dtype=np.float64)
     tot = 0.0
     for o in range(order + 1):
         out[o] = dbeta_xave_depend_minuslog(o)(beta0, vol)
@@ -374,7 +418,9 @@ def x_beta_extrap_depend_minuslog(order, beta0, beta, vol=1.0):
 
 
 @docfiller_shared
-def x_vol_extrap(order, vol0, vol, beta=1.0):
+def x_vol_extrap(
+    order: int, vol0: FloatOrArray, vol: FloatOrArray, beta: FloatOrArray = 1.0
+) -> tuple[float, NDArray[np.float64]]:
     """
     Analytical extrapolation coefficients from vol0 to vol (at beta) using derivatives up to order
 
@@ -389,18 +435,23 @@ def x_vol_extrap(order, vol0, vol, beta=1.0):
     """
     dvol = vol - vol0
 
-    out = []
+    out: list[Any] = []
     tot = 0.0
 
     for k in range(order + 1):
         val = dvol_xave(k)(beta, vol0)
         out.append(val)
         tot += val * (dvol**k) / math.factorial(k)
-    return tot, np.array(out)
+    return tot, np.array(out, dtype=np.float64)
 
 
 @docfiller_shared
-def generate_data(shape, beta, vol=1.0, rng: np.random.Generator | None = None):
+def generate_data(
+    shape: Sequence[int],
+    beta: FloatOrArray,
+    vol: FloatOrArray = 1.0,
+    rng: OptionalRng = None,
+) -> tuple[FloatOrArray, FloatOrArray]:
     """
     Generates data points in specified shape, where the first index is the number of samples and the second is the number of independent IG particles
     Sample will be at beta with L=vol

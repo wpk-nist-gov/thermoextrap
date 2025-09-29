@@ -2,16 +2,16 @@
 GPR utilities (:mod:`~thermoextrap.gpr_active.active_utils`)
 ------------------------------------------------------------
 """
+# pyright: reportMissingTypeStubs=false, reportMissingImports=false
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import multiprocessing
 import time
 import warnings
 from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING
 
 import gpflow
 import numpy as np
@@ -20,27 +20,55 @@ import sympy as sp
 # import tensorflow as tf
 import xarray as xr
 from cmomy.random import validate_rng
-from scipy import integrate, linalg, special
+from scipy import linalg, special
 
 from thermoextrap import beta as xpan_beta
+from thermoextrap.core.typing import SupportsModelDerivs
 from thermoextrap.data import DataCentralMomentsVals
-from thermoextrap.models import ExtrapModel
+from thermoextrap.gpr_active.gp_models import HeteroscedasticGPR
 
+from ._typing import SupportsDataWrapper
+
+# from thermoextrap.models import ExtrapModel
 from .gp_models import (
     ConstantMeanWithDerivs,
     DerivativeKernel,
-    HeteroscedasticGPR,
     LinearWithDerivs,
 )
 
-logger = logging.basicConfig(level=logging.INFO)
+if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping, Sequence
+    from os import PathLike
+    from typing import Any, SupportsIndex
+
+    from cmomy.core.typing import Sampler
+    from gpflow.mean_functions import MeanFunction
+    from numpy.typing import ArrayLike
+    from scipy.optimize import OptimizeResult
+    from sympy.core.expr import Expr
+    from sympy.core.numbers import Integer
+    from tensorflow_probability.python.bijectors.softplus import Softplus
+
+    from thermoextrap.core.typing import (
+        NDArrayAny,
+        NDArrayOrDataArrayT,
+        OptionalKwsAny,
+        OptionalRng,
+        SupportsIdentityTransform,
+    )
+
+    from ._typing import SupportsSimulation
+    # from thermoextrap.core.typing_compat import TypeVar
+
+
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 # from typing import Optional
 
 
-def get_logweights(bias):
+def get_logweights(bias: NDArrayOrDataArrayT) -> NDArrayOrDataArrayT:
     """
     Given values of the biasing potential for each configuration, calculates the weights
     for averaging over those configurations for the biased ensemble so that the
@@ -50,22 +78,26 @@ def get_logweights(bias):
     log_denom = (
         np.log(np.sum(np.exp(bias - bias_max))) + bias_max
     )  # - np.log(bias.shape[0])
-    return (
+    return (  # type: ignore[no-any-return]
         bias - log_denom
     )  # - np.log(bias.shape[0]) # Acts as weight summing to 1 this way
 
 
-def input_GP_from_state(state, n_rep=100, log_scale=False):
+def input_GP_from_state(
+    state: SupportsModelDerivs[xr.DataArray],
+    sampler: Sampler = 100,
+    log_scale: bool = False,
+) -> tuple[NDArrayAny, NDArrayAny, NDArrayAny]:
     """
     Builds input for GP model up to specified order from ExtrapModel object of thermoextrap.
     If log_scale, adjust x inputs and derivatives to reflect taking the logarithm of x.
 
     Parameters
     ----------
-    state : ExtrapModel
+    state : :class:`~.core.typing.SupportsModelDerivs`
       object containing derivative information
-    n_rep : int, default=100
-        Number of bootstrap draws of data to perform to compute variances
+    sampler : :obj:`~cmomy.core.typing.Sampler`
+        Sampler object.
     log_scale : bool, default=False
         Whether or not to apply a log scale in the input locations
         (i.e., compute derivatives of dy/dlog(x) instead of dy/dx)
@@ -92,8 +124,8 @@ def input_GP_from_state(state, n_rep=100, log_scale=False):
     x_data = np.concatenate([alphas, np.arange(state.order + 1)[:, None]], axis=1)
 
     if isinstance(state.data, DataCentralMomentsVals):
-        derivs = state.derivs(norm=False).values
-        resamp_derivs = state.resample(sampler={"nrep": n_rep}).derivs(norm=False)
+        derivs = state.derivs(norm=False).to_numpy()
+        resamp_derivs = state.resample(sampler=sampler).derivs(norm=False)
     else:
         # Above with DataCentralMomentsVals is for simulation snapshots
         # Below is if things are pre-computed, so have multiple simulations
@@ -102,7 +134,7 @@ def input_GP_from_state(state, n_rep=100, log_scale=False):
         # resample() does not necessarily only resample along the 'rec' dimension
         # So to be consistent with above single simulation case, just compute
         # variance along 'rec' dimension by not doing resampling
-        derivs = state.derivs(norm=False).mean("rec").values
+        derivs = state.derivs(norm=False).mean("rec").to_numpy()
         resamp_derivs = state.derivs(norm=False)
 
     if log_scale:
@@ -183,14 +215,14 @@ class DataWrapper:
 
     def __init__(
         self,
-        sim_info_files,
-        cv_bias_files,
-        beta,
-        x_files=None,
-        n_frames=10000,
-        u_col=2,
-        cv_cols=None,
-        x_col=None,
+        sim_info_files: Sequence[str | PathLike[Any]],
+        cv_bias_files: Sequence[str | PathLike[Any]],
+        beta: float,
+        x_files: Sequence[str | PathLike[Any]] | None = None,
+        n_frames: int = 10000,
+        u_col: int = 2,
+        cv_cols: Sequence[int] | None = None,
+        x_col: Sequence[int] | None = None,
     ) -> None:
         if x_col is None:
             x_col = [1]
@@ -209,13 +241,13 @@ class DataWrapper:
             ]
         self.x_col = x_col
 
-    def load_U_info(self):
+    def load_U_info(self) -> NDArrayAny:
         """Loads potential energies from a list of files."""
         U = [np.loadtxt(f)[-self.n_frames :, self.u_col] for f in self.sim_info_files]
         # If eventually using MBAR, will want to vstack instead
         return np.hstack(U)
 
-    def load_CV_info(self):
+    def load_CV_info(self) -> tuple[NDArrayAny, NDArrayAny]:
         """
         Loads data from a file specifying CV coordinate and added bias at each frame.
         Assumes that the first value in col_ind is the index of the CV coordinate column and the
@@ -227,16 +259,18 @@ class DataWrapper:
             cv_info = np.loadtxt(f)[-self.n_frames :, self.cv_cols]
             cv_vals.append(cv_info[:, 0])
             cv_bias.append(cv_info[:, 1])
-        cv_vals = np.hstack(cv_vals)
-        cv_bias = np.hstack(cv_bias)
-        return cv_vals, cv_bias
+        return np.hstack(cv_vals), np.hstack(cv_bias)
 
-    def load_x_info(self):
+    def load_x_info(self) -> NDArrayAny:
         """Loads observable data."""
-        x = [np.loadtxt(f)[-self.n_frames :, self.x_col] for f in self.x_files]
+        x = (
+            []
+            if self.x_files is None
+            else [np.loadtxt(f)[-self.n_frames :, self.x_col] for f in self.x_files]
+        )
         return np.vstack(x)
 
-    def get_data(self):
+    def get_data(self) -> tuple[xr.DataArray, xr.DataArray, NDArrayAny]:
         """
         Loads data from files needed to generate data classes for thermoextrap.
         Will change significantly if using MBAR on trajectories with different biases.
@@ -271,11 +305,13 @@ class DataWrapper:
         logw = get_logweights(self.beta * bias)
         w = np.exp(logw)
         # Convert to xarray objects with dimensions named appropriately
-        pot = xr.DataArray(pot, dims=["rec"])
-        x = xr.DataArray(x, dims=["rec", "val"])
-        return pot, x, w
+        return xr.DataArray(pot, dims=["rec"]), xr.DataArray(x, dims=["rec", "val"]), w
 
-    def build_state(self, all_data=None, max_order=6):
+    def build_state(
+        self,
+        all_data: tuple[xr.DataArray, xr.DataArray, NDArrayAny] | None = None,
+        max_order: int = 6,
+    ) -> SupportsModelDerivs[xr.DataArray]:
         """
         Builds a thermoextrap data object for the data described by this wrapper class.
         If all_data is provided, should be list or tuple of (potential energies, X) to
@@ -287,7 +323,7 @@ class DataWrapper:
         x_vals = all_data[1]
         weights = all_data[2]
         state_data = DataCentralMomentsVals.from_vals(
-            uv=u_vals, xv=x_vals, w=weights, order=max_order
+            uv=u_vals, xv=x_vals, weight=weights, order=max_order
         )
         return xpan_beta.factory_extrapmodel(self.beta, state_data)
 
@@ -311,8 +347,8 @@ class SimWrapper:
         name of file with CV values and bias for simulation to produce
     kw_inputs : dict, optional
         additional keyword inputs to the simulation
-    data_class : object
-        class (e.g., :class:`DataWrapper`) to use for wrapping simulation output data;
+    data_class : callable or type
+        callable or class (e.g., :class:`DataWrapper`) to use for wrapping simulation output data;
         data will be wrapped before returned to the active learning algorithm
     post_process_func : callable, optional
         Function for post-processing simulation outputs but before
@@ -330,18 +366,18 @@ class SimWrapper:
 
     def __init__(
         self,
-        sim_func,
-        struc_name,
-        sys_name,
-        info_name,
-        bias_name,
-        kw_inputs=None,
-        data_kw_inputs=None,
-        data_class=DataWrapper,
-        post_process_func=None,
-        post_process_out_name=None,
-        post_process_kw_inputs=None,
-        pre_process_func=None,
+        sim_func: Callable[..., Any],
+        struc_name: str,
+        sys_name: str,
+        info_name: str,
+        bias_name: str,
+        kw_inputs: OptionalKwsAny = None,
+        data_kw_inputs: OptionalKwsAny = None,
+        data_class: Callable[..., SupportsDataWrapper] = DataWrapper,
+        post_process_func: Callable[..., Any] | None = None,
+        post_process_out_name: str | None = None,
+        post_process_kw_inputs: OptionalKwsAny = None,
+        pre_process_func: Callable[..., Any] | None = None,
     ) -> None:
         if post_process_kw_inputs is None:
             post_process_kw_inputs = {}
@@ -356,9 +392,9 @@ class SimWrapper:
         self.sys_file = sys_name  # Name of system file for setting up, say, OpenMM
         self.info_name = info_name  # Name of simulation info file produced
         self.bias_name = bias_name  # Name of simulation bias file produced
-        self.kw_inputs = (
-            kw_inputs  # Dictionary of other key-word args for the simulation
-        )
+        self.kw_inputs = dict(
+            kw_inputs
+        )  # Dictionary of other key-word args for the simulation
         self.kw_inputs["info_name"] = (
             self.info_name
         )  # Restricts naming convention for sim_func
@@ -373,7 +409,13 @@ class SimWrapper:
 
         self.pre_func = pre_process_func  # Pre-processing function (predict extra args)
 
-    def run_sim(self, sim_dir, alpha, n_repeats=1, **extra_kwargs):
+    def run_sim(
+        self,
+        sim_dir: str | PathLike[Any],
+        alpha: float,
+        n_repeats: int = 1,
+        **extra_kwargs: Any,
+    ) -> SupportsDataWrapper:
         """
         Runs simulation(s) and returns an object of type self.data_class pointing to
         right files. By default only one, but will run n_repeats in parallel if specified.
@@ -447,17 +489,14 @@ class SimWrapper:
 
         # If have pre-processing function provide sim info to update it
         # Ignore if pre_func has no update() method, though
-        if self.pre_func is not None:
-            with contextlib.suppress(AttributeError):
-                self.pre_func.update(alpha, sim_info_files, sim_bias_files, sim_x_files)
+        if self.pre_func is not None and hasattr(self.pre_func, "update"):
+            self.pre_func.update(alpha, sim_info_files, sim_bias_files, sim_x_files)  # pyright: ignore[reportFunctionMemberAccess]
 
         return sim_dat
 
 
 # TODO(wpk): replace l with v
-
-
-def make_matern_expr(p):
+def make_matern_expr(p: SupportsIndex | Integer) -> tuple[Expr, dict[str, list[Any]]]:
     """
     Creates a sympy expression for the Matern kernel of order p.
 
@@ -474,13 +513,14 @@ def make_matern_expr(p):
     """
     d = sp.symbols("d")
     k = sp.var("k")
+    p = sp.Integer(p)
     poly_part = sp.Sum(
         (sp.factorial(p + k) / (sp.factorial(k) * sp.factorial(p - k)))
-        * (2 * sp.sqrt(float(2 * p + 1)) * d) ** (p - k),
+        * (2 * sp.sqrt(2 * p + 1) * d) ** (p - k),
         (k, 0, p),
     ).doit()
     poly_part = poly_part * sp.factorial(p) / sp.factorial(2 * p)
-    exp_part = sp.exp(-sp.sqrt(float(2 * p + 1)) * d)
+    exp_part = sp.exp(-sp.sqrt(2 * p + 1) * d)
     full_expr = sp.simplify(poly_part * exp_part)
     l = sp.symbols("l", real=True)  # noqa: E741
     x1 = sp.symbols("x1", real=True)
@@ -494,7 +534,9 @@ def make_matern_expr(p):
     return var * full_expr.subs(d, distance), kern_params
 
 
-def make_rbf_expr(n_dims=1):
+def make_rbf_expr(
+    n_dims: int = 1,
+) -> tuple[Expr, dict[str, list[float | dict[str, Softplus]]]]:
     """
     Creates a sympy expression for an RBF kernel.
 
@@ -512,9 +554,9 @@ def make_rbf_expr(n_dims=1):
     """
     var = sp.symbols("var", real=True)
     l = sp.Matrix(  # noqa: E741
-        [sp.symbols("l_%i" % i, real=True) for i in range(n_dims)]
+        [sp.symbols(f"l_{i}", real=True) for i in range(n_dims)]
     )
-    l_inv = sp.Matrix([1 / k for k in l])
+    l_inv = sp.Matrix([1 / k for k in l])  # pyright: ignore[reportOperatorIssue]
     x1 = sp.Matrix([sp.symbols("x1_%i" % i, real=True) for i in range(n_dims)])
     x2 = sp.Matrix([sp.symbols("x2_%i" % i, real=True) for i in range(n_dims)])
 
@@ -522,17 +564,17 @@ def make_rbf_expr(n_dims=1):
     scaled_diff_sq = scaled_diff.dot(scaled_diff)
     rbf_kern_expr = var * sp.exp(-0.5 * scaled_diff_sq)
 
-    kern_params = {
+    kern_params: dict[str, list[float | dict[str, Softplus]]] = {
         "var": [1.0, {"transform": gpflow.utilities.positive()}],
     }
 
     for k in l:
-        kern_params[k.name] = [1.0, {"transform": gpflow.utilities.positive()}]
+        kern_params[k.name] = [1.0, {"transform": gpflow.utilities.positive()}]  # pyright: ignore[reportAttributeAccessIssue]
 
     return rbf_kern_expr, kern_params
 
 
-def make_rbf_expr_old():
+def make_rbf_expr_old() -> tuple[Expr, dict[str, list[Any]]]:
     """
     Creates a sympy expression for an RBF kernel.
 
@@ -554,7 +596,7 @@ def make_rbf_expr_old():
     return rbf_kern_expr, kern_params
 
 
-def make_poly_expr(p):
+def make_poly_expr(p: int) -> tuple[Expr, dict[str, list[Any]]]:
     """
     Creates a sympy expression for a polynomial kernel.
 
@@ -603,7 +645,7 @@ class RBFDerivKernel(DerivativeKernel):
     Use it most often, so convenient to have.
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         kern_expr, kern_params = make_rbf_expr()
         super().__init__(kern_expr, 1, kernel_params=kern_params, **kwargs)
 
@@ -633,7 +675,7 @@ class ChangeInnerOuterRBFDerivKernel(DerivativeKernel):
     ~thermoextrap.gpr_active.gp_models.DerivativeKernel
     """
 
-    def __init__(self, c1=-7.0, c2=-2.0, **kwargs) -> None:
+    def __init__(self, c1: float = -7.0, c2: float = -2.0, **kwargs: Any) -> None:
         x1 = sp.symbols("x1", real=True)
         x2 = sp.symbols("x2", real=True)
 
@@ -675,13 +717,13 @@ class ChangeInnerOuterRBFDerivKernel(DerivativeKernel):
 
 
 def create_base_GP_model(
-    gpr_data,
-    d_order_ref=0,
-    shared_kernel=True,
-    kernel=RBFDerivKernel,
-    mean_func=None,
-    likelihood_kwargs=None,
-):
+    gpr_data: tuple[NDArrayAny, NDArrayAny, NDArrayAny],
+    d_order_ref: int = 0,
+    shared_kernel: bool = True,
+    kernel: type[gpflow.kernels.Kernel] | gpflow.kernels.Kernel = RBFDerivKernel,
+    mean_func: MeanFunction | None = None,
+    likelihood_kwargs: OptionalKwsAny = None,
+) -> HeteroscedasticGPR:
     """
     Creates just the base GP model without any training,just sets up sympy and
     GPflow. kernel can either be a kernel object, in which case it is assumed
@@ -754,40 +796,40 @@ def create_base_GP_model(
     # Also helps ensure kernel variance will be close to 1, so close to starting value
     # But can only do if have at least 2 values... really 3 for computing std, but
     # doing it with 2 won't hurt, will just scale by mean, technically
-    if len(np.unique(gpr_data[0][ref_d_bool, :n_x_dims], axis=0)) > 1:
-        std_scale = np.std(
+    std_scale = (
+        np.std(
             gpr_data[1][ref_d_bool, :] - mean_func(gpr_data[0][ref_d_bool, :]),
             axis=0,
         )
-    else:
-        std_scale = 1.0
+        if len(np.unique(gpr_data[0][ref_d_bool, :n_x_dims], axis=0)) > 1
+        else 1.0
+    )
 
     # If already provided fully prepared kernel, just pass along
-    if not isinstance(kernel, type):
+    full_kernel: gpflow.kernels.Kernel
+    if isinstance(kernel, gpflow.kernels.Kernel):
         full_kernel = kernel
         # But warn if the kernel is not MultioutputKernel and shared_kernel=False
         if (
-            not issubclass(type(kernel), gpflow.kernels.MultioutputKernel)
+            not isinstance(kernel, gpflow.kernels.MultioutputKernel)
             and not shared_kernel
         ):
             warnings.warn(
-                f"""\
-                WARNING: A kernel object (not class) of {kernel} has been
-                provided. Since this is not a subclass of
-                gpflow.kernels.MultioutputKernel, it will be wrapped in a
-                SharedIndependent kernel by HeteroscedasticGPR. However, you
-                have set shared_kernel=False, so this may not be the behavior
-                you wanted.
-                """,
+                f"A kernel object (not class) of {kernel} has been "
+                "provided. Since this is not a subclass of "
+                "gpflow.kernels.MultioutputKernel, it will be wrapped in a "
+                "SharedIndependent kernel by HeteroscedasticGPR. However, you "
+                "have set shared_kernel=False, so this may not be the behavior "
+                "you wanted.",
                 stacklevel=1,
             )
-    elif shared_kernel:
+    elif shared_kernel:  # pylint: disable=confusing-consecutive-elif
         full_kernel = gpflow.kernels.SharedIndependent(
             kernel(), output_dim=gpr_data[1].shape[-1]
         )
     else:
         full_kernel = gpflow.kernels.SeparateIndependent(
-            [kernel() for k in range(gpr_data[1].shape[-1])]
+            [kernel() for _ in range(gpr_data[1].shape[-1])]
         )
 
     return HeteroscedasticGPR(
@@ -799,7 +841,11 @@ def create_base_GP_model(
     )
 
 
-def train_GPR(gpr, record_loss=False, start_params=None):
+def train_GPR(
+    gpr: Any,
+    record_loss: bool = False,
+    start_params: Mapping[int, Any] | Sequence[Any] | None = None,
+) -> OptimizeResult | None:
     """
     Trains a given gpr model for n_opt steps.
     Actually uses scipy wrapper in gpflow, which seems faster.
@@ -831,11 +877,9 @@ def train_GPR(gpr, record_loss=False, start_params=None):
         optim_params = [tpar.numpy() for tpar in gpr.trainable_parameters]
 
         # Set values to provided starting values
-        for j in range(len(gpr.trainable_parameters)):
-            this_param = _catch_inf_unconstrained_param(
-                gpr.trainable_parameters[j], start_params[j]
-            )
-            gpr.trainable_parameters[j].assign(this_param)
+        for trainable_param, start_param in zip(gpr.trainable_parameters, start_params):
+            this_param = _catch_inf_unconstrained_param(trainable_param, start_param)
+            trainable_param.assign(this_param)
 
         # Perform optimization starting with provided values
         loss_info_new = optim.minimize(
@@ -869,7 +913,16 @@ def train_GPR(gpr, record_loss=False, start_params=None):
     return None
 
 
-def create_GPR(state_list, log_scale=False, start_params=None, base_kwargs=None):
+def create_GPR(
+    state_list: Sequence[
+        SupportsModelDerivs[xr.DataArray]
+        | Callable[[], tuple[NDArrayAny, NDArrayAny, NDArrayAny]]
+    ],
+    log_scale: bool = False,
+    sampler: Sampler = 100,
+    start_params: Mapping[int, Any] | Sequence[Any] | None = None,
+    base_kwargs: OptionalKwsAny = None,
+) -> HeteroscedasticGPR:
     """
     Generates and trains a GPR model based on a list of ExtrapModel objects or a
     StateCollection object from thermoextrap. If a list of another type of
@@ -896,23 +949,25 @@ def create_GPR(state_list, log_scale=False, start_params=None, base_kwargs=None)
     # Loop over states and collect information needed for GP
     if base_kwargs is None:
         base_kwargs = {}
-    x_data = []
-    y_data = []
+    x_list = []
+    y_list = []
     cov_data = []
     for s in state_list:
-        if isinstance(s, ExtrapModel):
+        if isinstance(s, SupportsModelDerivs):
             this_x_data, this_y_data, this_cov_data = input_GP_from_state(
-                s, log_scale=log_scale
+                s,
+                log_scale=log_scale,
+                sampler=sampler,
             )
         else:
             this_x_data, this_y_data, this_cov_data = s()
-        x_data.append(this_x_data)
-        y_data.append(this_y_data)
+        x_list.append(this_x_data)
+        y_list.append(this_y_data)
         cov_data.append(this_cov_data)
 
     # Put state information together
-    x_data = np.vstack(x_data)
-    y_data = np.vstack(y_data)
+    x_data = np.vstack(x_list)
+    y_data = np.vstack(y_list)
     # Derivatives from same simulation correlated, between independent
     # And different outputs are also independent in their likelihood model (covariance matrix)
     # So loop to treat each dimension separately
@@ -934,7 +989,6 @@ def create_GPR(state_list, log_scale=False, start_params=None, base_kwargs=None)
     #     #So keep decreasing order until works, and if order=0 fails throw error
     #     order = int(np.max(x_data[:, 1]))
     #     while order >= 0:
-    #
     #         try:
     #             #Create GPR
     #             gpr = create_base_GP_model(data_input, **base_kwargs)
@@ -952,7 +1006,6 @@ def create_GPR(state_list, log_scale=False, start_params=None, base_kwargs=None)
     #             noise_cov_mat = linalg.block_diag(*[c[:order, :order] for c in cov_data])
     #             data_input = (x_data, y_data, noise_cov_mat)
     #             order = order - 1
-    #
     #         if order < 0:
     #             raise ValueError('Cholesky decomposition has failed at order=0. Something is wrong.')
 
@@ -967,10 +1020,14 @@ def create_GPR(state_list, log_scale=False, start_params=None, base_kwargs=None)
 # (preferably around 95%)
 # Here only implement the simplest (and default) transformation, the identity transform
 # (which also computes std given variance and upper and lower confidence interval values)
-def identityTransform(x, y, y_var):  # noqa: ARG001
-    y_std = np.sqrt(y_var)
+def identityTransform(
+    x: NDArrayOrDataArrayT,  # noqa: ARG001
+    y: NDArrayOrDataArrayT,
+    y_var: ArrayLike,
+) -> tuple[NDArrayOrDataArrayT, NDArrayOrDataArrayT, list[NDArrayOrDataArrayT]]:
+    y_std: NDArrayOrDataArrayT = np.sqrt(y_var)  # type: ignore[assignment]  # pyright: ignore[reportAssignmentType]
     conf_int = [y - 2.0 * y_std, y + 2.0 * y_std]
-    return y, y_std, conf_int
+    return y, y_std, conf_int  # type: ignore[return-value]
 
 
 # The following functions will be useful in both update function and stopping criteria classes
@@ -984,11 +1041,11 @@ class UpdateStopABC:
 
     def __init__(
         self,
-        d_order_pred=0,
-        transform_func=identityTransform,
-        log_scale=False,
-        avoid_repeats=False,
-        rng: np.random.Generator | None = None,
+        d_order_pred: int = 0,
+        transform_func: SupportsIdentityTransform = identityTransform,
+        log_scale: bool = False,
+        avoid_repeats: bool = False,
+        rng: OptionalRng = None,
     ) -> None:
         """
         Parameters
@@ -1014,7 +1071,7 @@ class UpdateStopABC:
 
         self.rng = validate_rng(rng)
 
-    def create_alpha_grid(self, alpha_list):
+    def create_alpha_grid(self, alpha_list: ArrayLike) -> tuple[NDArrayAny, NDArrayAny]:
         """
         Given a list of alpha values used in the GP model, creates a grid of values
         to evaluate the GP model at. This grid, alpha_grid is returned along with values
@@ -1046,7 +1103,9 @@ class UpdateStopABC:
             alpha_select = alpha_select[1:-1]
         return alpha_grid, alpha_select
 
-    def get_transformed_GP_output(self, gpr, x_vals):
+    def get_transformed_GP_output(
+        self, gpr: HeteroscedasticGPR, x_vals: NDArrayAny
+    ) -> tuple[NDArrayAny, NDArrayAny, list[NDArrayAny]]:
         """Returns output of GP and transforms it, evaluating GP using predict_f at alpha values."""
         # Could use predict_y instead
         # But cannot unless have model for noise at new points, so just work with predict_f
@@ -1091,11 +1150,11 @@ class UpdateFuncBase(UpdateStopABC):
 
     def __init__(
         self,
-        show_plot=False,
-        save_plot=False,
-        save_dir="./",
-        compare_func=None,
-        **kwargs,
+        show_plot: bool = False,
+        save_plot: bool = False,
+        save_dir: str | PathLike[Any] = "./",
+        compare_func: Callable[..., Any] | None = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
 
@@ -1106,7 +1165,13 @@ class UpdateFuncBase(UpdateStopABC):
         self.save_dir = Path(save_dir)
         self.compare_func = compare_func
 
-    def do_plotting(self, x, y, err, alpha_list) -> None:
+    def do_plotting(
+        self,
+        x: NDArrayAny,
+        y: NDArrayAny,
+        err: Sequence[Any],
+        alpha_list: Sequence[Any],
+    ) -> None:
         """
         Plots output used to select new update point.
         err is expected to be length 2 list with upper and lower confidence intervals.
@@ -1114,16 +1179,17 @@ class UpdateFuncBase(UpdateStopABC):
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots()
-        if self.compare_func is not None:
-            compare_y = self.compare_func(x[:, None])
+        compare_y = (
+            self.compare_func(x[:, None]) if self.compare_func is not None else None
+        )
         # Need loop to handle multiple outputs if have them
         for k in range(y.shape[1]):
             ax.plot(x, y[:, k])
             ax.fill_between(x, err[0][:, k], err[1][:, k], alpha=0.2)
-            if self.compare_func is not None:
+            if compare_y is not None:
                 ax.plot(x, compare_y[:, k], "k--")
         # Use compare_func output to set range of plot
-        if self.compare_func is not None:
+        if compare_y is not None:
             compare_min = np.min(compare_y)
             compare_max = np.max(compare_y)
             compare_range = compare_max - compare_min
@@ -1154,12 +1220,16 @@ class UpdateFuncBase(UpdateStopABC):
         if self.show_plot:
             plt.show()
 
-    def do_update(self, gpr, alpha_list) -> NoReturn:
+    def do_update(  # pylint: disable=no-self-use
+        self, gpr: Any, alpha_list: Sequence[Any]
+    ) -> tuple[float, NDArrayAny, NDArrayAny]:
         msg = "Must implement this function for specific update scheme"
         raise NotImplementedError(msg)
 
-    def __call__(self, gpr, alpha_list):
-        new_alpha, pred_mu, pred_std = self.do_update(gpr, alpha_list)
+    def __call__(
+        self, gpr: Any, alpha_list: Sequence[Any]
+    ) -> tuple[float, NDArrayAny, NDArrayAny]:
+        new_alpha, pred_mu, pred_std = self.do_update(gpr, alpha_list)  # pylint: disable=assignment-from-no-return
 
         if self.log_scale:
             new_alpha = 10.0 ** (new_alpha)
@@ -1185,10 +1255,12 @@ class UpdateALMbrute(UpdateFuncBase):
     operations) such that the uncertainty can also be adjusted in the same way.
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
-    def do_update(self, gpr, alpha_list):
+    def do_update(
+        self, gpr: Any, alpha_list: Sequence[Any]
+    ) -> tuple[float, NDArrayAny, NDArrayAny]:
         # Create grid of alpha values to interrogate GP model and select new values
         _alpha_grid, alpha_select = self.create_alpha_grid(alpha_list)
 
@@ -1213,11 +1285,11 @@ class UpdateALMbrute(UpdateFuncBase):
         # Will take first maximum or plateau if multiple, but with a plateau takes ~halfway
         # For case of plateau, not possible to have "wiggles" due to smoothness conditions
         # (at least with an RBF kernel)
-        max_inds = np.where((gpr_std / std_y) == max_err)
+        max_inds_tuple = np.where((gpr_std / std_y) == max_err)
         # Select dimension with most maxima, breaking ties with first such dimension
-        dim_vals, dim_counts = np.unique(max_inds[1], return_counts=True)
+        dim_vals, dim_counts = np.unique(max_inds_tuple[1], return_counts=True)
         dim_max = dim_vals[np.argmax(dim_counts)]
-        max_inds = np.sort(max_inds[0][(max_inds[1] == dim_max)])
+        max_inds = np.sort(max_inds_tuple[0][(max_inds_tuple[1] == dim_max)])
         if max_inds.size == 1:
             new_alpha = alpha_select[max_inds[0]]
             out_mu = gpr_mu[max_inds[0], ...]
@@ -1234,7 +1306,7 @@ class UpdateALMbrute(UpdateFuncBase):
             out_mu = gpr_mu[new_ind, ...]
             out_std = gpr_std[new_ind, ...]
 
-        return new_alpha, out_mu, out_std
+        return float(new_alpha), out_mu, out_std
 
 
 class UpdateRandom(UpdateFuncBase):
@@ -1243,10 +1315,12 @@ class UpdateRandom(UpdateFuncBase):
     This does not require training a GP model, but one is trained anyway for plotting, etc.
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
-    def do_update(self, gpr, alpha_list):
+    def do_update(
+        self, gpr: Any, alpha_list: Sequence[Any]
+    ) -> tuple[float, NDArrayAny, NDArrayAny]:
         # Create grid of alpha values to interrogate GP model and select new values
         _alpha_grid, alpha_select = self.create_alpha_grid(alpha_list)
 
@@ -1275,10 +1349,12 @@ class UpdateSpaceFill(UpdateFuncBase):
     This does not require training a GP model, but one is trained anyway for plotting, etc.
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
-    def do_update(self, gpr, alpha_list):
+    def do_update(
+        self, gpr: Any, alpha_list: Sequence[Any]
+    ) -> tuple[float, NDArrayAny, NDArrayAny]:
         # Create grid of alpha values to interrogate GP model and select new values
         _alpha_grid, alpha_select = self.create_alpha_grid(alpha_list)
 
@@ -1310,7 +1386,7 @@ class UpdateSpaceFill(UpdateFuncBase):
         out_mu = gpr_mu[new_ind, ...]
         out_std = gpr_std[new_ind, ...]
 
-        return new_alpha, out_mu, out_std
+        return float(new_alpha), out_mu, out_std
 
 
 class UpdateAdaptiveIntegrate(UpdateFuncBase):
@@ -1328,11 +1404,17 @@ class UpdateAdaptiveIntegrate(UpdateFuncBase):
         deviation divided by the absolute value of the GPR-predicted mean
     """
 
-    def __init__(self, tol=0.005, **kwargs) -> None:
+    def __init__(self, tol: float = 0.005, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.tol = tol
 
-    def do_update(self, gpr, alpha_list):  # noqa: C901
+    def do_update(  # noqa: C901, PLR0912
+        self,
+        gpr: Any,
+        alpha_list: Sequence[Any],
+        *,
+        max_iter: int = 100,
+    ) -> tuple[float, NDArrayAny, NDArrayAny]:
         # Create grid of alpha values to interrogate GP model and select new values
         _alpha_grid, alpha_select = self.create_alpha_grid(alpha_list)
 
@@ -1365,7 +1447,9 @@ class UpdateAdaptiveIntegrate(UpdateFuncBase):
                 continue
             # Since know less than tolerance at this point, find closest point where crosses
             curr_inds = [close_ind, close_ind]
-            while np.all(rel_uncert[curr_inds, :] < self.tol):
+            for _ in range(max_iter):
+                if not np.all(rel_uncert[curr_inds, :] < self.tol):
+                    break
                 if curr_inds[0] > 0:
                     curr_inds[0] -= 1
                 if curr_inds[1] < (alpha_select.shape[0] - 1):
@@ -1380,9 +1464,8 @@ class UpdateAdaptiveIntegrate(UpdateFuncBase):
             this_dists = abs(alpha_select[curr_inds] - alpha_select[close_ind])
             further_ind = np.argmax(this_dists)
             this_new_ind = curr_inds[further_ind]
-            this_new_dist = this_dists[further_ind]
-            if this_new_dist > max_dist:
-                max_ind = this_new_ind
+            if (this_new_dist := this_dists[further_ind]) > max_dist:
+                max_ind = int(this_new_ind)
                 max_dist = this_new_dist
 
         # Have to handle case where no current points satisfy tolerance
@@ -1412,99 +1495,100 @@ class UpdateAdaptiveIntegrate(UpdateFuncBase):
         out_mu = gpr_mu[new_ind, ...]
         out_std = gpr_std[new_ind, ...]
 
-        return new_alpha, out_mu, out_std
+        return float(new_alpha), out_mu, out_std
 
 
-class UpdateALCbrute(UpdateFuncBase):
-    """
-    EXPERIMENTAL! MAY BE USEFUL IN FUTURE WORK, BUT NOT NOW!
+# NOTE(wpk): commented this out as it has errors
+# class UpdateALCbrute(UpdateFuncBase):
+#     """
+#     EXPERIMENTAL! MAY BE USEFUL IN FUTURE WORK, BUT NOT NOW!
 
-    Performs active learning with a GPR to select new location for performing simulation.
-    This is called "Active Learning Cohn" in the book by Grammacy (Surrogates, 2022).
-    Selection is based on maximizing INTEGRATED uncertainty, which is done with brute
-    force evaluation on a grid of points (this is cheap compared to running simulations or
-    training the GP model). It is possible to select a point that has already been run and add
-    more data there, but will not move outside the range of data already collected. The
-    provided data should be a list of DataWrapper objects. A function for transforming the
-    GPR prediction may also be provided, taking the inputs and prediction as arguments, in
-    that order. This will not affect the GPR model, but will change the active learning
-    outcomes.
+#     Performs active learning with a GPR to select new location for performing simulation.
+#     This is called "Active Learning Cohn" in the book by Grammacy (Surrogates, 2022).
+#     Selection is based on maximizing INTEGRATED uncertainty, which is done with brute
+#     force evaluation on a grid of points (this is cheap compared to running simulations or
+#     training the GP model). It is possible to select a point that has already been run and add
+#     more data there, but will not move outside the range of data already collected. The
+#     provided data should be a list of SupportsDataWrapper objects. A function for transforming the
+#     GPR prediction may also be provided, taking the inputs and prediction as arguments, in
+#     that order. This will not affect the GPR model, but will change the active learning
+#     outcomes.
 
-    ONLY EXPECTED TO WORK WITH A FULLY HETEROSCEDASTIC GP MODEL WHERE THERE IS A MODEL,
-    PERHAPS A SEPARATE GP PROCESS, FOR THE BEHAVIOR OF THE NOISE ACROSS INPUT LOCATIONS.
+#     ONLY EXPECTED TO WORK WITH A FULLY HETEROSCEDASTIC GP MODEL WHERE THERE IS A MODEL,
+#     PERHAPS A SEPARATE GP PROCESS, FOR THE BEHAVIOR OF THE NOISE ACROSS INPUT LOCATIONS.
 
-    (the trivial case is that the noise does not vary with input location, in which case
-    this will also work, but if providing heteroscedastic noise but no model to predict
-    new noise, this will not work)
-    """
+#     (the trivial case is that the noise does not vary with input location, in which case
+#     this will also work, but if providing heteroscedastic noise but no model to predict
+#     new noise, this will not work)
+#     """
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
+#     def __init__(self, **kwargs) -> None:
+#         super().__init__(**kwargs)
 
-    def do_update(self, gpr, alpha_list):
-        # Create grid of alpha values to interrogate GP model and select new values
-        alpha_grid, alpha_select = self.create_alpha_grid(alpha_list)
+#     def do_update(self, gpr: Any, alpha_list: Sequence[Any]) -> tuple[NDArrayAny, NDArrayAny, NDArrayAny]:
+#         # Create grid of alpha values to interrogate GP model and select new values
+#         alpha_grid, alpha_select = self.create_alpha_grid(alpha_list)
 
-        # Obtain predictions and uncertainties at all grid points
-        # Note that get_transformed_GP_output using predict_f, not predict_y
-        # This follows IMSPE from Gramacy's book (Surrogates) and is a better idea
-        # With predict_y, adding a new X point just gets the current noise GP prediction
-        # Has no reason to change this, even though may be wrong
-        # This then heavily biases away from these points because high uncertainty points
-        # do not help reduce overall integrated uncertainty
-        # Working with predict_f, still get benefit of estimating uncertainty at new point
-        # But encourage better exploration
-        gpr_mu, _gpr_std, gpr_conf = self.get_transformed_GP_output(gpr, alpha_select)
+#         # Obtain predictions and uncertainties at all grid points
+#         # Note that get_transformed_GP_output using predict_f, not predict_y
+#         # This follows IMSPE from Gramacy's book (Surrogates) and is a better idea
+#         # With predict_y, adding a new X point just gets the current noise GP prediction
+#         # Has no reason to change this, even though may be wrong
+#         # This then heavily biases away from these points because high uncertainty points
+#         # do not help reduce overall integrated uncertainty
+#         # Working with predict_f, still get benefit of estimating uncertainty at new point
+#         # But encourage better exploration
+#         gpr_mu, _gpr_std, gpr_conf = self.get_transformed_GP_output(gpr, alpha_select)
 
-        # Plot if desired
-        if self.save_plot or self.show_plot:
-            self.do_plotting(alpha_grid, gpr_mu, gpr_conf, alpha_list)
+#         # Plot if desired
+#         if self.save_plot or self.show_plot:
+#             self.do_plotting(alpha_grid, gpr_mu, gpr_conf, alpha_list)
 
-        # Now need to loop over grid of points and add each one to a GP model
-        # Adding the alpha value and predicted uncertainty (through x-dependent likelihood)
-        # Keeping parameters from original training
-        orig_x, orig_y = gpr.data
-        orig_x = orig_x.numpy()
-        orig_y = orig_y.numpy()
-        max_order = int(np.max(orig_x[:, 1]))
-        orig_params = gpr.trainable_parameters
-        new_int_std = np.zeros_like(alpha_select)
-        for i, val in enumerate(alpha_select):
-            # Augment original data
-            this_x = np.vstack(
-                [val * np.ones(max_order + 1), np.arange(max_order + 1)]
-            ).T
-            this_x = np.vstack([orig_x, this_x])
-            this_y = np.vstack(
-                [orig_y, np.ones((max_order + 1, 2))]
-            )  # y is just a placeholder
-            # Create a model with augmented data
-            this_model = create_base_GP_model(this_x, this_y)
-            # Set all trainable GP parameters based on original
-            for j, tpar in enumerate(orig_params):
-                this_model.trainable_parameters[j].assign(tpar.numpy())
-            # Predict the uncertainty over the whole grid of points and integrate
-            this_pred = this_model.predict_f(
-                np.concatenate(
-                    [
-                        alpha_grid[:, None],
-                        self.d_order_pred * np.ones((alpha_grid.shape[0], 1)),
-                    ],
-                    axis=1,
-                )
-            )
-            # TODO(wpk): fix parameter definitions
-            this_std = transform_func(  # noqa: F821
-                alpha_grid, np.sqrt(np.squeeze(this_pred[1].numpy()))
-            )
-            new_int_std[i] = integrate.simpson(this_std, x=alpha_grid)
+#         # Now need to loop over grid of points and add each one to a GP model
+#         # Adding the alpha value and predicted uncertainty (through x-dependent likelihood)
+#         # Keeping parameters from original training
+#         orig_x, orig_y = gpr.data
+#         orig_x = orig_x.numpy()
+#         orig_y = orig_y.numpy()
+#         max_order = int(np.max(orig_x[:, 1]))
+#         orig_params = gpr.trainable_parameters
+#         new_int_std = np.zeros_like(alpha_select)
+#         for i, val in enumerate(alpha_select):
+#             # Augment original data
+#             this_x = np.vstack(
+#                 [val * np.ones(max_order + 1), np.arange(max_order + 1)]
+#             ).T
+#             this_x = np.vstack([orig_x, this_x])
+#             this_y = np.vstack(
+#                 [orig_y, np.ones((max_order + 1, 2))]
+#             )  # y is just a placeholder
+#             # Create a model with augmented data
+#             this_model = create_base_GP_model(this_x, this_y)
+#             # Set all trainable GP parameters based on original
+#             for j, tpar in enumerate(orig_params):
+#                 this_model.trainable_parameters[j].assign(tpar.numpy())
+#             # Predict the uncertainty over the whole grid of points and integrate
+#             this_pred = this_model.predict_f(
+#                 np.concatenate(
+#                     [
+#                         alpha_grid[:, None],
+#                         self.d_order_pred * np.ones((alpha_grid.shape[0], 1)),
+#                     ],
+#                     axis=1,
+#                 )
+#             )
+#             # TODO(wpk): fix parameter definitions
+#             this_std = transform_func(
+#                 alpha_grid, np.sqrt(np.squeeze(this_pred[1].numpy()))
+#             )
+#             new_int_std[i] = integrate.simpson(this_std, x=alpha_grid)
 
-        # Identify point where get minimum integrated uncertainty
-        new_ind = np.argmin(new_int_std)
-        alpha_select[new_ind]
+#         # Identify point where get minimum integrated uncertainty
+#         new_ind = np.argmin(new_int_std)
+#         alpha_select[new_ind]
 
-        # Randomly select new alpha
-        return self.rng.choice(alpha_select)
+#         # Randomly select new alpha
+#         return self.rng.choice(alpha_select)
 
 
 class MetricBase:
@@ -1525,7 +1609,7 @@ class MetricBase:
         tolerance threshold for defining stopping
     """
 
-    def __init__(self, name, tol) -> None:
+    def __init__(self, name: str, tol: float) -> None:
         """
         Inputs:
         name - name of metric
@@ -1535,7 +1619,7 @@ class MetricBase:
         self.name = name
         self.tol = tol
 
-    def _check_history(self, history) -> None:
+    def _check_history(self, history: Sequence[Any] | None) -> None:  # pylint: disable=no-self-use
         if history is None:
             msg = "history is None."
             raise ValueError(msg)
@@ -1543,10 +1627,10 @@ class MetricBase:
             msg = "history must be list of length 2 of GP means and variances evaluated with a series of GP models"
             raise ValueError(msg)
 
-    def calc_metric(self, history, x_vals, gp) -> NoReturn:
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         raise NotImplementedError
 
-    def __call__(self, history, x_vals, gp):
+    def __call__(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         self._check_history(history)
         return self.calc_metric(history, x_vals, gp)
 
@@ -1554,10 +1638,10 @@ class MetricBase:
 class MaxVar(MetricBase):
     """Metric based on maximum variance of GP output."""
 
-    def __init__(self, tol, name="MaxVar", **kwargs) -> None:
-        super().__init__(tol=tol, name=name, **kwargs)
+    def __init__(self, tol: float, name: str = "MaxVar") -> None:
+        super().__init__(tol=tol, name=name)
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         gp_std = history[1][-1, ...]
         return np.max(gp_std)
 
@@ -1576,10 +1660,10 @@ class AvgVar(MetricBase):
         Extrap arguments to :class:`MetricBase`
     """
 
-    def __init__(self, tol, name="AvgVar", **kwargs) -> None:
-        super().__init__(tol=tol, name=name, **kwargs)
+    def __init__(self, tol: float, name: str = "AvgVar") -> None:
+        super().__init__(tol=tol, name=name)
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         gp_std = history[1][-1, ...]
         return np.average(gp_std)
 
@@ -1601,11 +1685,13 @@ class MaxRelVar(MetricBase):
         points are ignored for purposes of calculating metric (set to zero)
     """
 
-    def __init__(self, tol, threshold=1e-12, name="MaxRelVar", **kwargs) -> None:
-        super().__init__(tol=tol, name=name, **kwargs)
+    def __init__(
+        self, tol: float, threshold: float = 1e-12, name: str = "MaxRelVar"
+    ) -> None:
+        super().__init__(tol=tol, name=name)
         self.threshold = threshold
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         gp_mu = history[0][-1, ...].copy()
         gp_std = history[1][-1, ...].copy()
         # For stability, points where gp_mu is small need to be handled differently
@@ -1628,10 +1714,10 @@ class MaxRelGlobalVar(MetricBase, UpdateStopABC):
         tolerance threshold for defining stopping
     """
 
-    def __init__(self, tol, name="MaxRelGlobalVar", **kwargs) -> None:
-        super().__init__(tol=tol, name=name, **kwargs)
+    def __init__(self, tol: float, name: str = "MaxRelGlobalVar") -> None:
+        super().__init__(tol=tol, name=name)
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         # Compute full std over y data, not just subtracting mean function as for GP data
         # d_bool = (gp.data[0].numpy()[:, 1] == self.d_order_pred)
         # std_y = np.std(gp.data[1].numpy()[d_bool, ...]*gp.scale_fac, axis=0)
@@ -1658,11 +1744,13 @@ class AvgRelVar(MetricBase):
         points are ignored for purposes of calculating metric (set to zero)
     """
 
-    def __init__(self, tol, threshold=1e-12, name="AvgRelVar", **kwargs) -> None:
-        super().__init__(tol=tol, name=name, **kwargs)
+    def __init__(
+        self, tol: float, threshold: float = 1e-12, name: str = "AvgRelVar"
+    ) -> None:
+        super().__init__(tol=tol, name=name)
         self.threshold = threshold
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         gp_mu = history[0][-1, ...].copy()
         gp_std = history[1][-1, ...].copy()
         # For stability, points where gp_mu is small need to be handled differently
@@ -1684,15 +1772,16 @@ class MSD(MetricBase):
         tolerance threshold for defining stopping
     """
 
-    def __init__(self, tol, name="MSD", **kwargs) -> None:
-        super().__init__(tol=tol, name=name, **kwargs)
+    def __init__(self, tol: float, name: str = "MSD") -> None:
+        super().__init__(tol=tol, name=name)
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         gp_mu = history[0][-1, ...]
-        if history[0].shape[0] <= 1:
-            gp_mu_prev = np.zeros_like(gp_mu)
-        else:
-            gp_mu_prev = history[0][-2, ...]
+
+        gp_mu_prev = (
+            np.zeros_like(gp_mu) if history[0].shape[0] <= 1 else history[0][-2, ...]
+        )
+
         return np.average((gp_mu - gp_mu_prev) ** 2)
 
 
@@ -1712,11 +1801,13 @@ class MaxAbsRelDeviation(MetricBase):
         points are ignored for purposes of calculating metric (set to zero)
     """
 
-    def __init__(self, tol, threshold=1e-12, name="MaxAbsRelDev", **kwargs) -> None:
-        super().__init__(tol=tol, name=name, **kwargs)
+    def __init__(
+        self, tol: float, threshold: float = 1e-12, name: str = "MaxAbsRelDev"
+    ) -> None:
+        super().__init__(tol=tol, name=name)
         self.threshold = threshold
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         gp_mu = history[0][-1, ...].copy()
         # For stability, points where gp_mu is small need to be handled differently
         # So for points with gp_mu <= self.threshold, just checks if std is tol of threshold
@@ -1745,10 +1836,10 @@ class MaxAbsRelGlobalDeviation(MetricBase, UpdateStopABC):
         tolerance threshold for defining stopping
     """
 
-    def __init__(self, tol, name="MaxAbsRelGlobalDeviation", **kwargs) -> None:
-        super().__init__(tol=tol, name=name, **kwargs)
+    def __init__(self, tol: float, name: str = "MaxAbsRelGlobalDeviation") -> None:
+        super().__init__(tol=tol, name=name)
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         # Compute full std over y data, not just subtracting mean function as for GP data
         # d_bool = (gp.data[0].numpy()[:, 1] == self.d_order_pred)
         # std_y = np.std(gp.data[1].numpy()[d_bool, ...]*gp.scale_fac, axis=0)
@@ -1756,10 +1847,12 @@ class MaxAbsRelGlobalDeviation(MetricBase, UpdateStopABC):
         # (works better with transformations of output)
         std_y = np.std(history[0][-1, ...])
         gp_mu = history[0][-1, ...].copy()
-        if history[0].shape[0] <= 1:
-            gp_mu_prev = np.zeros_like(gp_mu)
-        else:
-            gp_mu_prev = history[0][-2, ...].copy()
+
+        gp_mu_prev = (
+            np.zeros_like(gp_mu)
+            if history[0].shape[0] <= 1
+            else history[0][-2, ...].copy()
+        )
         dev = abs(gp_mu - gp_mu_prev)
         return np.max(dev / std_y)
 
@@ -1776,11 +1869,13 @@ class AvgAbsRelDeviation(MetricBase):
         tolerance threshold for defining stopping
     """
 
-    def __init__(self, tol, threshold=1e-12, name="AvgAbsRelDev", **kwargs) -> None:
-        super().__init__(tol=tol, name=name, **kwargs)
+    def __init__(
+        self, tol: float, threshold: float = 1e-12, name: str = "AvgAbsRelDev"
+    ) -> None:
+        super().__init__(tol=tol, name=name)
         self.threshold = threshold
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         gp_mu = history[0][-1, ...].copy()
         # For stability, points where gp_mu is small need to be handled differently
         # So for points with gp_mu <= self.threshold, just checks if std is tol of threshold
@@ -1815,13 +1910,13 @@ class ErrorStability(MetricBase, UpdateStopABC):
         tolerance threshold for defining stopping
     """
 
-    def __init__(self, tol, name="ErrorStability", **kwargs) -> None:
+    def __init__(self, tol: float, name: str = "ErrorStability", **kwargs: Any) -> None:
         super().__init__(tol=tol, name=name, **kwargs)
 
         # Need to set up normalization - will just use first r calculated
-        self.r1 = None
+        self.r1: float | None = None
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         # Get input data points for current active learning step (current GP model)
         input_x = gp.data[0].numpy()
         input_x = np.concatenate([input_x[:, :1], input_x[:, 1:]], axis=-1)
@@ -1857,7 +1952,9 @@ class ErrorStability(MetricBase, UpdateStopABC):
         # (and remember to only take first output of transform_func, which is mean/median)
         mu_curr = self.transform_func(pred_x[:, :1], mu_curr.numpy(), 1.0)[0]
         transform_scale = self.transform_func(
-            pred_x[:, :1], np.ones_like(pred_x[:, :1]), 1.0
+            pred_x[:, :1],
+            np.ones_like(pred_x[:, :1]),
+            1.0,
         )[0]
 
         cov_curr *= transform_scale * transform_scale.T
@@ -1885,8 +1982,8 @@ class ErrorStability(MetricBase, UpdateStopABC):
         for i, tpar in enumerate(gp_params):
             prev_gp.trainable_parameters[i].assign(tpar)
         # And make prediction with GP with only previous inputs, but at all current inputs
-        mu_prev, cov_prev = prev_gp.predict_f(pred_x, full_cov=True)
-        mu_prev = self.transform_func(pred_x[:, :1], mu_prev.numpy(), 1.0)[0]
+        mu_prev_tensor, cov_prev = prev_gp.predict_f(pred_x, full_cov=True)
+        mu_prev = self.transform_func(pred_x[:, :1], mu_prev_tensor.numpy(), 1.0)[0]
         cov_prev *= transform_scale * transform_scale.T
 
         # For metric, calculate the KL divergence between predicted distributions
@@ -1930,10 +2027,10 @@ class ErrorStability(MetricBase, UpdateStopABC):
         # If have not defined normalization yet, do now - hopefully going from 2 to 3 points
         # Note that if very accurate with 2 points, may take overly long to converge
         # So technically not using r1, really using r3 by Ishibashi and Hino's definition
+        r1 = float(r_curr_prev + r_prev_curr)
         if self.r1 is None:
-            self.r1 = r_curr_prev + r_prev_curr
-
-        return (r_curr_prev + r_prev_curr) / self.r1
+            self.r1 = r1
+        return r1 / self.r1
 
 
 class MaxIter(MetricBase):
@@ -1949,10 +2046,10 @@ class MaxIter(MetricBase):
         name of this metric
     """
 
-    def __init__(self, name="MaxIter", **kwargs) -> None:
-        super().__init__(tol=1.0, name=name, **kwargs)
+    def __init__(self, tol: float = 1.0, name: str = "MaxIter") -> None:
+        super().__init__(tol=1.0, name=name)
 
-    def calc_metric(self, history, x_vals, gp):
+    def calc_metric(self, history: Sequence[Any], x_vals: Any, gp: Any) -> Any:
         return self.tol + 1.0  # Always bigger than tol
 
 
@@ -1976,7 +2073,7 @@ class StopCriteria(UpdateStopABC):
         this will be looped over with metrics calculated to determine stopping
     """
 
-    def __init__(self, metric_funcs, **kwargs) -> None:
+    def __init__(self, metric_funcs: Sequence[MetricBase], **kwargs: Any) -> None:
         """
         Inputs:
         metric_funcs - dictionary of (name, function) pairs; just nice to have names.
@@ -1990,7 +2087,7 @@ class StopCriteria(UpdateStopABC):
         # For any metrics with their own log_scale, etc. attributes, force to
         # be consistent with StopCriteria
         for m in self.metric_funcs:
-            if issubclass(type(m), UpdateStopABC):
+            if isinstance(m, UpdateStopABC):
                 m.d_order_pred = self.d_order_pred
                 m.transform_func = self.transform_func
                 m.log_scale = self.log_scale
@@ -1999,15 +2096,18 @@ class StopCriteria(UpdateStopABC):
         # For many metrics, will need history of past GPR outputs, so maintain this
         # Start as None and add arrays of predictions and uncertainties
         # Can be used generally by any metric, so write metric functions to take history
-        self.history = None
+        self.history: list[Any] | None = None
 
-    def compute_metrics(self, alpha_grid, history=None, gpr=None):
+    def compute_metrics(
+        self, alpha_grid: Any, history: Sequence[Any] | None = None, gpr: Any = None
+    ) -> tuple[list[Any], dict[Any, Any]]:
         """
         Uses current history (default) or one provided to compute all metrics.
         Must provide grid of alpha values as well to input to metrics.
         """
-        if history is None:
-            history = self.history
+        if history is None and (history := self.history) is None:
+            msg = "Must specify history or have self.history"
+            raise ValueError(msg)
         out_dict = {}
         tol_bools = []
         # Compute metrics, which should be functions that take the history and alpha values
@@ -2019,7 +2119,7 @@ class StopCriteria(UpdateStopABC):
             tol_bools.append(this_metric <= m.tol)
         return tol_bools, out_dict
 
-    def __call__(self, gpr, alpha_list):
+    def __call__(self, gpr: Any, alpha_list: Any) -> tuple[bool, dict[Any, Any]]:
         # Create grid of alpha values to interrogate GP model
         # In case avoid_repeats gets set to True somehow, still only take alpha_grid
         # This should not get randomized
@@ -2043,7 +2143,7 @@ class StopCriteria(UpdateStopABC):
         tol_bools, out_dict = self.compute_metrics(alpha_grid, gpr=gpr)
 
         # Only stop if all metrics have simultaneously reached tolerances
-        return np.all(tol_bools), out_dict
+        return bool(np.all(tol_bools)), out_dict
 
 
 # def thing(value):
@@ -2054,29 +2154,31 @@ class StopCriteria(UpdateStopABC):
 #         logger.info("Stopping criteria satisfied")
 
 
-def active_learning(  # noqa: C901, PLR0912, PLR0915
-    init_states,
-    sim_wrapper,
-    update_func,
-    base_dir="",
-    stop_criteria=None,
-    max_iter=10,
-    alpha_name="alpha",
-    log_scale=False,
-    max_order=4,
-    gp_base_kwargs=None,
-    num_state_repeats=1,
-    save_history=False,
-    use_predictions=False,
-):
+def active_learning(  # noqa: C901, PLR0912
+    init_states: Sequence[SupportsDataWrapper | float],
+    sim_wrapper: SupportsSimulation,
+    update_func: UpdateFuncBase,
+    base_dir: str | PathLike[Any] = "",
+    stop_criteria: StopCriteria | None = None,
+    max_iter: int = 10,
+    alpha_name: str = "alpha",
+    log_scale: bool = False,
+    max_order: int = 4,
+    gp_base_kwargs: OptionalKwsAny = None,
+    num_state_repeats: int = 1,
+    save_history: bool = False,
+    use_predictions: bool = False,
+    sampler: Sampler = 100,
+) -> tuple[list[SupportsDataWrapper], dict[str, Any]]:
     """
     Continues adding new points with active learning by running simulations until the
     specified tolerance is reached or the maximum number of iterations is achieved.
 
     Parameters
     ----------
-    init_states : list of :class:`DataWrapper`
-    sim_wrapper : :class:`SimWrapper`
+    init_states : list of :class:`DataWrapper` or float
+        Data or alpha to run simulation at.
+    sim_wrapper : :class:`SimWrapper` like
         Object for running simulations.
     update_func : callable
         For selecting the next state point.
@@ -2111,7 +2213,7 @@ def active_learning(  # noqa: C901, PLR0912, PLR0915
     Returns
     -------
     data_list : list of :class:`DataWrapper`
-        List of DataWrapper objects describing how to load data (can be used to build states and create_GPR to generate GP model)
+        list of DataWrapper objects describing how to load data (can be used to build states and create_GPR to generate GP model)
     train_history : dict
         Dictionary of information about results at each training
         iteration, like GP predictions, losses, parameters, etc.
@@ -2130,17 +2232,19 @@ def active_learning(  # noqa: C901, PLR0912, PLR0915
             stacklevel=1,
         )
 
-    data_list = [None] * len(init_states)
-    for i, state in enumerate(init_states):
-        if isinstance(state, DataWrapper) or issubclass(type(state), DataWrapper):
-            data_list[i] = state
+    data_list = []
+    for state in init_states:
+        if isinstance(state, SupportsDataWrapper):
+            data_list.append(state)
         elif isinstance(state, (int, float)):
             # Run simulation and return DataWrapper object for this state
             # Multiple simulation repeats will be performed in parallel
-            data_list[i] = sim_wrapper.run_sim(
-                f"{base_dir}/{alpha_name}_{state:f}",
-                state,
-                n_repeats=num_state_repeats,
+            data_list.append(
+                sim_wrapper.run_sim(
+                    f"{base_dir}/{alpha_name}_{state:f}",
+                    state,
+                    n_repeats=num_state_repeats,
+                )
             )
 
     # Will need to keep track of alpha values
@@ -2150,7 +2254,7 @@ def active_learning(  # noqa: C901, PLR0912, PLR0915
 
     # Also nice to keep track of loss and parameter values
     # Results in more robust parameter optimization, too
-    train_history = {"loss": [], "params": []}
+    train_history: dict[str, Any] = {"loss": [], "params": []}
 
     # Also add metrics to training history if have stopping criteria
     if stop_criteria is not None:
@@ -2162,17 +2266,13 @@ def active_learning(  # noqa: C901, PLR0912, PLR0915
     for i in range(max_iter + 1):
         # Create GP model with current information, first building ExtrapModel objects
         state_list = [dat.build_state(max_order=max_order) for dat in data_list]
-        if i == 0:
-            this_GP = create_GPR(
-                state_list, log_scale=log_scale, base_kwargs=gp_base_kwargs
-            )
-        else:
-            this_GP = create_GPR(
-                state_list,
-                log_scale=log_scale,
-                base_kwargs=gp_base_kwargs,
-                start_params=train_history["params"][-1],
-            )
+        this_GP = create_GPR(
+            state_list,
+            log_scale=log_scale,
+            base_kwargs=gp_base_kwargs,
+            sampler=sampler,
+            start_params=None if i == 0 else train_history["params"][-1],
+        )
         logger.info("Current GP info:")
         gpflow.utilities.print_summary(this_GP)
         # Add to training history
@@ -2205,10 +2305,9 @@ def active_learning(  # noqa: C901, PLR0912, PLR0915
 
         # If stopping criteria not satisfied, select new point
         new_alpha, new_mu, new_std = update_func(this_GP, alpha_list)
-        if use_predictions:
-            new_model_info = {"model_pred": new_mu, "model_std": new_std}
-        else:
-            new_model_info = {}
+        new_model_info = (
+            {"model_pred": new_mu, "model_std": new_std} if use_predictions else {}
+        )
 
         # Run simulations for current data
         this_data = sim_wrapper.run_sim(
@@ -2234,6 +2333,11 @@ def active_learning(  # noqa: C901, PLR0912, PLR0915
 
     if save_history and (stop_criteria is not None):
         train_history = {k: np.array(v) for k, v in train_history.items()}
+
+        if stop_criteria.history is None:
+            msg = "Stop criteria history is None"
+            raise ValueError(msg)
+
         np.savez(
             f"{base_dir}/active_history.npz",
             pred_mu=stop_criteria.history[0],
@@ -2245,7 +2349,7 @@ def active_learning(  # noqa: C901, PLR0912, PLR0915
     return data_list, train_history
 
 
-def _catch_inf_unconstrained_param(param, value):
+def _catch_inf_unconstrained_param(param: Any, value: Any) -> Any:
     # Need to make sure transformed variables are finite
     # Optimization will not prevent infinite transformed variables
     # that will then throw an error when assigning (catches, but does not fix, so circumventing)
