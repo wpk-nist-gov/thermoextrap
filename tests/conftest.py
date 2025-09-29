@@ -31,13 +31,13 @@ class FixtureData:  # pylint: disable=missing-class-docstring
     # bunch of things to test
     @cached.prop
     def rdata(self):
-        return xtrap.factory_data_values(
+        return legacy.data.factory_data_values(
             uv=self.u, xv=self.x, order=self.order, central=False
         )
 
     @cached.prop
     def cdata(self):
-        return xtrap.factory_data_values(
+        return legacy.data.factory_data_values(
             uv=self.u, xv=self.x, order=self.order, central=True
         )
 

@@ -18,9 +18,3 @@ Base classes
    :show-inheritance:
    :inherited-members:
    :members:
-
-.. autoclass:: thermoextrap.data.DataValuesBase
-   :autosummary:
-   :show-inheritance:
-   :inherited-members:
-   :members:

@@ -2,52 +2,40 @@ from __future__ import annotations
 
 from thermoextrap.data import AbstractData
 
-from abc import abstractmethod
-from typing import TYPE_CHECKING, Generic, cast, overload
+from typing import TYPE_CHECKING, Generic
 
 import attrs
 import cmomy
-import numpy as np
 import xarray as xr
 from attrs import field
 from attrs import validators as attv
 from cmomy.core.missing import MISSING
-from cmomy.core.validate import is_dataarray, is_dataset, is_xarray
 from module_utilities import cached
 
-from .core._attrs_utils import (
-    MyAttrsMixin,
-    convert_dims_to_tuple,
-    convert_mapping_or_none_to_dict,
-)
-from .core.docstrings import DOCFILLER_SHARED
-from .core.typing import DataT
-from .core.validate import validator_dims, validator_xarray_typevar
-from .core.xrutils import xrwrap_uv, xrwrap_xv
+from thermoextrap.core.docstrings import DOCFILLER_SHARED
+from thermoextrap.core.typing import DataT
+from thermoextrap.core.validate import validator_xarray_typevar
+from thermoextrap.core.xrutils import xrwrap_uv, xrwrap_xv
+
+from thermoextrap.data import _raise_if_not_xarray, _raise_if_not_dataarray, DataSelector
+
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Hashable, Mapping
     from typing import Any, ClassVar
 
     from cmomy.core.typing import (
-        AxisReduce,
         DimsReduce,
         MissingType,
         Sampler,
-        SelectMoment,
     )
     from numpy.typing import ArrayLike
 
-    from .core.typing import (
+    from thermoextrap.core.typing import (
         DataDerivArgs,
-        MultDims,
-        NDArrayAny,
         OptionalKwsAny,
         SingleDim,
-        SupportsData,
-        XArrayObj,
     )
-    from .core.typing_compat import Self, TypeVar
+    from thermoextrap.core.typing_compat import Self, TypeVar
 
     _T = TypeVar("_T")
 

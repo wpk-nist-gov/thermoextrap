@@ -3,7 +3,7 @@ Volume extrapolation (:mod:`~thermoextrap.volume`)
 ==================================================
 
 Note: This only handles volume expansion to first order.
-Also, Only DataValues like objects are supported.
+Also, Only DataCentralMomentsVals like objects (with ``resample_values = True``) are supported.
 """
 # pylint: disable=duplicate-code
 
@@ -18,7 +18,7 @@ from attrs import validators as attv
 from module_utilities import cached
 
 from thermoextrap.core.validate import validator_xarray_typevar
-from thermoextrap.data import DataValues
+from thermoextrap.data import DataCentralMomentsVals
 from thermoextrap.models import Derivatives, ExtrapModel
 
 from .core.docstrings import DOCFILLER_SHARED
@@ -145,8 +145,8 @@ class VolumeDataCallback(DataCallbackABC, Generic[DataT]):
         sampler: IndexSampler[Any],
         **kws: Any,  # noqa: ARG002
     ) -> Self:
-        if not isinstance(data, DataValues):
-            msg = "resampling only possible with DataValues style."
+        if not isinstance(data, DataCentralMomentsVals):
+            msg = "resampling only possible with DataCentralMomentsVals object."
             raise NotImplementedError(msg)
 
         return self.new_like(dxdqv=self.dxdqv[sampler.indices])
@@ -154,8 +154,8 @@ class VolumeDataCallback(DataCallbackABC, Generic[DataT]):
     def deriv_args(
         self, data: SupportsData[Any], *, deriv_args: DataDerivArgs
     ) -> DataDerivArgs:
-        if not isinstance(data, DataValues):
-            msg = "resampling only possible with DataValues style."
+        if not isinstance(data, DataCentralMomentsVals):
+            msg = "resampling only possible with DataCentralMomentsVals object."
             raise NotImplementedError(msg)
 
         return (
@@ -203,7 +203,7 @@ def factory_extrapmodel(
     {val_dims}
     {rep_dim}
     **kws :
-        Extra arguments to :meth:`thermoextrap.data.DataValues`
+        Extra arguments to :meth:`~.DataCentralMomentsVals`
 
     Returns
     -------
@@ -220,13 +220,14 @@ def factory_extrapmodel(
 
     meta = VolumeDataCallback(volume=volume, dxdqv=dxdqv, ndim=ndim)
 
-    data = DataValues(
+    data = DataCentralMomentsVals(
         uv=uv,
         xv=xv,
         order=order,
         meta=meta,
         rec_dim=rec_dim,
         deriv_dim=None,
+        resample_values=True,
         **kws,
     )
 

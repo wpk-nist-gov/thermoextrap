@@ -780,7 +780,7 @@ def factory_perturbmodel(
     {uv_xv_array}
     {alpha_name}
     kws : dict
-        extra arguments to data object
+        extra arguments to :class:`~.DataCentralMomentsVals`
 
     Returns
     -------
@@ -791,9 +791,7 @@ def factory_perturbmodel(
     --------
     ~thermoextrap.models.PerturbModel
     """
-    # from .data import factory_data_values
-    # data = factory_data_values(uv=uv, xv=xv, order=0, central=False, **kws)
-    from .data import DataValues
+    from .data import DataCentralMomentsVals
 
-    data = DataValues(uv=uv, xv=xv, order=0, **kws)
+    data = DataCentralMomentsVals(uv=uv, xv=xv, order=0, resample_values=True, **kws)
     return PerturbModel(alpha0=beta, data=data, alpha_name=alpha_name)

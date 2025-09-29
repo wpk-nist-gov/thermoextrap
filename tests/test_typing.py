@@ -99,62 +99,6 @@ def test_thermoextrap_data_dataselector() -> None:
     )
 
 
-# * DataValues ----------------------------------------------------------------
-def check_datavalues(
-    actual: T,
-    klass: type[Any],
-    uv_type: type[Any],
-    xv_type: type[Any],
-) -> T:
-    assert isinstance(actual, klass)
-
-    assert isinstance(actual.uv, uv_type)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-    assert isinstance(actual.xv, xv_type)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-    return actual
-
-
-def test_thermoextrap_data_datavalues() -> None:
-    check_datavalues(
-        assert_type(
-            xtrap.data.DataValues(uv=val_dataarray, xv=val_dataarray, order=2),
-            xtrap.DataValues[xr.DataArray],
-        ),
-        xtrap.DataValues,
-        xr.DataArray,
-        xr.DataArray,
-    )
-    check_datavalues(
-        assert_type(
-            xtrap.data.DataValues(uv=val_dataarray, xv=val_dataset, order=2),
-            xtrap.DataValues[xr.Dataset],
-        ),
-        xtrap.DataValues,
-        xr.DataArray,
-        xr.Dataset,
-    )
-
-
-def test_thermoextrap_data_datavaluescentral() -> None:
-    check_datavalues(
-        assert_type(
-            xtrap.data.DataValuesCentral(uv=val_dataarray, xv=val_dataarray, order=2),
-            xtrap.DataValuesCentral[xr.DataArray],
-        ),
-        xtrap.DataValuesCentral,
-        xr.DataArray,
-        xr.DataArray,
-    )
-    check_datavalues(
-        assert_type(
-            xtrap.data.DataValuesCentral(uv=val_dataarray, xv=val_dataset, order=2),
-            xtrap.DataValuesCentral[xr.Dataset],
-        ),
-        xtrap.DataValuesCentral,
-        xr.DataArray,
-        xr.Dataset,
-    )
-
-
 # * DataCentralMoments --------------------------------------------------------
 def check_datacentralmoments(
     actual: T,
@@ -320,14 +264,10 @@ if TYPE_CHECKING:
         return x.order
 
     def tester_data(
-        a: xtrap.data.DataValues,
-        b: xtrap.data.DataValuesCentral,
         c: xtrap.data.DataCentralMoments,
         d: xtrap.data.DataCentralMomentsVals,
         e: xtrap.data.DataCentralMomentsBase,
     ) -> None:
-        assert_type(func_data(a), int)
-        assert_type(func_data(b), int)
         assert_type(func_data(c), int)
         assert_type(func_data(d), int)
         assert_type(func_data(e), int)
@@ -342,15 +282,10 @@ if TYPE_CHECKING:
         return x.xv
 
     def tester_dataperturbmodel(
-        a: xtrap.data.DataValues,
-        b: xtrap.data.DataValuesCentral,
-        c: xtrap.data.DataValues[xr.Dataset],
-        d: xtrap.data.DataValuesCentral[xr.Dataset],
+        a: xtrap.DataCentralMomentsVals,
+        d: xtrap.DataCentralMomentsVals[xr.Dataset],
     ) -> None:
         assert_type(func_dataperturbmodel(a), xr.DataArray)
-        assert_type(func_dataperturbmodel(b), xr.DataArray)
-
-        assert_type(func_dataperturbmodel(c), xr.Dataset)
         assert_type(func_dataperturbmodel(d), xr.Dataset)
 
     def func_statecollection(

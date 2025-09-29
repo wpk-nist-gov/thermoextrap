@@ -19,8 +19,6 @@ if TYPE_CHECKING:
     from .data import (
         DataCentralMoments,
         DataCentralMomentsVals,
-        DataValues,
-        DataValuesCentral,
         factory_data_values,
     )
 
@@ -54,8 +52,6 @@ else:
             "data": [
                 "DataCentralMoments",
                 "DataCentralMomentsVals",
-                "DataValues",
-                "DataValuesCentral",
                 "factory_data_values",
             ],
             "models": [
@@ -82,8 +78,6 @@ except PackageNotFoundError:  # pragma: no cover
 __all__ = [
     "DataCentralMoments",
     "DataCentralMomentsVals",
-    "DataValues",
-    "DataValuesCentral",
     "Derivatives",
     "ExtrapModel",
     "ExtrapWeightedModel",

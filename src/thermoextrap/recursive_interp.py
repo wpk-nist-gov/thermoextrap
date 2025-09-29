@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
     from .core.typing import OptionalRng
-    from .data import DataValues
+    from .data import DataCentralMomentsVals
     from .models import Derivatives
 
 
@@ -98,7 +98,7 @@ class RecursiveInterp:
         self.rng = validate_rng(rng)
 
     @deprecate_kwarg("B", "beta")
-    def get_data(self, beta: SupportsFloat) -> DataValues[xr.DataArray]:
+    def get_data(self, beta: SupportsFloat) -> DataCentralMomentsVals[xr.DataArray]:
         """
         Obtains data at the specified state point.
         Can modify to run MD or MC simulation, load trajectory or data files, etc.
@@ -114,10 +114,10 @@ class RecursiveInterp:
             shape=(nconfig, npart), beta=beta, rng=self.rng
         )
 
-        # datModel = IGmodel(nParticles=1000)
-        # xdata, udata = datModel.genData(B, nConfigs=10000)
         # Need to also change data object kwargs based on data when change getData
-        return factory_data_values(uv=udata, xv=xdata, order=self.max_order)  # type: ignore[return-value]  # pyright: ignore[reportReturnType]
+        return factory_data_values(
+            uv=udata, xv=xdata, order=self.max_order, resample_values=True
+        )
 
     getData = deprecate("getData", get_data, "0.2.0")  # noqa: N815
 
@@ -132,8 +132,8 @@ class RecursiveInterp:
         self,
         beta1: SupportsFloat,
         beta2: SupportsFloat,
-        data1: DataValues[xr.DataArray] | None = None,
-        data2: DataValues[xr.DataArray] | None = None,
+        data1: DataCentralMomentsVals[xr.DataArray] | None = None,
+        data2: DataCentralMomentsVals[xr.DataArray] | None = None,
         recurse_depth: int = 0,
         recurse_max: int = 10,
         beta_avail: ArrayLike | None = None,

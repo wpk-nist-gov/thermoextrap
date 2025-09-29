@@ -9,3 +9,5 @@ from .ig import *
 from .interp import *
 from .recursive_interp import *
 from .reweight import *
+
+from . import data
