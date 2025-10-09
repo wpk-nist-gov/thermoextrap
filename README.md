@@ -29,6 +29,7 @@ https://naereen.github.io/badges/
 [conda-link]: https://anaconda.org/conda-forge/thermoextrap
 [license-badge]: https://img.shields.io/pypi/l/thermoextrap?color=informational
 [license-link]: https://github.com/usnistgov/thermoextrap/blob/main/LICENSE
+[changelog-link]: https://github.com/usnistgov/thermoextrap/blob/main/CHANGELOG.md
 
 <!-- other links -->
 
@@ -175,6 +176,10 @@ See the [documentation][docs-link] for a look at `thermoextrap` in action.
 To have a look at using `thermoextrap` with Gaussian process regression, look in
 the [gpr](examples/usage/gpr) and
 [gpr_active_learning](examples/gpr_active_learning) directories.
+
+## What's new?
+
+See [changelog][changelog-link].
 
 ## License
 
