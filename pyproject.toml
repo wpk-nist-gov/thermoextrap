@@ -6,7 +6,7 @@ requires = [
 
 [project]
 name = "thermoextrap"
-version = "1.0.0.post0"
+version = "1.0.1.dev0"
 description = "Thermodynamic extrapolation"
 readme = "README.md"
 keywords = [
@@ -48,7 +48,7 @@ optional-dependencies.accel = [
     "bottleneck",
 ]
 optional-dependencies.all = [
-    "thermoextrap[mbar,gpr,accel,parallel,viz]",
+    "thermoextrap[accel,gpr,mbar,parallel,viz]",
 ]
 optional-dependencies.gpr = [
     "gpflow>=2.6.0",
@@ -89,7 +89,7 @@ test = [
     "pytest-env",
     "pytest-sugar",
     "pytest-xdist>3.6.0",
-    "thermoextrap[mbar,gpr]",
+    "thermoextrap[gpr,mbar]",
     { include-group = "pandas" },
     { include-group = "pytest" },
 ]
@@ -134,11 +134,39 @@ typecheck = [
     "matplotlib; python_version=='3.12'",
     "pandas-stubs",
     "scipy-stubs; python_version>='3.10'",
-    "thermoextrap[mbar,gpr]",
+    "thermoextrap[gpr,mbar]",
     "types-tensorflow",
     { include-group = "pylint" },
     { include-group = "pytest" },
 ]
+
+# * uv -------------------------------------------------------------------------
+
+[tool.uv]
+managed = true
+default-groups = [ "dev" ]
+fork-strategy = "requires-python"
+required-version = ">=0.7.15"
+
+[tool.uv.pip]
+annotation-style = "line"
+generate-hashes = true
+
+[tool.uv.dependency-groups]
+dev.requires-python = ">=3.12"
+docs.requires-python = ">=3.12"
+docs-live.requires-python = ">=3.12"
+docs-spelling.requires-python = ">=3.12"
+# other tools
+ipython.requires-python = ">=3.12"
+mypy.requires-python = ">=3.12"
+notebook.requires-python = ">=3.12"
+nox.requires-python = ">=3.12"
+
+[tool.uv.build-backend]
+source-include = [ "tests/**" ]
+
+# * Checks ---------------------------------------------------------------------
 
 [tool.nbqa.exclude]
 ruff = "^examples/gpr_active_learning|^examples/usage/gpr"
@@ -391,32 +419,6 @@ style = "requirements"
 groups = [ "test-extras" ]
 skip-package = true
 python = "all"
-
-# * uv -------------------------------------------------------------------------
-
-[tool.uv]
-managed = true
-default-groups = [ "dev" ]
-fork-strategy = "requires-python"
-required-version = ">=0.7.15"
-
-[tool.uv.pip]
-annotation-style = "line"
-generate-hashes = true
-
-[tool.uv.dependency-groups]
-dev.requires-python = ">=3.12"
-docs.requires-python = ">=3.12"
-docs-live.requires-python = ">=3.12"
-docs-spelling.requires-python = ">=3.12"
-# other tools
-ipython.requires-python = ">=3.12"
-mypy.requires-python = ">=3.12"
-notebook.requires-python = ">=3.12"
-nox.requires-python = ">=3.12"
-
-[tool.uv.build-backend]
-source-include = [ "tests/**" ]
 
 # * Other tools ----------------------------------------------------------------
 
