@@ -36,7 +36,7 @@ from .typing_compat import Self, TypeAlias, TypeVar
 
 if TYPE_CHECKING:
     import tensorflow as tf
-    from cmomy.core.typing import Sampler
+    from cmomy.resample.typing import SamplerType
     from numpy.typing import ArrayLike
     from sympy.core.expr import Expr  # pyright: ignore[reportMissingTypeStubs]
 
@@ -120,7 +120,7 @@ class SupportsData(Protocol[T_co]):
     def deriv_args(self) -> DataDerivArgs: ...
 
     @abstractmethod
-    def resample(self, sampler: Sampler) -> Self: ...
+    def resample(self, sampler: SamplerType) -> Self: ...
 
 
 # TODO(wpk): remove when rework PerturbModel
@@ -136,7 +136,7 @@ class SupportsDataXU(Protocol[T_co]):
     def rec_dim(self) -> str: ...
 
     @abstractmethod
-    def resample(self, sampler: Sampler) -> Self: ...
+    def resample(self, sampler: SamplerType) -> Self: ...
 
 
 @runtime_checkable
@@ -162,7 +162,7 @@ class SupportsModel(Protocol[T_co]):
     @abstractmethod
     def predict(self, alpha: ArrayLike) -> T_co: ...
     @abstractmethod
-    def resample(self, sampler: Sampler) -> Self: ...
+    def resample(self, sampler: SamplerType) -> Self: ...
 
 
 @runtime_checkable
@@ -258,7 +258,9 @@ class SupportsStateCollection(Protocol[T_co, SupportsModelT_co]):
     def alpha0(self) -> list[float]:
         return [m.alpha0 for m in self]
 
-    def resample(self, sampler: Sampler | Sequence[Sampler], **kws: Any) -> Self:
+    def resample(
+        self, sampler: SamplerType | Sequence[SamplerType], **kws: Any
+    ) -> Self:
         """
         Resample underlying models.
 
@@ -276,7 +278,7 @@ class SupportsStateCollection(Protocol[T_co, SupportsModelT_co]):
         ):
             sampler = [sampler] * len(self)
         elif not isinstance(sampler, Sized) or len(sampler) != len(self):
-            msg = f"Sampler must be a sized object with length {len(self)=}"
+            msg = f"SamplerType must be a sized object with length {len(self)=}"
             raise ValueError(msg)
 
         return self.new_like(

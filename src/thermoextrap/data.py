@@ -44,9 +44,9 @@ if TYPE_CHECKING:
         AxisReduce,
         DimsReduce,
         MissingType,
-        Sampler,
         SelectMoment,
     )
+    from cmomy.resample.typing import SamplerType
     from numpy.typing import ArrayLike
 
     from .core.typing import (
@@ -346,7 +346,7 @@ class AbstractData(
         pass
 
     @abstractmethod
-    def resample(self, sampler: Sampler) -> Self:
+    def resample(self, sampler: SamplerType) -> Self:
         pass
 
     @property
@@ -588,7 +588,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
     @docfiller_shared.decorate
     def resample(
         self,
-        sampler: Sampler,
+        sampler: SamplerType,
         dim: DimsReduce | MissingType = MISSING,
         axis: AxisReduce | MissingType = MISSING,
         rep_dim: SingleDim = "rep",
@@ -880,7 +880,7 @@ class DataCentralMoments(DataCentralMomentsBase[DataT]):
         xv: DataT,
         uv: xr.DataArray,
         order: int,
-        sampler: Sampler,
+        sampler: SamplerType,
         weight: NDArrayAny | xr.DataArray | DataT | None = None,
         axis: AxisReduce | MissingType = MISSING,
         dim: DimsReduce | MissingType = MISSING,
@@ -1306,7 +1306,7 @@ class DataCentralMomentsVals(DataCentralMomentsBase[DataT]):
     @docfiller_shared.inherit(DataCentralMoments.resample)
     def resample(
         self,
-        sampler: Sampler,
+        sampler: SamplerType,
         dim: DimsReduce | MissingType = MISSING,
         axis: AxisReduce | MissingType = MISSING,
         rep_dim: SingleDim = "rep",

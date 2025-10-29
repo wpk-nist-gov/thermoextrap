@@ -1,7 +1,7 @@
 import cmomy
 import numpy as np
 import xarray as xr
-from cmomy.core.typing import FactoryIndexSamplerKwargs
+from cmomy.resample.typing import FactoryIndexSamplerKwargs
 
 import thermoextrap as xtrap
 

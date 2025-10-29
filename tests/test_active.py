@@ -17,7 +17,7 @@ from thermoextrap import idealgas
 from thermoextrap.gpr_active import active_utils, gp_models, ig_active
 
 if TYPE_CHECKING:
-    from cmomy.core.typing import Sampler
+    from cmomy.resample.typing import SamplerType
     from numpy.random import Generator
 
 # For now, not testing DataWrapper or SimWrapper objects
@@ -30,7 +30,7 @@ def rng() -> Generator:
 
 
 @pytest.fixture
-def sampler(rng: Generator) -> Sampler:
+def sampler(rng: Generator) -> SamplerType:
     return {"nrep": 100, "rng": rng}
 
 
@@ -67,7 +67,7 @@ def test_rbf_expr() -> None:
 
 # Next test function for building GP inputs from thermoextrap ExtrapModel objects
 # (representing thermodynamic states)
-def test_make_gp_input(rng: Generator, sampler: Sampler) -> None:
+def test_make_gp_input(rng: Generator, sampler: SamplerType) -> None:
     beta = 5.6
     state = ig_active.extrap_IG(beta, rng=rng)
 
@@ -147,7 +147,7 @@ def test_make_gp_input(rng: Generator, sampler: Sampler) -> None:
 
 
 # Next want to test creation of a GP model
-def test_base_gp_creation(rng: Generator, sampler: Sampler) -> None:
+def test_base_gp_creation(rng: Generator, sampler: SamplerType) -> None:
     # Need data to work with
     raw_x_data = []
     raw_y_data = []
@@ -273,7 +273,7 @@ def test_base_gp_creation(rng: Generator, sampler: Sampler) -> None:
 # Simple test for checking training of GP model
 # Test is a bit slow, though
 @pytest.mark.slow
-def test_train_gp(sampler: Sampler) -> None:
+def test_train_gp(sampler: SamplerType) -> None:
     # Will compare training results to a reference
     # Need data to work with
     raw_x_data = []
@@ -316,7 +316,7 @@ def test_train_gp(sampler: Sampler) -> None:
 # Simple test for creating a GP model from list of states
 # Also a bit slow
 @pytest.mark.slow
-def test_create_gp_from_states(rng: Generator, sampler: Sampler) -> None:
+def test_create_gp_from_states(rng: Generator, sampler: SamplerType) -> None:
     # Need data to work with
     states = [ig_active.extrap_IG(beta, rng=rng) for beta in (1.0, 5.6, 9.0)]
 
@@ -343,7 +343,7 @@ def test_create_gp_from_states(rng: Generator, sampler: Sampler) -> None:
 
 # Testing update and stopping function classes
 @pytest.mark.slow
-def test_update_stop_abc(rng: Generator, sampler: Sampler) -> None:
+def test_update_stop_abc(rng: Generator, sampler: SamplerType) -> None:
     # Need data to work with
     beta_list = [1.0, 5.6, 9.0]
     states = [ig_active.extrap_IG(beta, rng=rng) for beta in beta_list]
@@ -412,7 +412,7 @@ def test_update_stop_abc(rng: Generator, sampler: Sampler) -> None:
 # Rather than check all of these (hard for random...)
 # just check to make sure satisfy correct input/output structure
 @pytest.mark.slow
-def test_update_classes(rng: Generator, sampler: Sampler) -> None:
+def test_update_classes(rng: Generator, sampler: SamplerType) -> None:
     # Need data to work with
     beta_list = [1.0, 5.6, 9.0]
     states = [ig_active.extrap_IG(beta, rng=rng) for beta in beta_list]
@@ -452,7 +452,7 @@ def test_update_classes(rng: Generator, sampler: Sampler) -> None:
 
 
 @pytest.mark.slow
-def test_update_classes_multioutput(rng: Generator, sampler: Sampler) -> None:
+def test_update_classes_multioutput(rng: Generator, sampler: SamplerType) -> None:
     # Need data to work with
     beta_list = [1.0, 5.6, 9.0]
     states = [ig_active.multiOutput_extrap_IG(beta, rng=rng) for beta in beta_list]
@@ -492,7 +492,7 @@ def test_update_classes_multioutput(rng: Generator, sampler: Sampler) -> None:
 # Same for metric classes
 # just check mechanics for taking inputs and generic features of outputs
 @pytest.mark.slow
-def test_metrics(rng: Generator, sampler: Sampler) -> None:
+def test_metrics(rng: Generator, sampler: SamplerType) -> None:
     # Need to create inputs to work with
     # Expects "history" which is a list of array-likes
     # where index zero is GP means over time and index one is vars
@@ -572,7 +572,7 @@ def test_metrics(rng: Generator, sampler: Sampler) -> None:
 
 # Test class for implementing stopping criteria
 @pytest.mark.slow
-def test_stop_criteria(rng: Generator, sampler: Sampler) -> None:
+def test_stop_criteria(rng: Generator, sampler: SamplerType) -> None:
     # Need data to work with
     beta_list = [1.0, 5.6, 9.0]
     states = [ig_active.extrap_IG(beta, rng=rng) for beta in beta_list]
@@ -664,7 +664,7 @@ def test_stop_criteria(rng: Generator, sampler: Sampler) -> None:
 
 
 @pytest.mark.slow
-def test_active_learning(caplog, sampler: Sampler) -> None:
+def test_active_learning(caplog, sampler: SamplerType) -> None:
     # Starting beta values
     init_states = [1.0, 9.6]
     sims = ig_active.SimulateIG()
@@ -693,7 +693,7 @@ def test_active_learning(caplog, sampler: Sampler) -> None:
 
 
 @pytest.mark.slow
-def test_active_learning_2(caplog, sampler: Sampler) -> None:
+def test_active_learning_2(caplog, sampler: SamplerType) -> None:
     # Starting beta values
     init_states = [1.0, 9.6]
     sims = ig_active.SimulateIG()

@@ -26,8 +26,8 @@ if TYPE_CHECKING:
     from cmomy.core.typing import (
         DimsReduce,
         MissingType,
-        Sampler,
     )
+    from cmomy.resample.typing import SamplerType
     from numpy.typing import ArrayLike
 
     from thermoextrap.core.typing import (
@@ -86,7 +86,7 @@ class DataValuesBase(AbstractData, Generic[DataT]):
     @docfiller_shared.decorate
     def resample(
         self,
-        sampler: Sampler,
+        sampler: SamplerType,
         *,
         rep_dim: SingleDim = "rep",
         meta_kws: OptionalKwsAny = None,

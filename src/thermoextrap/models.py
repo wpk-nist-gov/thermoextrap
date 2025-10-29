@@ -56,7 +56,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Hashable
     from typing import ClassVar
 
-    from cmomy.core.typing import Sampler
+    from cmomy.resample.typing import SamplerType
     from numpy.typing import ArrayLike, NDArray
     from pymbar.mbar import MBAR
     from sympy.core.expr import Expr
@@ -709,7 +709,7 @@ class ExtrapModel(MyAttrsMixin, Generic[DataT]):
 
         return out
 
-    def resample(self, sampler: Sampler, **kws: Any) -> Self:
+    def resample(self, sampler: SamplerType, **kws: Any) -> Self:
         """Create new object with resampled data."""
         return self.new_like(
             order=self.order,
@@ -793,7 +793,9 @@ class StateCollection(
         msg = "To be implemented by subclass"
         raise NotImplementedError(msg)
 
-    def resample(self, sampler: Sampler | Sequence[Sampler], **kws: Any) -> Self:
+    def resample(
+        self, sampler: SamplerType | Sequence[SamplerType], **kws: Any
+    ) -> Self:
         """
         Resample underlying models.
 
@@ -811,7 +813,7 @@ class StateCollection(
         ):
             sampler = [sampler] * len(self)
         elif not isinstance(sampler, Sized) or len(sampler) != len(self):
-            msg = f"Sampler must be a sized object with length {len(self)=}"
+            msg = f"SamplerType must be a sized object with length {len(self)=}"
             raise ValueError(msg)
 
         return type(self)(
@@ -1232,7 +1234,7 @@ class PerturbModel(MyAttrsMixin, Generic[DataT]):
 
         return num / den
 
-    def resample(self, sampler: Sampler, **kws: Any) -> Self:
+    def resample(self, sampler: SamplerType, **kws: Any) -> Self:
         return self.__class__(
             alpha0=self.alpha0,
             data=self.data.resample(sampler=sampler, **kws),

@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from os import PathLike
     from typing import Any, SupportsIndex
 
-    from cmomy.core.typing import Sampler
+    from cmomy.resample.typing import SamplerType
     from gpflow.mean_functions import MeanFunction
     from numpy.typing import ArrayLike
     from scipy.optimize import OptimizeResult
@@ -85,7 +85,7 @@ def get_logweights(bias: NDArrayOrDataArrayT) -> NDArrayOrDataArrayT:
 
 def input_GP_from_state(
     state: SupportsModelDerivs[xr.DataArray],
-    sampler: Sampler = 100,
+    sampler: SamplerType = 100,
     log_scale: bool = False,
 ) -> tuple[NDArrayAny, NDArrayAny, NDArrayAny]:
     """
@@ -96,8 +96,8 @@ def input_GP_from_state(
     ----------
     state : :class:`~.core.typing.SupportsModelDerivs`
       object containing derivative information
-    sampler : :obj:`~cmomy.core.typing.Sampler`
-        Sampler object.
+    sampler : :obj:`~cmomy.core.typing.SamplerType`
+        SamplerType object.
     log_scale : bool, default=False
         Whether or not to apply a log scale in the input locations
         (i.e., compute derivatives of dy/dlog(x) instead of dy/dx)
@@ -919,7 +919,7 @@ def create_GPR(
         | Callable[[], tuple[NDArrayAny, NDArrayAny, NDArrayAny]]
     ],
     log_scale: bool = False,
-    sampler: Sampler = 100,
+    sampler: SamplerType = 100,
     start_params: Mapping[int, Any] | Sequence[Any] | None = None,
     base_kwargs: OptionalKwsAny = None,
 ) -> HeteroscedasticGPR:
@@ -2168,7 +2168,7 @@ def active_learning(  # noqa: C901, PLR0912
     num_state_repeats: int = 1,
     save_history: bool = False,
     use_predictions: bool = False,
-    sampler: Sampler = 100,
+    sampler: SamplerType = 100,
 ) -> tuple[list[SupportsDataWrapper], dict[str, Any]]:
     """
     Continues adding new points with active learning by running simulations until the

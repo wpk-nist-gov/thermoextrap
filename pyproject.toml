@@ -33,7 +33,7 @@ classifiers = [
 ]
 dependencies = [
     "attrs>=24.1.0",
-    "cmomy>=1.0.1",
+    "cmomy>=1.0.2",
     "dm-tree",
     "lazy-loader",
     "module-utilities[inherit]>=0.11.0",
@@ -173,11 +173,12 @@ ruff = "^examples/gpr_active_learning|^examples/usage/gpr"
 
 [tool.repo-review]
 ignore = [
-    "GH",    # enable for actions
-    "PC140", # do this externally
-    "PC170", # pygrep
-    "PC901", # ci message
+    "GH",     # enable for actions
+    "PC140",  # do this externally
+    "PC170",  # pygrep
+    "PC901",  # ci message
     "RTD",
+    "NOX103", # I prefer using "nox.options.sessions"
 ]
 
 [tool.codespell]
@@ -232,6 +233,7 @@ filterwarnings = [
     "ignore: pkg_resources is deprecated:UserWarning",
     "ignore: invalid escape sequence:SyntaxWarning",
     "ignore: The default datetime:DeprecationWarning",
+    "ignore: importing 'Const' from 'astroid' is deprecated:DeprecationWarning",
 ]
 
 [tool.pytest_env]
@@ -401,7 +403,7 @@ reqs = [
     "pre-commit>=4.0.0",
     "pre-commit-uv",
     "prek",
-    "pyrefly",
+    "pyrefly>=0.37.0",
     "pyright>=1.1.396",
     "basedpyright>=1.31.3",
     "scriv",
